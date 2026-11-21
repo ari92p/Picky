@@ -100,6 +100,7 @@ local CHAT_CASES = {
     { "need rogue with skill 225+ for lockbox", false, true, 225 },
     { "Suche Schurke Schlossknacken 200", false, true, 200 },
     { "need rogue to open 3 chests", false, true },
+    { "LF ROGUE [Thoriumschließkassette]", false, true, 250 },
 }
 for i, c in ipairs(CHAT_CASES) do
     T(("chat detection #%d: %s%s"):format(i, c[2] and "[whisper] " or "", c[1]:sub(1, 48)), function()

@@ -83,6 +83,10 @@ function LP.Notice(kind, a, b, c)
     local ui, f = db.ui, db.finder
     if kind == "request" then
         local req = a
+        if req.status == "toohigh" then   -- skill too low: nothing we can do, so no sound, flash or popup (the list still shows it)
+            LP.RefreshAll()
+            return
+        end
         if f.sound then PlayAlert() end
         if ui.flash and FlashClientIcon then pcall(FlashClientIcon) end
         if ui.chatLine then

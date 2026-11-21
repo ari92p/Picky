@@ -158,8 +158,7 @@ function T.Request(req)
         item.hint = L["Already in your group"]
         item.maxAge = 8
     elseif st == "toohigh" then
-        item.hint = L["Your skill is not enough (needs %s)"]:format(tostring(req.req))
-        item.maxAge = 10
+        return   -- nothing to do about it: no popup
     elseif st == "queued" then
         item.hint = L["Waiting - click: invite now"]
         item.onClick = function() LP.TryInvite(req) end

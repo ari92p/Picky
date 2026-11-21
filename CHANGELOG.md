@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+- No more sound, flash or popup for requests that need a higher skill than yours (nothing you can do about them); they still appear in the list.
+- Added a chat detection test for German box names like "Thoriumschließkassette".
+
 ## 1.0.3
 - Popups are now smart: only one at a time (the newest replaces the older), each stays only while it is still relevant and can always be closed with the X.
 - New "Trade complete" popup after every trade with a customer (with or without tip): click to thank and leave the group. Picky now also leaves the group automatically after every completed trade.
