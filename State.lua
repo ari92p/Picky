@@ -1,5 +1,5 @@
 -- Picky / State.lua : ONE state and ONE event point for all displays
--- (Hauptfenster, Mini-Liste, Toast, Minimap-Button). Die Logik (Finder.lua) meldet hierher,
+-- (main window, mini list, toast, minimap button). The logic (Finder.lua) reports here,
 -- the displays read from here. This keeps everything consistent even when the window is closed.
 local ADDON, LP = ...
 local L = LP.L
@@ -22,7 +22,7 @@ function LP.Mmss(sec)
     return ("%d:%02d"):format(math.floor(sec / 60), sec % 60)
 end
 
--- Aktueller Zustand: { on, phase = "idle"|"invited"|"grouped", current, waiting, waitingNames, open, picked, tips }
+-- Current state: { on, phase = "idle"|"invited"|"grouped", current, waiting, waitingNames, open, picked, tips }
 function LP.GetState()
     local db = LP.db
     local st = { on = db and db.finder.enabled or false, phase = "idle", waiting = 0, waitingNames = {}, open = 0 }
@@ -75,7 +75,7 @@ local function PlayAlert()
     pcall(PlaySound, snd or "TellMessage")
 end
 
--- Events: "request" (new request), "joined" (customer in the group), "tip" (tip)
+-- Events: "request" (new request), "joined" (customer in the group), "trade" (trade with the customer complete), "tip" (tip)
 function LP.Notice(kind, a, b, c)
     local db = LP.db
     if not db then return end
@@ -90,7 +90,9 @@ function LP.Notice(kind, a, b, c)
         end
         if ui.toast and LP.Toast then LP.Toast.Request(req) end
     elseif kind == "joined" then
-        if ui.toast and LP.Toast then LP.Toast.Joined(a) end
+        -- no toast: the customer's request toast is closed by LP.HandleJoin
+    elseif kind == "trade" then
+        if ui.toast and LP.Toast then LP.Toast.Trade(a, b) end
     elseif kind == "tip" then
         if ui.toast and LP.Toast then LP.Toast.Tip(a, b, c) end
         -- without a toast, at least a chat line remains as proof

@@ -1,8 +1,8 @@
--- Picky / Pick.lua : Rechtsklick-Knacken (Inventar + Handelsfenster), Funkeln in Taschen
+-- Picky / Pick.lua : right-click picking (inventory + trade window), sparkle in bags
 local ADDON, LP = ...
 local L = LP.L
 
--- 1) Erkennung "verschlossen" ------------------------------------------------------------
+-- 1) Detect "locked" ------------------------------------------------------------
 local LOCKED_SET = { ["locked"] = true, ["verschlossen"] = true, ["abgeschlossen"] = true }
 local function IsTextLocked(t)
     if not t then return false end
@@ -432,7 +432,7 @@ function LP.InspectHover()
     end
 end
 
--- 4) Erfolg erkennen (-> Statistik, Auto-Verlassen) ------------------------------------------------
+-- 4) Detect success (-> statistics, auto-leave) -------------------------------------
 LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
     if unit ~= "player" then return end
     local id = (type(b) == "number" and b) or (type(a) == "number" and a)

@@ -27,7 +27,7 @@ local function Sandbox(setup, fn)
         requests = LP.requests, pending = LP.pending, partner = LP.partner, partnerSim = LP.partnerSim,
         pickedForPartner = LP.pickedForPartner, waitTradeClose = LP.waitTradeClose,
         skill = LP.skill, skillEstimated = LP.skillEstimated, inGroup = LP.InGroup, groupCount = LP.GroupCount,
-        forceDry = LP.forceDry, leaveAt = LP.leaveAt, feed = LP.feed, lastInviter = LP.lastInviter, finder = {}, ui = {}, stats = {},
+        forceDry = LP.forceDry, leaveAt = LP.leaveAt, leaveToken = LP.leaveToken, feed = LP.feed, lastInviter = LP.lastInviter, finder = {}, ui = {}, stats = {},
     }
     for _, k in ipairs(FINDER_KEYS) do saved.finder[k] = db.finder[k] end
     for _, k in ipairs(UI_KEYS) do saved.ui[k] = db.ui[k] end
@@ -51,7 +51,7 @@ local function Sandbox(setup, fn)
     LP.requests, LP.pending, LP.partner, LP.partnerSim = saved.requests, saved.pending, saved.partner, saved.partnerSim
     LP.pickedForPartner, LP.waitTradeClose = saved.pickedForPartner, saved.waitTradeClose
     LP.skill, LP.skillEstimated, LP.InGroup, LP.GroupCount, LP.forceDry = saved.skill, saved.skillEstimated, saved.inGroup, saved.groupCount, saved.forceDry
-    LP.leaveAt = saved.leaveAt
+    LP.leaveAt, LP.leaveToken = saved.leaveAt, saved.leaveToken
     LP.feed, LP.lastInviter = saved.feed, saved.lastInviter
     for k, v in pairs(saved.finder) do db.finder[k] = v end
     for k, v in pairs(saved.ui) do db.ui[k] = v end
@@ -66,7 +66,7 @@ local function Req(name, status, extra)
     return r
 end
 
--- 1) Chat-Erkennung -----------------------------------------------------------------------------------------
+-- 1) Chat detection -----------------------------------------------------------------------------------------
 local ITEM_IRON = "|cffffffff|Hitem:4634::::::::60:::::|h[Iron Lockbox]|h|r"
 local CHAT_CASES = {
     -- { message, whispered, should be detected, expected skill (or nil) }
@@ -94,6 +94,12 @@ local CHAT_CASES = {
     { "hello how are you", true, false },
     { "good morning everyone", false, false },
     { "rogue lf group for deadmines", false, false },
+    -- explicit skill numbers
+    { "lf rogue lockpick 175 /2 me", false, true, 175 },
+    { "LF rogue 150 lockpicking pls", false, true, 150 },
+    { "need rogue with skill 225+ for lockbox", false, true, 225 },
+    { "Suche Schurke Schlossknacken 200", false, true, 200 },
+    { "need rogue to open 3 chests", false, true },
 }
 for i, c in ipairs(CHAT_CASES) do
     T(("chat detection #%d: %s%s"):format(i, c[2] and "[whisper] " or "", c[1]:sub(1, 48)), function()
@@ -103,7 +109,7 @@ for i, c in ipairs(CHAT_CASES) do
     end)
 end
 
--- 2) Hilfsfunktionen -------------------------------------------------------------------------------------------
+-- 2) Helper functions -------------------------------------------------------------------------------------------
 T("Money formatting", function()
     eq(LP.Money(0), "0k", "0")
     eq(LP.Money(5), "5k", "5")
@@ -238,7 +244,7 @@ T("translations: saved default text follows the client language", function()
     eq(tbl.c, "my own text", "own text untouched")
 end)
 
--- 4) Entscheidungslogik (Trockenlauf) --------------------------------------------------------------------------------
+-- 4) Decision logic (dry run) ---------------------------------------------------
 T("decide: skill too low -> not invited", function()
     Sandbox(nil, function()
         LP.skill = 100
@@ -298,7 +304,7 @@ end)
 T("state: counts, phase and next invitable", function()
     Sandbox(nil, function()
         local a, b, c = Req("A", "done"), Req("B", "queued"), Req("C", "new")
-        LP.requests = { c, b, a }   -- neueste zuerst
+        LP.requests = { c, b, a }   -- newest first
         local st = LP.GetState()
         eq(st.waiting, 1, "waiting")
         eq(st.open, 2, "open")
@@ -483,6 +489,24 @@ T("leave: a new trade cancels the scheduled leave (several boxes in a row)", fun
         local token = LP.leaveToken
         LP.CancelLeave()
         truthy(LP.leaveToken ~= token, "token changed, the pending leave will not fire")
+    end)
+end)
+T("trade complete: customer in group -> leave is scheduled; others are ignored", function()
+    Sandbox(nil, function()
+        LP.partner = "Anna"
+        LP.HandleTradeComplete("Bob")
+        eq(LP.leaveAt, nil, "non-partner ignored")
+        LP.HandleTradeComplete("Anna")
+        truthy(LP.leaveAt and LP.leaveAt > GetTime(), "leave scheduled")
+        LP.leaveAt = nil
+        LP.HandleTradeComplete("Anna-Realm")
+        truthy(LP.leaveAt ~= nil, "full name with realm matches")
+        local at = LP.leaveAt
+        LP.HandleTradeComplete("Anna")
+        eq(LP.leaveAt, at, "live countdown is not restarted")
+        LP.leaveAt = GetTime() - 5   -- stale countdown (timer failed): schedule again
+        LP.HandleTradeComplete("Anna")
+        truthy(LP.leaveAt > GetTime(), "stale countdown replaced")
     end)
 end)
 T("orders: saved orders are restored (times, expiry, stale invite, simulated dropped)", function()

@@ -1,16 +1,18 @@
 -- Picky / Toast.lua : small notification for events (pattern: GearQuestForever Toast.lua)
 -- Large clickable area with text (for requests: click = invite) + fixed "Open window" button.
--- Queue, pauses on mouseover, fades out on its own.
+-- One toast at a time; a new toast always replaces the current one (the newest wins).
+-- A toast stays only as long as it is still relevant: each one has a valid() check that is polled,
+-- and info-only toasts have a maxAge. The X or a click closes any toast right away.
 local ADDON, LP = ...
 local L = LP.L
 local T = {}
 LP.Toast = T
 
-local FADE_IN, HOLD, FADE_OUT = 0.35, 7.0, 0.6
+local FADE_IN = 0.35
 local WIDTH, HEIGHT = 380, 70
 local ICON = "Interface\\Icons\\Spell_Nature_MoonKey"
 
-local frame, queue, anim, animStart, hover = nil, {}, nil, 0, false
+local frame, anim, animStart = nil, nil, 0
 
 local function Ensure()
     if frame then return frame end
@@ -57,20 +59,23 @@ local function Ensure()
     -- fixed button: open the Picky window
     local open = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     open:SetSize(72, 24)
-    open:SetPoint("RIGHT", -10, 0)
+    open:SetPoint("BOTTOMRIGHT", -10, 10)
     open:SetText(L["Window"])
     open:SetScript("OnClick", function() LP.ShowUI() T.Dismiss() end)
-    open:SetScript("OnEnter", function() hover = true end)
-    open:SetScript("OnLeave", function() hover = false end)
     frame.open = open
+
+    -- close button: the toast stays until this X is clicked
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetSize(22, 22)
+    close:SetPoint("TOPRIGHT", -2, -2)
+    close:SetScript("OnClick", function() T.Dismiss() end)
+    frame.close = close
 
     frame:SetScript("OnClick", function(self)
         local fn = self.onClick
         T.Dismiss()
         if fn then fn() end
     end)
-    frame:SetScript("OnEnter", function() hover = true end)
-    frame:SetScript("OnLeave", function() hover = false end)
     frame:SetScript("OnUpdate", function() T.OnUpdate() end)
 
     -- Position: about 20% above the bottom edge, as in GearQuest
@@ -82,68 +87,79 @@ local function Finish()
     local f = Ensure()
     f:Hide()
     f:SetAlpha(0)
-    f.onClick = nil
-    anim, hover = nil, false
+    f.onClick, f.key, f.reqName, f.valid, f.maxAge = nil, nil, nil, nil, nil
+    anim = nil
 end
 
-local function ShowNext()
-    if anim or #queue == 0 then return end
-    local item = table.remove(queue, 1)
+function T.Dismiss()
+    Finish()
+end
+
+-- Dismiss the current toast if its key starts with prefix (e.g. "trade:")
+function T.DismissKey(prefix)
+    if frame and frame:IsShown() and frame.key and frame.key:find(prefix, 1, true) == 1 then Finish() end
+end
+
+-- Dismiss the current toast if it is a request toast for this player
+function T.DismissRequest(name)
+    if frame and frame:IsShown() and frame.reqName and name and LP.SameName(frame.reqName, name) then Finish() end
+end
+
+local lastCheck = 0
+function T.OnUpdate()
+    if not frame or not frame:IsShown() then return end
+    if anim == "in" then
+        local t = GetTime() - animStart
+        frame:SetAlpha(math.min(1, t / FADE_IN))
+        if t >= FADE_IN then anim = "hold" frame:SetAlpha(1) end
+    end
+    -- relevance check twice a second: gone when its subject is no longer relevant or it is too old
+    local now = GetTime()
+    if now - lastCheck < 0.5 then return end
+    lastCheck = now
+    if frame.maxAge and now - frame.shownAt > frame.maxAge then return Finish() end
+    if frame.valid then
+        local ok, res = pcall(frame.valid)
+        if ok and not res then Finish() end
+    end
+end
+
+-- Show a message. It replaces whatever toast is currently shown.
+function T.Push(item)
     local f = Ensure()
     f.icon:SetTexture(item.icon or ICON)
     f.title:SetText(item.title or "")
     f.line:SetText(item.line or "")
     f.hint:SetText(item.hint or "")
-    f.onClick = item.onClick
-    f:SetAlpha(0)
-    f:Show()
-    anim, animStart, hover = "in", GetTime(), false
-end
-
-function T.Dismiss()
-    Finish()
-    ShowNext()
-end
-
-function T.OnUpdate()
-    if not anim or hover then
-        if anim == "out" and hover then anim, animStart = "hold", GetTime() frame:SetAlpha(1) end
-        if hover and anim == "hold" then animStart = GetTime() end
-        return
+    f.onClick, f.key, f.reqName = item.onClick, item.key, item.reqName
+    f.valid, f.maxAge, f.shownAt = item.valid, item.maxAge, GetTime()
+    if not f:IsShown() then
+        f:SetAlpha(0)
+        f:Show()
+        anim, animStart = "in", GetTime()
     end
-    local t = GetTime() - animStart
-    if anim == "in" then
-        frame:SetAlpha(math.min(1, t / FADE_IN))
-        if t >= FADE_IN then anim, animStart = "hold", GetTime() frame:SetAlpha(1) end
-    elseif anim == "hold" then
-        if t >= HOLD then anim, animStart = "out", GetTime() end
-    elseif anim == "out" then
-        frame:SetAlpha(math.max(0, 1 - t / FADE_OUT))
-        if t >= FADE_OUT then Finish() ShowNext() end
-    end
-end
-
--- Queue a message; identical messages (key) are not queued twice
-function T.Push(item)
-    if item.key then
-        for _, q in ipairs(queue) do if q.key == item.key then return end end
-    end
-    queue[#queue + 1] = item
-    while #queue > 3 do table.remove(queue, 1) end   -- avoid a backlog: only the last 3 waiting messages count, older ones are outdated
-    ShowNext()
 end
 
 -- New request: large area. Depending on status: click = invite, or info only.
 function T.Request(req)
     local box = req.label or (req.req and L["Box, skill %d"]:format(req.req)) or L["Box unknown"]
-    local item = { key = "req:" .. req.name, title = L["New request"], line = req.name .. "  ·  " .. box }
+    local item = { key = "req:" .. req.name, reqName = req.name, title = L["New request"], line = req.name .. "  ·  " .. box }
     local st = req.status
+    -- relevant while the request is still in the list with the same status (invited -> joined/timeout, removed, expired ...)
+    item.valid = function()
+        if req.status ~= st then return false end
+        for _, r in ipairs(LP.requests) do if r == req then return true end end
+        return false
+    end
     if st == "invited" then
         item.hint = L["Will be invited automatically"]
+        item.maxAge = 60   -- in test mode the invite never times out by itself
     elseif st == "grouped" then
         item.hint = L["Already in your group"]
+        item.maxAge = 8
     elseif st == "toohigh" then
         item.hint = L["Your skill is not enough (needs %s)"]:format(tostring(req.req))
+        item.maxAge = 10
     elseif st == "queued" then
         item.hint = L["Waiting - click: invite now"]
         item.onClick = function() LP.TryInvite(req) end
@@ -154,12 +170,44 @@ function T.Request(req)
     T.Push(item)
 end
 
-function T.Joined(req)
-    T.Push({ key = "join:" .. req.name, title = L["In the group"], line = req.name,
-        hint = L["Open a trade and put the box in the bottom slot"], onClick = function() LP.ShowUI() end })
+-- Tip received. From the customer in the group this is part of the "trade complete" toast.
+function T.Tip(name, copper, how)
+    if LP.partner and LP.SameName(name, LP.partner) then return T.Trade(name, copper) end
+    T.Push({ title = L["Tip"], line = (name or "?") .. "  ·  |cffffd100" .. LP.Money(copper) .. "|r",
+        hint = (how == "later" and L["Thank-you follows when you leave"]) or (how == "sent" and L["Thank-you message sent"]) or "", icon = "Interface\\Icons\\INV_Misc_Coin_01",
+        maxAge = 10 })
 end
 
-function T.Tip(name, copper, how)
-    T.Push({ title = L["Tip"], line = (name or "?") .. "  ·  |cffffd100" .. LP.Money(copper) .. "|r",
-        hint = (how == "later" and L["Thank-you follows when you leave"]) or (how == "sent" and L["Thank-you message sent"]) or "", icon = "Interface\\Icons\\INV_Misc_Coin_01" })
+-- A trade with the customer in the group is complete (with or without tip). Click = thank + leave the group.
+-- Closed automatically when the group ends (see LP.HandleLeave).
+function T.Trade(name, copper)
+    -- the order holds the total tip of this customer (several boxes/trades in a row)
+    local r = LP.FindRequest(name)
+    local total = math.max(copper or 0, r and r.tipTotal or 0)
+    local tip = total > 0
+    local f = LP.db and LP.db.finder
+    local thankPending = tip and f and f.thanks and not (r and r.thanked)
+    T.Push({ key = "trade:" .. tostring(name), title = L["Trade complete"],
+        line = tostring(name) .. "  ·  " .. (tip and ("|cffffd100" .. LP.Money(total) .. "|r") or L["No tip"]),
+        hint = thankPending and L["Click: thank & leave group"] or L["Click: leave group"],
+        icon = tip and "Interface\\Icons\\INV_Misc_Coin_01" or nil,
+        -- relevant while this customer is still in the group
+        valid = function() return LP.partner ~= nil and LP.SameName(name, LP.partner) end,
+        onClick = function() if LP.partner and (LP.IsDry() or LP.InGroup()) then LP.DoLeave() end end })
+end
+
+-- Customer put a box in the trade that needs more skill than you have. Click = tell the customer.
+function T.BoxTooHigh(link, msg, who, need, have)
+    T.Push({ key = "high:" .. tostring(link), title = L["Box too high"], line = msg, hint = L["Click: tell the customer"],
+        icon = "Interface\\Icons\\INV_Misc_Key_03",
+        -- relevant while the trade window is open and that box is still offered
+        valid = function()
+            if not (TradeFrame and TradeFrame:IsShown()) then return false end
+            for slot = 1, 7 do if GetTradeTargetItemLink and GetTradeTargetItemLink(slot) == link then return true end end
+            return false
+        end,
+        onClick = who and function()
+            local req = who and LP.FindRequest(who)
+            LP.Whisper((req and req.sender) or who, L["Sorry, your box needs lockpicking %d, but my skill is only %d."]:format(need, have))
+        end or nil })
 end

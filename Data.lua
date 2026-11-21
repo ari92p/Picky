@@ -43,7 +43,7 @@ local DE_NAMES = {
 function LP.BoxName(id)
     local name = GetItemInfo and GetItemInfo(id)
     if name then return name end
-    local cached = LP.db and LP.db.itemNames and LP.db.itemNames[id]   -- vom Spiel selbst gemerkt
+    local cached = LP.db and LP.db.itemNames and LP.db.itemNames[id]   -- remembered from the game itself
     if cached then return cached end
     if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end   -- queue it up for next time
     local b = LP.BOXES[id]

@@ -45,6 +45,25 @@ local function ChestLike(s)
     return s:find("%f[%a]ch%a%a?st%f[%A]") ~= nil or s:find("%f[%a]ch%a%a?sts%f[%A]") ~= nil
 end
 
+-- An explicit skill number next to a lockpicking word: "lockpick 175", "175 lockpicking", "skill 150+", "schlossknacken 200".
+-- Returns the highest such number (skill range 20-300; smaller numbers are usually amounts like "3 chests").
+local SKILL_PATTERNS = {
+    "%f[%a]lockpick%a*%s*:?%s*(%d+)", "(%d+)%+?%s*lockpick",
+    "%f[%a]skill%s*:?%s*(%d+)", "(%d+)%+?%s*skill",
+    "schlossknack%a*%s*:?%s*(%d+)", "(%d+)%+?%s*schlossknack",
+    "%f[%a]knacken%s*:?%s*(%d+)", "(%d+)%+?%s*knacken",
+}
+local function ExplicitSkill(s)
+    local best
+    for _, pat in ipairs(SKILL_PATTERNS) do
+        for num in s:gmatch(pat) do
+            local n = tonumber(num)
+            if n and n >= 20 and n <= 300 and (not best or n > best) then best = n end
+        end
+    end
+    return best
+end
+
 -- Analyze message -> ok, required skill, box name
 local function Analyze(msg, isWhisper)
     local ids = {}
@@ -70,6 +89,12 @@ local function Analyze(msg, isWhisper)
         for _, k in ipairs(LP.BOXKEYS) do
             if s:find(k[1], 1, true) and (not req or k[2] > req) then req, label = k[2], k[3] end
         end
+    end
+
+    -- an explicit number ("lockpick 175") wins when it is higher than the estimate
+    if hint or HasTok(s, ROGUE) then
+        local n = ExplicitSkill(s)
+        if n and (not req or n > req) then req = n end
     end
 
     local lock = linked or hint
@@ -118,12 +143,14 @@ function LP.TryInvite(req)
     LP.Invite(req.name)
     LP.Feed("invite", L["%s invited"]:format(req.name))
     req.status = "invited"
+    local myInvite = GetTime()
+    req.invitedAt = myInvite   -- a repeated invite starts a new 60 s window; the old timer must not fire for it
     LP.pending = req
     if not LP.IsDry() then LP.db.stats.invited = LP.db.stats.invited + 1 end
     Touch()
     if LP.IsDry() then return end   -- dry run: never a real join, so no "not joined" timeout either
     LP.After(60, function()
-        if req.status == "invited" then
+        if req.status == "invited" and req.invitedAt == myInvite then
             req.status = "timeout"
             LP.Debug("invite", "%s did not join within 60s", req.name)
             LP.Feed("warn", L["%s did not join"]:format(req.name))
@@ -230,7 +257,7 @@ function LP.OnChat(event, msg, sender, sim)
     -- stamp = timestamp (epoch) for display and storage; time = GetTime() only for wait times in this session
     local r = { name = name, sender = sender, msg = msg, time = now, stamp = time(), req = req, label = label, status = "new", sim = sim }
     table.insert(LP.requests, 1, r)
-    while #LP.requests > 1000 do table.remove(LP.requests) end   -- Sicherheitsgrenze, praktisch unbegrenzt
+    while #LP.requests > 1000 do table.remove(LP.requests) end   -- safety limit, practically unlimited
     LP.Debug("chat", "request from %s (%s): need=%s box=%s | %s", name, event, req, label, msg)
     LP.Feed("request", label and L["Request from %s (%s)"]:format(name, label) or L["Request from %s"]:format(name))
     if not LP.partner and LP.InGroup() and LP.InGroupWith(name) then
@@ -254,7 +281,7 @@ for _, ev in ipairs({ "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT
     LP.On(ev, function(event, msg, sender) LP.OnChat(event, msg, sender) end)
 end
 
--- Einladungen annehmen -------------------------------------------------------------------
+-- Accepting invites ------------------------------------------------------------------
 -- Was an announcement made in the last 10 minutes? (via Picky OR your own message with the spell link, e.g. from a macro)
 local AD_WINDOW = 600
 function LP.AdRecent()
@@ -276,6 +303,7 @@ LP.On("PARTY_INVITE_REQUEST", function(_, inviter)
     local f = LP.db and LP.db.finder
     LP.Debug("group", "party invite from %s (finder %s, auto accept %s, already in group %s)", tostring(inviter), tostring(f and f.enabled), tostring(f and f.autoAccept), tostring(LP.InGroup()))
     LP.lastInviter = { name = inviter, t = GetTime() }   -- who invited me last (see CheckRoster)
+    if LP.Toast then LP.Toast.DismissRequest(inviter) end   -- they invite me themselves: the request toast is obsolete
     local accept, why = LP.ShouldAcceptInvite(inviter)
     LP.lastInviter.auto = accept and true or false   -- did Picky accept it itself? (only then does an unknown person count as a customer)
     LP.Debug("group", "invite from %s: %s (%s)", tostring(inviter), accept and "accepting" or "not accepting", why)
@@ -311,6 +339,7 @@ function LP.HandleJoin(p)
     LP.Feed("join", L["%s joined the group"]:format(p.name))
     -- greeting first, then the notification: an error in the display must never prevent the whisper
     if f.welcome then LP.Whisper(p.sender or p.name, f.welcomeText) end
+    if LP.Toast then LP.Toast.DismissRequest(p.name) end   -- the customer is in the group: the request toast is obsolete
     LP.Notice("joined", p)
     if f.autoLeave and f.idleLeave and f.idleLeave > 0 then
         local who = p.name
@@ -332,6 +361,7 @@ function LP.HandleLeave()
     LP.leaveToken = (LP.leaveToken or 0) + 1   -- planned leave is done
     if r and r.status == "grouped" then r.status = "done" r.endStamp = time() end
     LP.leaveAt = nil
+    if LP.Toast then LP.Toast.DismissKey("trade:") end   -- group ended (we left, they left, or we were removed)
     if LP.partner then LP.Feed("leave", L["Group with %s ended"]:format(LP.partner)) end
     LP.Debug("group", "group with %s ended", LP.partner)
     LP.partner, LP.pickedForPartner, LP.waitTradeClose, LP.partnerSim = nil, false, false, nil
@@ -387,7 +417,7 @@ function LP.CheckRoster()
         return true
     end
     if f.enabled then
-        for _, r in ipairs(LP.requests) do   -- neueste zuerst
+        for _, r in ipairs(LP.requests) do   -- newest first
             if r.status ~= "grouped" and r.status ~= "done" and r.status ~= "toohigh"
                 and GetTime() - r.time < 900 and LP.InGroupWith(r.name) then
                 LP.Debug("group", "%s is in your group (they invited you or joined on their own)", r.name)
@@ -462,6 +492,7 @@ end
 
 -- Trade: detect tip + thanks ------------------------------------------------------------------
 local tradeName, tradeTip, tradeStartMoney, tipHandled = nil, 0, 0, false
+local closedName, closedAt   -- partner of the trade that just closed (the completion message can arrive after the window closed)
 local lastTrade   -- last closed trade with a tip: waits for the money to arrive / the completion message
 LP.On("TRADE_SHOW", function()
     tradeName = (UnitName("NPC")) or (TradeFrameRecipientNameText and TradeFrameRecipientNameText:GetText())
@@ -497,6 +528,7 @@ LP.On("UI_INFO_MESSAGE", function(_, a, b)
     if not msg then return end
     if msg == _G.ERR_TRADE_COMPLETE then
         LP.Debug("trade", "'trade complete' message (tip %s, partner %s)", LP.Money(tradeTip), tostring(tradeName))
+        LP.HandleTradeComplete(tradeName or (closedAt and GetTime() - closedAt < 5 and closedName) or nil)
         if tradeTip > 0 and tradeName and not tipHandled then
             tipHandled = true   -- the message came before the window closed
             LP.HandleTip(LP.Short(tradeName), tradeTip)
@@ -507,6 +539,18 @@ LP.On("UI_INFO_MESSAGE", function(_, a, b)
         LP.Debug("trade", "info message: %s", msg)   -- helps if the completion message is worded differently in this client
     end
 end)
+
+-- A trade finished successfully. With the customer in the group: show the "trade complete" toast
+-- (click = thank + leave) and make sure the group is left afterwards, whether or not there was a tip.
+function LP.HandleTradeComplete(name)
+    if not name or not LP.partner or not LP.SameName(name, LP.partner) then return end
+    local f = LP.db.finder
+    LP.Notice("trade", LP.Short(name), 0)
+    if f.autoLeave and not (LP.leaveAt and LP.leaveAt > GetTime()) then   -- no live countdown yet
+        LP.Debug("group", "trade with %s complete: leaving soon", name)
+        LP.ScheduleLeave(f.leaveDelay or 10)
+    end
+end
 
 -- Tip received (real trade or simulation)
 function LP.HandleTip(name, tip, simulated)
@@ -524,7 +568,7 @@ function LP.HandleTip(name, tip, simulated)
             how = "later"
             LP.Debug("trade", "thank-you for %s deferred until the group ends (total tip %s)", name, LP.Money(req.tipTotal))
         else
-            LP.Whisper((req and req.sender) or name, f.thanksText)   -- voller Name (Realm), falls bekannt
+            LP.Whisper((req and req.sender) or name, f.thanksText)   -- full name (realm), if known
             if not LP.IsDry() then LP.db.stats.thanked = LP.db.stats.thanked + 1 end
             if req then req.tipTotal = (req.tipTotal or 0) + tip req.thanked = true end   -- also count it on the order here
             how = "sent"
@@ -538,6 +582,7 @@ end
 
 LP.On("TRADE_CLOSED", function()
     local name, tip, start, handled = tradeName, tradeTip, tradeStartMoney, tipHandled
+    if tradeName then closedName, closedAt = tradeName, GetTime() end   -- TRADE_CLOSED can fire twice: do not overwrite with nil
     tradeName, tradeTip = nil, 0
     LP.Debug("trade", "trade window closed (tip offered %s, already handled: %s)", LP.Money(tip), tostring(handled))
     -- the money arrives shortly AFTER closing: check several times (up to 4 s), the completion message can trigger it too
@@ -572,7 +617,7 @@ LP.On("TRADE_TARGET_ITEM_CHANGED", function()
             LP.Debug("trade", "box too high: %s", msg)
             LP.Feed("warn", msg)
             LP.Print("|cffff5959" .. msg .. "|r")
-            if LP.Toast and LP.Toast.Push then LP.Toast.Push({ title = L["Box too high"], line = msg, icon = "Interface\\Icons\\INV_Misc_Key_03" }) end
+            if LP.Toast and LP.Toast.BoxTooHigh then LP.Toast.BoxTooHigh(link, msg, tradeName and LP.Short(tradeName), b[1], skill) end
         end
     end
 end)
@@ -668,7 +713,7 @@ function LP.CancelAutoAd()
     if LP.RefreshAll then LP.RefreshAll() end
 end
 
--- Simulationen (Debug-Seite) ------------------------------------------------------------------------
+-- Simulations (debug page) ------------------------------------------------------------
 -- All run as dry run: nothing is really invited, whispered or left.
 local function Dry(fn)
     local old = LP.forceDry
@@ -759,6 +804,7 @@ function LP.ExpireOpen()
     for _, r in ipairs(LP.requests) do
         if (r.status == "new" or r.status == "manual" or r.status == "queued") and now - r.time > OPEN_EXPIRE then
             r.status = "timeout"
+            if LP.Toast then LP.Toast.DismissRequest(r.name) end
             changed = true
         end
     end

@@ -4,7 +4,7 @@
 # There is no Lua interpreter, so the script checks by itself:
 #   1. Block structure with line numbers: function/if/do/repeat against end/until (strings and comments are ignored)
 #   2. Klammern () {} []
-#   3. Glued-together words like "endfunction" oder "thenreturn"
+#   3. Glued-together words like "endfunction" or "thenreturn"
 #   4. All files named in Picky.toc exist, and every .lua file is listed in the TOC
 #   5. Every L["..."] text has a German translation, and there are no orphaned translations
 param([switch]$Install, [string]$Target = "C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\Picky")

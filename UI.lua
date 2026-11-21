@@ -188,7 +188,7 @@ local function BuildRequests(p)
     p.queue:SetPoint("RIGHT", p, "RIGHT", -80, 0)
     p.queue:SetWordWrap(false)
 
-    -- Reiter Offen / Erledigt
+    -- Tabs Open / Done
     p.tabOpen = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.tabOpen:SetSize(90, 22)
     p.tabOpen:SetPoint("TOPLEFT", 0, -1)
@@ -333,7 +333,8 @@ function RefreshRequests()
             local box = q.label and ("  |cff00bdf2" .. q.label .. "|r") or ""
             r.name:SetText(q.name .. "  |cff" .. s[2] .. s[1] .. "|r" .. need .. box)
             r.msg:SetText(Summary(q))
-            r.inv:SetShown(q.status == "new" or q.status == "manual" or q.status == "queued")
+            -- also for "invited" and "timeout": invite again if the first invite did not arrive or was not accepted
+            r.inv:SetShown(q.status == "new" or q.status == "manual" or q.status == "queued" or q.status == "invited" or q.status == "timeout")
             r:SetAlpha(view == "open" and 1 or 0.8)
             r:Show()
         else
@@ -895,19 +896,28 @@ local function RefreshDev()
     local p = pages[5]
     if p and p.liveCb then p.liveCb:SetChecked(LP.db.logLive and true or false) end
 end-- Assemble the window ----------------------------------------------------------------------------------
+-- Window title: "Picky · <tab>", plus a red TEST MODE marker on every tab while test mode is on
+local function UpdateTitle()
+    if not win then return end
+    local titles = { L["Requests"], "Guide", L["Settings"], L["Test mode"], "Developer" }
+    local t = "Picky  ·  " .. (titles[currentTab] or "")
+    if LP.db.debug and currentTab ~= 4 then t = t .. "  ·  |cffff5959" .. L["Test mode"] .. "|r" end
+    win:SetTitle(t)
+end
+
 local function SelectTab(i)
     currentTab = i
-    local titles = { L["Requests"], "Guide", L["Settings"], L["Test mode"], "Developer" }
     for n, pg in ipairs(pages) do
         pg:SetShown(n == i)
         if tabs[n].SelectedTexture then tabs[n].SelectedTexture:SetShown(n == i) end
     end
-    win:SetTitle("Picky  ·  " .. titles[i])
+    UpdateTitle()
     LP.RefreshUI()
 end
 
 -- Test tab is always there; when test mode changes only refresh
 function LP.RefreshDebugTab()
+    UpdateTitle()
     if win and win:IsShown() then LP.RefreshUI() end
 end
 
@@ -1039,7 +1049,7 @@ end
 
 -- Minimap button (with state) ----------------------------------------------------------------------------
 local mm
--- true = runde Ecke in diesem Quadranten (Reihenfolge: rechts-oben, links-oben, rechts-unten, links-unten)
+-- true = rounded corner in this quadrant (order: top-right, top-left, bottom-right, bottom-left)
 local SHAPES = {
     ["ROUND"] = { true, true, true, true },
     ["SQUARE"] = { false, false, false, false },

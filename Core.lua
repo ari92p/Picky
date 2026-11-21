@@ -1,4 +1,4 @@
--- Picky / Core.lua : Namespace, Einstellungen, Hilfsfunktionen, Slash-Befehle
+-- Picky / Core.lua : namespace, settings, helper functions, slash commands
 local ADDON, LP = ...
 _G.Picky = LP
 local L = LP.L
@@ -38,7 +38,7 @@ LP.defaults = {
         minimap = true, angle = 215,
         toast = true,        -- notification on requests / join / tip
         chatLine = false,    -- additionally a line in chat
-        flash = true,        -- Taskleiste blinken
+        flash = true,        -- flash the taskbar
         scale = 100,         -- window size in percent
     },
     stats = { picked = 0, tips = 0, invited = 0, thanked = 0 },
@@ -83,7 +83,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
 end)
 
--- Hilfsfunktionen -----------------------------------------------------------
+-- Helper functions -----------------------------------------------------------
 function LP.Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ccffPicky|r: " .. tostring(msg))
 end
@@ -92,7 +92,7 @@ function LP.After(sec, fn)
     C_Timer.After(sec, fn)
 end
 
--- Debug-Modus ----------------------------------------------------------------------
+-- Debug mode ----------------------------------------------------------------------
 -- LP.Debug(area, format, ...) only writes when debug mode is on (otherwise costs almost nothing).
 -- Bereiche: chat, invite, group, trade, pick, skill, ui, test, sim
 LP.debugLog = {}
@@ -102,7 +102,7 @@ function LP.Debug(cat, fmt, ...)
     local n = select("#", ...)
     local args = { ... }
     for i = 1, n do
-        if type(args[i]) ~= "number" then args[i] = tostring(args[i]) end   -- nil/Tabellen/Booleans sicher darstellen
+        if type(args[i]) ~= "number" then args[i] = tostring(args[i]) end   -- show nil/tables/booleans safely
     end
     local ok, msg = pcall(string.format, tostring(fmt), unpack(args, 1, n))
     if not ok then msg = tostring(fmt) .. " (format error)" end
@@ -367,7 +367,7 @@ LP.On("ADDON_LOADED", function(_, name)
     PickyDB = PickyDB or {}
     Merge(PickyDB, LP.defaults)
     LP.db = PickyDB
-    -- alter Standardtext (ohne Zauber-Link) -> aktueller Standardtext
+    -- old default text (without spell link) -> current default text
     if LP.db.ad.text == "Schurke knackt Schlösser/Kisten (Skill {skill})! Schreib mir die Kiste ins Flüstern - Trinkgeld willkommen :)" then
         LP.db.ad.text = LP.defaults.ad.text
     end
