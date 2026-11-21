@@ -1,0 +1,22 @@
+name: Release
+
+# Builds the addon with the BigWigs packager and uploads it to CurseForge
+# whenever a version tag (v1.0.1, v1.1.0, ...) is pushed.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the packager needs the full history and tags
+
+      - uses: BigWigsMods/packager@v2
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
