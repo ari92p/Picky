@@ -28,7 +28,7 @@ Copy the `Picky` folder to:
 
 ## For developers
 - `/picky dev` shows a hidden **Developer** tab: self tests, hover inspector, skill diagnostics, state dump, client info.
-- `/picky test` runs the self tests (chat detection, skill/gear parsing, decisions, translations, full simulated flow; they restore your state afterwards). `/picky hover` explains what is under the mouse in 3 seconds. `/picky log` prints the last log lines.
+- `/picky test` runs the self tests (chat detection, skill/gear parsing, decisions, translations, full simulated flow; they restore your state afterwards). `/picky hover` explains what is under the mouse in 3 seconds. `/picky log` prints the last log lines. `/picky adtest` posts the announcement from a timer and reports whether the game allows that.
 
 ## Notes
 - The skill is read from the game; if that fails, set it with `/picky skill <number>`.

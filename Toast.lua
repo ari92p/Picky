@@ -195,14 +195,6 @@ function T.Trade(name, copper)
         onClick = function() if LP.partner and (LP.IsDry() or LP.InGroup()) then LP.DoLeave() end end })
 end
 
--- The timed announcement was blocked by the game (channel posts need a click): offer a click instead
-function T.AdDue()
-    T.Push({ key = "ad:due", title = L["Announcement due"], line = L["The game only allows announcements on a click"],
-        hint = L["Click: announce now"], icon = "Interface\\Icons\\INV_Misc_Note_01", maxAge = 120,
-        valid = function() return LP.db.ad.auto and not LP.InGroup() end,
-        onClick = function() LP.lastAd = nil LP.PostAd(true) end })
-end
-
 -- Customer put a box in the trade that needs more skill than you have. Click = tell the customer.
 function T.BoxTooHigh(link, msg, who, need, have)
     T.Push({ key = "high:" .. tostring(link), title = L["Box too high"], line = msg, hint = L["Click: tell the customer"],

@@ -679,12 +679,12 @@ function LP.PostAd(manual)
     if sent == 0 and blocked then
         -- The game only lets addons post to channels from a click (hardware event), not from a timer.
         LP.Feed("warn", L["The game blocked the announcement (it needs a click)"])
-        if manual then
+        -- no popup for this: a manual click prints the error, the timed one only once per session
+        if manual or not LP.adBlockedShown then
+            LP.adBlockedShown = true
             LP.Print("|cffff5959" .. L["The game blocked the announcement (it needs a click)"] .. "|r")
-        elseif LP.Toast and LP.db.ui.toast then
-            LP.Toast.AdDue()
         end
-        return
+        return "blocked"
     end
     if sent > 0 then
         if LP.IsDry() then
@@ -698,9 +698,25 @@ function LP.PostAd(manual)
             LP.Feed("ad", L["Announcement posted"])
             if manual then LP.Print(L["Announced in %d channel(s)."]:format(sent)) end
         end
+        return LP.IsDry() and "dry" or "sent"
     elseif manual then
         LP.Print(L["No matching channel found (trade only works in cities). Pick channels with the Channels button."])
     end
+    return "none"
+end
+
+-- /picky adtest: posts the announcement from a TIMER (like the automatic one) and reports whether the game allowed it.
+-- Compare with a click on "Announce" in the window (that one comes from a click and should always work).
+function LP.AdTest()
+    if LP.IsDry() then LP.Print("adtest: test mode is on, nothing would be sent. Turn it off first (/picky debug).") return end
+    LP.Print("adtest: posting the announcement from a timer in 3 seconds ...")
+    LP.After(3, function()
+        LP.lastAd = nil   -- ignore the 60 s limit for this test
+        local res = LP.PostAd(false)
+        if res == "sent" then LP.Print("adtest: |cff4de88aposted|r - check the channel. The game allows timer posts, so the automatic announcement should work.")
+        elseif res == "blocked" then LP.Print("adtest: |cffff5959BLOCKED|r by the game - timer posts are not allowed, the announcement needs a click.")
+        else LP.Print("adtest: nothing posted (no matching channel - tick channels with the Channels button).") end
+    end)
 end
 
 local adToken = 0

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.6
+- Removed the "Announcement due" popup from 1.0.5. A blocked announcement now only shows a red chat line (once per session for the automatic one) and a history entry.
+- New `/picky adtest`: posts the announcement from a timer and reports whether the game allows that.
+
 ## 1.0.5
 - Fixed the automatic announcement: the game blocks addons from posting to a channel on a timer, so it was silently never sent while Picky reported it as posted. Picky now detects the block and shows an "Announcement due" popup; one click posts it. A blocked manual announcement shows a red message in chat.
 

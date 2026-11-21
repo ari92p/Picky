@@ -94,7 +94,7 @@ end
 
 -- Debug mode ----------------------------------------------------------------------
 -- LP.Debug(area, format, ...) only writes when debug mode is on (otherwise costs almost nothing).
--- Bereiche: chat, invite, group, trade, pick, skill, ui, test, sim
+-- Areas: chat, invite, group, trade, pick, skill, ui, test, sim
 LP.debugLog = {}
 local DEBUG_MAX = 300
 function LP.Debug(cat, fmt, ...)
@@ -502,6 +502,8 @@ SlashCmdList["PICKY"] = function(msg)
         LP.SetFinder(not LP.db.finder.enabled)
     elseif cmd == "ad" then
         LP.PostAd(true)
+    elseif cmd == "adtest" then
+        LP.AdTest()
     elseif cmd == "stats" then
         local s = LP.db.stats
         LP.Print(L["Picked: %d | Invites: %d | Total tips: %s | Thanks sent: %d"]:format(s.picked, s.invited, LP.Money(s.tips), s.thanked))
