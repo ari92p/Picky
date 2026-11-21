@@ -19,7 +19,7 @@ Copy the `Picky` folder to / Ordner `Picky` kopieren nach:
 - At the bottom of the Requests page a countdown shows the next automatic announcement; the x stops it. / Unten auf der Anfragen-Seite zeigt ein Countdown die nächste automatische Ankündigung; das x bricht sie ab.
 
 ## Commands / Befehle
-`/picky` window · `/picky duty` · `/picky ad` · `/picky lang en|de|auto` · `/picky stats` · `/picky skill [number]` · `/picky ignore <name>` · `/picky reset`
+`/picky` window · `/picky duty` · `/picky ad` · `/picky stats` · `/picky skill [number]` · `/picky ignore <name>` · `/picky reset`
 (`/lp` and `/schloss` work too / funktionieren ebenfalls)
 
 ## Test mode / Testmodus

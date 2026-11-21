@@ -494,17 +494,6 @@ SlashCmdList["PICKY"] = function(msg)
         for i = math.max(1, #log - 19), #log do DEFAULT_CHAT_FRAME:AddMessage(log[i]) end
     elseif cmd == "finder" or cmd == "duty" or cmd == "dienst" then
         LP.SetFinder(not LP.db.finder.enabled)
-    elseif cmd == "lang" then
-        local a = arg:lower()
-        if a == "en" or a == "de" then
-            PickyDB.lang = a
-        elseif a == "auto" then
-            PickyDB.lang = nil
-        else
-            LP.Print("/picky lang en | de | auto   (current: " .. (PickyDB.lang or "auto") .. ")")
-            return
-        end
-        ReloadUI()   -- die Texte werden beim Start gesetzt, daher neu laden
     elseif cmd == "ad" then
         LP.PostAd(true)
     elseif cmd == "stats" then
@@ -517,6 +506,6 @@ SlashCmdList["PICKY"] = function(msg)
         PickyDB = nil
         ReloadUI()
     else
-        LP.Print("/lp | /lp duty | /lp ad | /lp stats | /lp skill [number] | /lp ignore <name> | /lp lang en|de|auto | /lp debug | /lp dev | /lp test | /lp hover | /lp log | /lp reset")
+        LP.Print("/lp | /lp duty | /lp ad | /lp stats | /lp skill [number] | /lp ignore <name> | /lp debug | /lp dev | /lp test | /lp hover | /lp log | /lp reset")
     end
 end

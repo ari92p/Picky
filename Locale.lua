@@ -230,9 +230,7 @@ local DE = {
     ["The first slot is a simulated box. The other slots are your real locked boxes: right-click picks them with the same mechanism as in your bags."] = "Der erste Platz ist eine simulierte Kiste. Die anderen Plätze sind deine echten Schließkisten: Rechtsklick knackt sie mit demselben Mechanismus wie in deinen Taschen.",
 }
 
--- Sprache: automatisch nach Client; PickyDB.lang = "en" / "de" erzwingt eine Sprache (/picky lang en, z.B. für Screenshots)
-local forced = PickyDB and PickyDB.lang
-local isGerman = (forced == "de") or (forced ~= "en" and GetLocale() == "deDE")
+local isGerman = (GetLocale() == "deDE")
 LP.isGerman = isGerman
 LP.LOCALE = { EN = EN, DE = DE }   -- für die Selbsttests
 
