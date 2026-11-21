@@ -5,3 +5,4 @@ ignore:
   - CURSEFORGE.md
   - .gitignore
   - .github
+  - assets
