@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+- Fixed the German leveling guide: Angor Fortress is in Ödland (Badlands).
+- Test tab: more room for the "As chat" / "As whisper" buttons.
+
 ## 1.0.0
 - Right-click lockpicking on locked boxes in bags and the trade window.
 - Duty mode: detects lockpicking requests in chat (English and German), auto-invites, greets, thanks once for tips, leaves the group automatically.
