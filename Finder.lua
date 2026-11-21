@@ -317,6 +317,7 @@ end)
 for _, ev in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
     LP.On(ev, function(event, addon, func)
         if addon == "Picky" or addon == ADDON then
+            LP.blockCount = (LP.blockCount or 0) + 1
             if LP.db then
                 LP.Debug("blocked", "%s: %s", event, tostring(func))
                 LP.Print("|cffff5555" .. event .. "|r " .. tostring(func))
@@ -668,9 +669,22 @@ function LP.PostAd(manual)
         return
     end
     local text = LP.ExpandAd(ad.text)
-    local sent = 0
+    local sent, blocked = 0, false
     for _, ch in ipairs(LP.ChannelList()) do
-        if LP.AdChannelOn(ch) and LP.SendChannel(text, ch.id) then sent = sent + 1 end   -- only successful sends count
+        if LP.AdChannelOn(ch) then
+            local ok, why = LP.SendChannel(text, ch.id)
+            if ok then sent = sent + 1 elseif why == "blocked" then blocked = true end   -- only successful sends count
+        end
+    end
+    if sent == 0 and blocked then
+        -- The game only lets addons post to channels from a click (hardware event), not from a timer.
+        LP.Feed("warn", L["The game blocked the announcement (it needs a click)"])
+        if manual then
+            LP.Print("|cffff5959" .. L["The game blocked the announcement (it needs a click)"] .. "|r")
+        elseif LP.Toast and LP.db.ui.toast then
+            LP.Toast.AdDue()
+        end
+        return
     end
     if sent > 0 then
         if LP.IsDry() then

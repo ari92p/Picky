@@ -262,8 +262,14 @@ end
 function LP.SendChannel(text, id)
     if LP.IsDry() then LP.Debug("chat", "[dry run] would post to channel %s: %s", id, text) return true end
     local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+    local before = LP.blockCount or 0
     local ok, err = pcall(send, text, "CHANNEL", nil, id)
     if not ok then LP.Debug("chat", "channel post failed: %s", err) end
+    -- a blocked protected call does not raise an error: it only fires ADDON_ACTION_BLOCKED (counted in Finder.lua)
+    if (LP.blockCount or 0) ~= before then
+        LP.Debug("chat", "channel post to %s was BLOCKED by the game (needs a click)", id)
+        return false, "blocked"
+    end
     return ok
 end
 

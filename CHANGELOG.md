@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.5
+- Fixed the automatic announcement: the game blocks addons from posting to a channel on a timer, so it was silently never sent while Picky reported it as posted. Picky now detects the block and shows an "Announcement due" popup; one click posts it. A blocked manual announcement shows a red message in chat.
+
 ## 1.0.4
 - No more sound, flash or popup for requests that need a higher skill than yours (nothing you can do about them); they still appear in the list.
 - Added a chat detection test for German box names like "Thoriumschließkassette".
