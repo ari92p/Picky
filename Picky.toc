@@ -9,6 +9,7 @@
 ## IconTexture: Interface\Icons\Spell_Nature_MoonKey
 ## X-License: MIT
 ## X-Website: https://github.com/ari92p/Picky
+## X-Curse-Project-ID: 1820051
 
 Locale.lua
 Core.lua
