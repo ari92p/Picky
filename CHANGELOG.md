@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.8
+- New: whispers that need a higher skill than yours get an automatic reply (never in public chat, once per request). The text is editable in the settings and uses `{need}` and `{skill}`; it can be switched off.
+- New: if someone you invited never joins the group but trades with you anyway, the order counts as accepted (boxes and tip are counted, no "did not join" timeout).
+- The request sound can be chosen in the settings (Whisper, Auction, Auction 2, Raid). The default is Auction and plays on the Master channel so it does not get drowned out.
+- The Test tab log has a Copy button. Internal log lines (skill scans, hover checks, roster polling) now go to a separate developer log that is only shown in the Developer tab, which also got a Copy button, an announcement click/timer test and sound buttons.
+- Removed the sparkle on locked boxes in the bags and its background timer.
+- The leave timings moved into the Group section of the settings.
+- The login message shows the real version (it was stuck on 1.0.0).
+- The German announcement default now reads "Hi, biete ...".
+- Added end-to-end tests with real trade events.
+
 ## 1.0.7
 - Announcements are now click-only: Shift-click the minimap button (or use the Announce button or `/picky ad`). The game blocks addons from posting to a channel on a timer, so the automatic repeat, its countdown and its settings were removed.
 - The log no longer repeats the same skill and gear lines; they appear only when something changes.

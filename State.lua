@@ -70,9 +70,27 @@ function LP.SetFinder(on, silent)
     LP.RefreshAll()
 end
 
+-- Sounds to choose from for a new request (tried and picked in the Developer tab: click = play, Shift-click = use).
+-- { SOUNDKIT name, short label, fallback sound id }
+LP.ALERT_SOUNDS = {
+    { "TELL_MESSAGE", L["Whisper"], 3081 }, { "AUCTION_WINDOW_OPEN", L["Auction"], 5274 },
+    { "AUCTION_WINDOW_CLOSE", L["Auction 2"], 5275 }, { "RAID_WARNING", L["Raid"], 8959 },
+}
+local DEFAULT_ALERT = "AUCTION_WINDOW_OPEN"
+function LP.PlayAlertSound(key)
+    for _, s in ipairs(LP.ALERT_SOUNDS) do
+        if s[1] == key then
+            -- Master channel: audible even when sound effects are turned down
+            pcall(PlaySound, (SOUNDKIT and SOUNDKIT[key]) or s[3], "Master")
+            return
+        end
+    end
+end
 local function PlayAlert()
-    local snd = SOUNDKIT and SOUNDKIT.TELL_MESSAGE
-    pcall(PlaySound, snd or "TellMessage")
+    local key = LP.db and LP.db.ui and LP.db.ui.alertSound
+    local known = false
+    for _, s in ipairs(LP.ALERT_SOUNDS) do if s[1] == key then known = true end end
+    LP.PlayAlertSound(known and key or DEFAULT_ALERT)   -- a saved choice that no longer exists falls back to the default
 end
 
 -- Events: "request" (new request), "joined" (customer in the group), "trade" (trade with the customer complete), "tip" (tip)

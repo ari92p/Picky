@@ -2,7 +2,7 @@
 
 Picky makes lockpicking for other players fast and comfortable.
 
-- **Right-click to pick** locked boxes in your bags or in the trade window. Boxes sparkle green (your skill is enough) or red (too low).
+- **Right-click to pick** locked boxes in your bags or in the trade window.
 - **Duty mode:** finds players asking for a rogue in chat (English and German), invites them, greets them, thanks once for tips and leaves the group afterwards. Customers who invite you directly are accepted too.
 - **Announcements** in trade chat with channel selection and the placeholders {skill}, {pick}, {city}.
 - **Order history** with boxes picked, tips and time spent.

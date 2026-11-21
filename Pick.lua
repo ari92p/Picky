@@ -1,4 +1,4 @@
--- Picky / Pick.lua : right-click picking (inventory + trade window), sparkle in bags
+-- Picky / Pick.lua : right-click picking (inventory + trade window)
 local ADDON, LP = ...
 local L = LP.L
 
@@ -109,7 +109,7 @@ overlay:Hide()
 overlay:HookScript("PreClick", function(self, button)
     if button == "RightButton" then
         LP.lastPickTarget = { bag = self.bag, slot = self.slot, trade = self.isTrade, t = GetTime() }
-        LP.Debug("pick", "right-click pick started on %s", self.isTrade and "trade slot" or ("bag " .. tostring(self.bag) .. " slot " .. tostring(self.slot)))
+        LP.DevDebug("pick", "right-click pick started on %s", self.isTrade and "trade slot" or ("bag " .. tostring(self.bag) .. " slot " .. tostring(self.slot)))
     end
 end)
 
@@ -184,7 +184,7 @@ local function CheckOverlayRaw(focus)
             overlay:SetAttribute("target-bag", nil)
             overlay:SetAttribute("target-slot", nil)
             overlay:Show()
-            LP.Debug("pick", "click area on the trade slot (item is locked)")
+            LP.DevDebug("pick", "click area on the trade slot (item is locked)")
             return
         end
     end
@@ -192,7 +192,12 @@ local function CheckOverlayRaw(focus)
     -- Inventar
     local bag, slot, via = GetBagAndSlot(focus)
     if bag and slot and via == "parent" and TooltipItemMismatch(bag, slot) then
-        LP.Debug("pick", "ignored a foreign frame (guessed bag %d slot %d, tooltip shows another item)", bag, slot)
+        -- this fires for every item tooltip of foreign frames: log each guessed slot only once in a row
+        local key = bag .. ":" .. slot
+        if key ~= LP.lastForeignKey then
+            LP.lastForeignKey = key
+            LP.DevDebug("pick", "ignored a foreign frame (guessed bag %d slot %d, tooltip shows another item)", bag, slot)
+        end
         HideOverlay()
         return
     end
@@ -213,7 +218,7 @@ local function CheckOverlayRaw(focus)
                 overlay:SetAttribute("target-slot", slot)
                 overlay:SetAttribute("macrotext", nil)
                 overlay:Show()
-                LP.Debug("pick", "click area on bag %d slot %d (needs %s, skill %d)", bag, slot, req, LP.Skill())
+                LP.DevDebug("pick", "click area on bag %d slot %d (needs %s, skill %d)", bag, slot, req, LP.Skill())
                 return
             else
                 LP.Debug("pick", "bag %d slot %d is locked but your skill is too low (needs %s, skill %d)", bag, slot, req, LP.Skill())
@@ -318,86 +323,6 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
     if id == LP.PICK_SPELL_ID or (name and name == LP.PickName()) then Recheck(true) end
 end)
 
--- 3) Sparkle in the bags --------------------------------------------------------------------
-local function GetGlow(button)
-    if button.PickyGlow then return button.PickyGlow end
-    local g = CreateFrame("Frame", nil, button)
-    g:SetAllPoints(button)
-    g:SetFrameLevel(button:GetFrameLevel() + 3)
-    g:EnableMouse(false)
-    local ring = g:CreateTexture(nil, "OVERLAY")
-    ring:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-    ring:SetBlendMode("ADD")
-    ring:SetPoint("CENTER")
-    ring:SetSize(button:GetWidth() * 1.75, button:GetHeight() * 1.75)
-    g.ring = ring
-    local star = g:CreateTexture(nil, "OVERLAY")
-    star:SetTexture("Interface\\Cooldown\\star4")
-    star:SetBlendMode("ADD")
-    star:SetPoint("TOPRIGHT", button, "TOPRIGHT", 6, 6)
-    star:SetSize(22, 22)
-    g.star = star
-    local pulse = ring:CreateAnimationGroup()
-    pulse:SetLooping("BOUNCE")
-    local a = pulse:CreateAnimation("Alpha")
-    a:SetFromAlpha(1) a:SetToAlpha(0.3) a:SetDuration(0.9)
-    pulse:Play()
-    local spin = star:CreateAnimationGroup()
-    spin:SetLooping("REPEAT")
-    local r = spin:CreateAnimation("Rotation")
-    r:SetDegrees(-360) r:SetDuration(5)
-    spin:Play()
-    button.PickyGlow = g
-    return g
-end
-
-local function ApplyGlow(button)
-    local bag, slot = GetBagAndSlot(button)
-    if not bag then
-        if button.PickyGlow then button.PickyGlow:Hide() end
-        return
-    end
-    local want, ok = false, true
-    if LP.db and LP.db.pick.glow then
-        local locked, req = LP.IsLockedItem(bag, slot)
-        if locked then
-            want = true
-            ok = (not req) or LP.Skill() >= req
-        end
-    end
-    if want then
-        local g = GetGlow(button)
-        local r, gr, b = 0.3, 1, 0.5
-        if not ok then r, gr, b = 1, 0.3, 0.3 end
-        g.ring:SetVertexColor(r, gr, b)
-        g.star:SetVertexColor(r, gr, b)
-        g:Show()
-    elseif button.PickyGlow then
-        button.PickyGlow:Hide()
-    end
-end
-
-function LP.UpdateGlow()
-    for i = 1, 13 do
-        local f = _G["ContainerFrame" .. i]
-        if f and f:IsShown() then
-            if f.EnumerateValidItems then
-                for _, b in f:EnumerateValidItems() do ApplyGlow(b) end
-            else
-                local size = f.size or 0
-                for n = 1, size do
-                    local b = _G["ContainerFrame" .. i .. "Item" .. n]
-                    if b then ApplyGlow(b) end
-                end
-            end
-        end
-    end
-    local combined = _G.ContainerFrameCombinedBags
-    if combined and combined:IsShown() and combined.EnumerateValidItems then
-        for _, b in combined:EnumerateValidItems() do ApplyGlow(b) end
-    end
-end
-
 -- Hover check (debug): explains why a click area appears under the mouse or not ----------------------
 function LP.InspectHover()
     local focus = GetMouseFocusCompat()
@@ -428,7 +353,7 @@ function LP.InspectHover()
         tostring(overlay:IsShown()), tostring(InCombatLockdown()), tostring(IsShiftKeyDown()))
     for _, l in ipairs(lines) do
         LP.Print("hover> " .. l)
-        LP.Debug("pick", "hover> %s", l)
+        LP.DevDebug("pick", "hover> %s", l)
     end
 end
 
@@ -443,7 +368,7 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
         if t and (GetTime() - t.t) < 15 then
             if t.bag and t.slot then LP.MarkPicked(t.bag, t.slot) end
             if t.trade then LP.tradePickedAt = GetTime() end
-            LP.Debug("pick", "marked as picked: %s (no click area for %ds)", t.trade and "trade slot" or ("bag " .. tostring(t.bag) .. " slot " .. tostring(t.slot)), PICK_GRACE)
+            LP.DevDebug("pick", "marked as picked: %s (no click area for %ds)", t.trade and "trade slot" or ("bag " .. tostring(t.bag) .. " slot " .. tostring(t.slot)), PICK_GRACE)
             LP.lastPickTarget = nil
         end
         if LP.OnPickSuccess then LP.OnPickSuccess() end
@@ -451,7 +376,5 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
 end)
 
 function LP.OnLogin()
-    -- The client rebuilds bag frames constantly: a simple timer instead of fragile hooks
-    C_Timer.NewTicker(0.5, function() pcall(LP.UpdateGlow) end)
     if LP.BuildMinimap then LP.BuildMinimap() end
 end

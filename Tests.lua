@@ -18,7 +18,7 @@ local function truthy(v, what) if not v then fail((what or "value") .. " should 
 local function falsy(v, what) if v then fail((what or "value") .. " should be false") end end
 
 -- Sandbox: saves the state, sets test values, restores everything (even on errors) -----------------
-local FINDER_KEYS = { "autoInvite", "onlyWhenFree", "inviteUnknown", "welcome", "thanks", "autoLeave", "idleLeave", "sound", "enabled" }
+local FINDER_KEYS = { "autoInvite", "onlyWhenFree", "inviteUnknown", "welcome", "thanks", "autoLeave", "idleLeave", "sound", "enabled", "tooHighReply", "tooHighText" }
 local UI_KEYS = { "toast", "flash", "chatLine" }
 local STAT_KEYS = { "picked", "tips", "invited", "thanked" }
 local function Sandbox(setup, fn)
@@ -352,6 +352,29 @@ T("flow: skill too low request is not invited", function()
         eq(LP.pending, nil, "pending")
     end)
 end)
+T("flow: whisper that needs a higher skill gets the editable reply (once, never in public chat)", function()
+    Sandbox(function(db) db.finder.tooHighReply = true db.finder.tooHighText = "need {need} have {skill}" end, function(db)
+        local sent, orig = {}, LP.Whisper
+        LP.Whisper = function(to, text) sent[#sent + 1] = text end
+        local ok, err = pcall(function()
+            LP.skill = 160
+            local pub = LP.SimulateChat("need rogue for thorium lockbox", false)
+            eq(pub.status, "toohigh", "public request too high")
+            eq(#sent, 0, "no reply in public chat")
+            local w = LP.SimulateChat("hey can you open my thorium lockbox?", true)
+            eq(w.status, "toohigh", "whisper too high")
+            eq(#sent, 1, "one reply")
+            eq(sent[1], "need 250 have 160", "placeholders filled")
+            LP.ReplyTooHigh(w, true)
+            eq(#sent, 1, "only once per request")
+            db.finder.tooHighReply = false
+            LP.SimulateChat("hey can you open my thorium lockbox?", true)
+            eq(#sent, 1, "off = no reply")
+        end)
+        LP.Whisper = orig
+        if not ok then error(err, 0) end
+    end)
+end)
 T("flow: second request while a customer is in the group is queued", function()
     Sandbox(nil, function()
         local first = LP.SimulateChat("LF rogue open my bronze chest pls", false)
@@ -490,6 +513,91 @@ T("leave: a new trade cancels the scheduled leave (several boxes in a row)", fun
         local token = LP.leaveToken
         LP.CancelLeave()
         truthy(LP.leaveToken ~= token, "token changed, the pending leave will not fire")
+    end)
+end)
+T("trade without joining: an invited customer who trades counts as accepted", function()
+    Sandbox(nil, function()
+        local r = Req("Anna", "invited", { invitedAt = GetTime() })
+        LP.requests = { r }
+        LP.pending = r
+        LP.HandleTradeStart("Anna")
+        eq(r.status, "done", "order accepted")
+        eq(LP.pending, nil, "no longer waiting for the join")
+        truthy(r.tradedWithoutGroup, "marked")
+        local t = Req("Bob", "timeout")
+        LP.requests = { t }
+        LP.HandleTradeStart("Bob-Realm")
+        eq(t.status, "done", "timed-out invite still becomes accepted")
+        local d = Req("Cy", "done")
+        LP.requests = { d }
+        LP.HandleTradeStart("Cy")
+        eq(d.tradedWithoutGroup, nil, "finished orders are untouched")
+        LP.HandleTradeStart("Stranger")
+    end)
+end)
+-- Fire a game event through the addon's real event dispatcher (all registered handlers run)
+local function Fire(event, ...)
+    local f = LP.frame
+    f:GetScript("OnEvent")(f, event, ...)
+end
+-- Replace globals for the duration of fn (restored even on errors)
+local function WithStubs(stubs, fn)
+    local saved = {}
+    for k, v in pairs(stubs) do saved[k] = _G[k]; _G[k] = v end
+    local ok, err = pcall(fn)
+    for k in pairs(stubs) do _G[k] = saved[k] end
+    if not ok then error(err, 0) end
+end
+
+T("flow (real events): invited customer never joins but trades -> order accepted, box and tip counted", function()
+    Sandbox(nil, function()
+        local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
+        eq(r.status, "invited", "invited first")
+        truthy(_G.ERR_TRADE_COMPLETE, "client has the trade complete message")
+        local money = 1000000
+        local offer = 0
+        WithStubs({
+            UnitName = function(u) if u == "NPC" then return r.name end return "Me" end,
+            GetMoney = function() return money end,
+            GetTargetTradeMoney = function() return offer end,
+        }, function()
+            Fire("TRADE_SHOW")
+            eq(r.status, "done", "trade opened -> accepted without joining")
+            truthy(r.tradedWithoutGroup, "marked as traded without group")
+            eq(LP.pending, nil, "not waiting for a join anymore")
+            LP.OnPickSuccess(true)
+            eq(r.boxes, 1, "box counted on the order")
+            offer = 2000
+            Fire("TRADE_MONEY_CHANGED")
+            Fire("UI_INFO_MESSAGE", 0, _G.ERR_TRADE_COMPLETE)
+            eq(r.tipTotal, 2000, "tip counted on the order")
+            truthy(r.thanked, "thanks sent right away (customer is not in the group)")
+            Fire("TRADE_CLOSED")
+            eq(LP.tradePartner, nil, "trade partner cleared")
+        end)
+        eq(r.status, "done", "stays done (no 'did not join' timeout)")
+    end)
+end)
+T("flow (real events): customer in group -> trade complete schedules the leave, click thanks and leaves", function()
+    Sandbox(nil, function()
+        local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
+        LP.SimulateJoin()
+        eq(LP.partner, r.name, "customer in group")
+        WithStubs({
+            UnitName = function(u) if u == "NPC" then return r.name end return "Me" end,
+            GetMoney = function() return 1000000 end,
+            GetTargetTradeMoney = function() return 0 end,
+        }, function()
+            Fire("TRADE_SHOW")
+            Fire("UI_INFO_MESSAGE", 0, _G.ERR_TRADE_COMPLETE)
+            truthy(LP.leaveAt and LP.leaveAt > GetTime(), "leave scheduled after the completed trade (no tip, no pick needed)")
+            LP.HandleTip(LP.Short(r.name), 5000, true)   -- tip arrives afterwards, thanks is deferred
+            eq(r.thanked, false, "thanks deferred while the customer is in the group")
+            LP.DoLeave()                                   -- what a click on the "Trade complete" popup does
+            eq(LP.partner, nil, "left the group")
+            truthy(r.thanked, "thanks sent when leaving")
+            eq(r.status, "done", "order done")
+        end)
     end)
 end)
 T("trade complete: customer in group -> leave is scheduled; others are ignored", function()

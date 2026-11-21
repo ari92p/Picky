@@ -7,6 +7,50 @@ local ICON_PICK = "Interface\\Icons\\Spell_Nature_MoonKey"
 local win, pages, tabs = nil, {}, {}
 local rows = {}
 local refreshers = {}      -- functions that reload the settings widgets from the DB
+
+-- Copy window: WoW cannot write to the clipboard, so show the text in a selectable box (Ctrl+C, then Esc)
+local copyBox
+local function ShowCopyBox(text)
+    if not copyBox then
+        local f = CreateFrame("Frame", "PickyCopyFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        f:SetSize(520, 360)
+        f:SetPoint("CENTER")
+        f:SetFrameStrata("FULLSCREEN_DIALOG")
+        f:EnableMouse(true)
+        f:SetMovable(true)
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", f.StartMoving)
+        f:SetScript("OnDragStop", f.StopMovingOrSizing)
+        if f.SetBackdrop then
+            f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+                tile = true, tileSize = 32, edgeSize = 16, insets = { left = 5, right = 5, top = 5, bottom = 5 } })
+        end
+        f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        f.hint:SetPoint("TOPLEFT", 16, -14)
+        f.hint:SetText(L["Press Ctrl+C to copy, then Esc"])
+        local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", -2, -2)
+        local sf = CreateFrame("ScrollFrame", "PickyCopyScroll", f, "UIPanelScrollFrameTemplate")
+        sf:SetPoint("TOPLEFT", 16, -40)
+        sf:SetPoint("BOTTOMRIGHT", -34, 16)
+        local eb = CreateFrame("EditBox", nil, sf)
+        eb:SetMultiLine(true)
+        eb:SetAutoFocus(false)
+        eb:SetFontObject("ChatFontNormal")
+        eb:SetWidth(460)
+        eb:SetMaxLetters(0)
+        eb:SetScript("OnEscapePressed", function() f:Hide() end)
+        sf:SetScrollChild(eb)
+        f.eb = eb
+        tinsert(UISpecialFrames, "PickyCopyFrame")
+        copyBox = f
+    end
+    copyBox:Show()
+    copyBox.eb:SetText(text)
+    copyBox.eb:HighlightText()
+    copyBox.eb:SetFocus()
+end
+
 local currentTab = 1
 local guideStage
 local ROWS = 7
@@ -468,18 +512,44 @@ local function BuildSettings(p)
     Check(L["Only one customer at a time (queue)"], "finder", "onlyWhenFree")
     Check(L["Also invite when no box is mentioned"], "finder", "inviteUnknown")
     Check(L["Accept invites automatically"], "finder", "autoAccept")
+    Check(L["Reply to whispers that need a higher skill"], "finder", "tooHighReply")
 
     Section(L["Group"])
     Check(L["Whisper a greeting after joining"], "finder", "welcome")
     Check(L["Leave the group after picking"], "finder", "autoLeave")
     Check(L["Thank-you message for tips"], "finder", "thanks")
+    Edit(L["Leave after the last trade, in seconds"], "finder", "leaveDelay", true, 120)
+    Edit(L["Leave without activity after seconds (0 = off)"], "finder", "idleLeave", true, 120)
 
     Section(L["Display"])
     Check(L["Pop-up (toast) for requests and tips"], "ui", "toast")
     Check(L["Chat line for new requests"], "ui", "chatLine")
     Check(L["Flash the taskbar"], "ui", "flash")
     Check(L["Sound for new requests"], "finder", "sound")
-    Check(L["Sparkle on locked boxes in bags"], "pick", "glow", function() if LP.UpdateGlow then LP.UpdateGlow() end end)
+    -- Choose the request sound: a click plays it and selects it (marked with *)
+    do
+        local lbl = FS(child, "GameFontNormalSmall", L["Request sound (click to hear and choose)"])
+        lbl:SetPoint("TOPLEFT", 28, y)
+        y = y - 18
+        local btns = {}
+        for i, snd in ipairs(LP.ALERT_SOUNDS) do
+            local b = CreateFrame("Button", nil, child, "UIPanelButtonTemplate")
+            b:SetSize(82, 22)
+            b:SetPoint("TOPLEFT", 14 + ((i - 1) % 4) * 85, y - math.floor((i - 1) / 4) * 26)
+            b:SetText(snd[2])
+            b:SetScript("OnClick", function()
+                LP.db.ui.alertSound = snd[1]
+                LP.PlayAlertSound(snd[1])
+                LP.RefreshAll()
+            end)
+            btns[i] = b
+        end
+        y = y - math.ceil(#LP.ALERT_SOUNDS / 4) * 26 - 8
+        refreshers[#refreshers + 1] = function()
+            local cur = LP.db.ui.alertSound or "AUCTION_WINDOW_OPEN"
+            for i, snd in ipairs(LP.ALERT_SOUNDS) do btns[i]:SetText(snd[2] .. (snd[1] == cur and " *" or "")) end
+        end
+    end
     Check(L["Tooltip hint on locks"], "pick", "hint")
     Check(L["Minimap button"], "ui", "minimap", function() LP.UpdateMinimap() end)
 
@@ -517,13 +587,10 @@ local function BuildSettings(p)
     Section(L["Messages"])
     Edit(L["Greeting (after joining the group)"], "finder", "welcomeText")
     Edit(L["Thanks (for tips)"], "finder", "thanksText")
+    Edit(L["Skill too high reply ({need} = needed skill, {skill} = your skill)"], "finder", "tooHighText")
 
     Section(L["Announcement"])
     Edit(L["Text ({skill} = skill, {pick} = spell link, {city} = current city; links can be inserted with Shift-click)"], "ad", "text")
-
-    Section(L["Advanced"])
-    Edit(L["Leave after the last trade, in seconds"], "finder", "leaveDelay", true, 120)
-    Edit(L["Leave without activity after seconds (0 = off)"], "finder", "idleLeave", true, 120)
 
     child:SetHeight(-y + 20)
 end
@@ -751,6 +818,13 @@ local function BuildDebug(p)
         wipe(LP.debugLog)
         log:Clear()
     end)
+    Btn(p, L["Copy"], 90, 204, -250, function()
+        local lines = {}
+        for i, line in ipairs(LP.debugLog) do
+            lines[i] = (tostring(line):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+        end
+        ShowCopyBox(#lines > 0 and table.concat(lines, "\n") or "(log is empty)")
+    end)
     for _, line in ipairs(LP.debugLog) do log:AddMessage(line) end
     LP.OnDebugLine = function(line) log:AddMessage(line) end
 
@@ -784,6 +858,7 @@ end
 
 -- Page 5: Developer (hidden, only via /picky dev) -------------------------------------------------------------------
 -- Development only: self tests, hover check, diagnostics. Intentionally untranslated.
+local RefreshDev   -- defined below BuildDev
 local function BuildDev(p)
     local function Btn(label, w, x, y, fn)
         local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
@@ -799,7 +874,7 @@ local function BuildDev(p)
     sub:SetPoint("TOPLEFT", 2, -24)
 
     local out = CreateFrame("ScrollingMessageFrame", nil, p)
-    out:SetPoint("TOPLEFT", 0, -130)
+    out:SetPoint("TOPLEFT", 0, -214)
     out:SetPoint("BOTTOMRIGHT", 0, 0)
     out:SetFontObject("GameFontHighlightSmall")
     out:SetJustifyH("LEFT")
@@ -811,6 +886,9 @@ local function BuildDev(p)
     bg:SetAllPoints()
     bg:SetColorTexture(0, 0, 0, 0.45)
     p.out = out
+    -- developer log lines (internals) are shown here, never in the Test tab
+    for _, line in ipairs(LP.devLog) do out:AddMessage(line) end
+    LP.OnDevLine = function(line) out:AddMessage(line) end
 
     -- also write LP.Print output into this field
     local function Capture(fn)
@@ -853,7 +931,14 @@ local function BuildDev(p)
     Btn("Skill diagnostics", 120, 248, -46, function() Capture(function() SlashCmdList["PICKY"]("skill") end) end)
     Btn("Dump state", 110, 0, -74, function() Capture(DumpState) end)
     Btn("Client info", 110, 114, -74, function() Capture(ClientInfo) end)
-    Btn("Clear output", 120, 248, -74, function() out:Clear() end)
+    Btn("Clear output", 100, 248, -74, function() out:Clear() wipe(LP.devLog) end)
+    Btn("Copy", 56, 352, -74, function()
+        local lines = {}
+        for i, line in ipairs(LP.devLog) do
+            lines[i] = (tostring(line):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+        end
+        ShowCopyBox(#lines > 0 and table.concat(lines, "\n") or "(developer log is empty)")
+    end)
     local live = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
     live:SetSize(24, 24)
     live:SetPoint("TOPLEFT", 0, -100)
@@ -861,11 +946,40 @@ local function BuildDev(p)
     ll:SetPoint("LEFT", live, "RIGHT", 2, 0)
     live:SetScript("OnClick", function(self) LP.db.logLive = self:GetChecked() and true or false end)
     p.liveCb = live
+
+    -- Announcement tests
+    Btn("Announce (click)", 130, 0, -128, function() Capture(function() LP.lastAd = nil LP.PostAd(true) end) end)
+    Btn("Announce from timer (3 s)", 160, 134, -128, function() Capture(function() LP.AdTest() end) end)
+
+    -- Sound for a new request: click = play, Shift-click = use it (marked with *)
+    local sh = FS(p, "GameFontHighlightSmall", "Request sound: click = play, Shift-click = use (* = in use)")
+    sh:SetPoint("TOPLEFT", 2, -158)
+    p.soundBtns = {}
+    for i, snd in ipairs(LP.ALERT_SOUNDS) do
+        local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        b:SetSize(49, 22)
+        b:SetPoint("TOPLEFT", (i - 1) * 51, -178)
+        b:SetText(snd[2])
+        b:SetScript("OnClick", function()
+            if IsShiftKeyDown() then
+                LP.db.ui.alertSound = snd[1]
+                out:AddMessage("request sound: " .. snd[2])
+                RefreshDev()
+            end
+            LP.PlayAlertSound(snd[1])
+        end)
+        p.soundBtns[i] = b
+    end
+    RefreshDev()
 end
 
-local function RefreshDev()
+function RefreshDev()
     local p = pages[5]
     if p and p.liveCb then p.liveCb:SetChecked(LP.db.logLive and true or false) end
+    if p and p.soundBtns then
+        local cur = LP.db.ui.alertSound or "AUCTION_WINDOW_OPEN"
+        for i, snd in ipairs(LP.ALERT_SOUNDS) do p.soundBtns[i]:SetText(snd[2] .. (snd[1] == cur and "*" or "")) end
+    end
 end-- Assemble the window ----------------------------------------------------------------------------------
 -- Window title: "Picky · <tab>", plus a red TEST MODE marker on every tab while test mode is on
 local function UpdateTitle()

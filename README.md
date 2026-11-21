@@ -10,7 +10,6 @@ Copy the `Picky` folder to:
 
 ## Use
 - **Right-click** a locked box in your bags or in the trade window to pick it.
-- Locked boxes in your bags sparkle: green = your skill is enough, red = too low.
 - **Shift-click** the minimap button to post your announcement. The game only allows channel posts from a click, so there is no automatic timed announcement.
 - Turn **Duty** on in the window (`/picky`). It finds players asking for a rogue in chat, invites them, thanks for tips and leaves the group afterwards.
 - Channel menu next to **Announce**: tick the channels to announce in (trade in cities, General elsewhere); a click anywhere else closes it. The choice is remembered per channel name, so it applies again when you return to a city.
@@ -27,7 +26,7 @@ Copy the `Picky` folder to:
 - `/picky debug` toggles the test mode too.
 
 ## For developers
-- `/picky dev` shows a hidden **Developer** tab: self tests, hover inspector, skill diagnostics, state dump, client info.
+- `/picky dev` shows a hidden **Developer** tab: self tests, hover inspector, skill diagnostics, state dump, client info. Internal log lines (skill scans, hover checks, roster polling) are only written to the log while this tab is on; the normal Test log shows just what Picky does and why.
 - `/picky test` runs the self tests (chat detection, skill/gear parsing, decisions, translations, full simulated flow; they restore your state afterwards). `/picky hover` explains what is under the mouse in 3 seconds. `/picky log` prints the last log lines.
 
 ## Notes

@@ -179,6 +179,18 @@ function LP.TryNext()
     Touch()
 end
 
+-- Someone WHISPERED us a box or skill that is too high: answer once with the (editable) reply text.
+-- Public chat is never answered (no spam in trade chat).
+function LP.ReplyTooHigh(r, isWhisper)
+    local f = LP.db.finder
+    if r.status ~= "toohigh" or not isWhisper or not f.tooHighReply or r.repliedHigh then return end
+    r.repliedHigh = true
+    local text = tostring(f.tooHighText or ""):gsub("{need}", tostring(r.req or "?")):gsub("{skill}", tostring(LP.Skill()))
+    if text == "" then return end
+    LP.Debug("invite", "%s needs skill %s, you have %d -> sending the 'skill too high' reply", r.name, tostring(r.req), LP.Skill())
+    LP.Whisper(r.sender or r.name, text)
+end
+
 -- Decision for a new request: invite, queue, manual, or not because the skill is too low
 function LP.Decide(req)
     local f = LP.db.finder
@@ -215,7 +227,7 @@ function LP.OnChat(event, msg, sender, sim)
     local name = LP.Short(sender)
     if name and not sim and LP.SameName(name, UnitName("player")) then
         -- own message: if it contains the spell link (e.g. from your macro), it counts as an announcement
-        if msg:find("|Hspell:" .. LP.PICK_SPELL_ID, 1, true) then LP.lastAdSeen = GetTime() LP.Debug("chat", "own announcement seen") end
+        if msg:find("|Hspell:" .. LP.PICK_SPELL_ID, 1, true) then LP.lastAdSeen = GetTime() LP.DevDebug("chat", "own announcement seen") end
         return
     end
     if not name then return end
@@ -224,11 +236,12 @@ function LP.OnChat(event, msg, sender, sim)
         return
     end
 
-    local ok, req, label, why = Analyze(msg, event == "CHAT_MSG_WHISPER")
+    local isWhisper = event == "CHAT_MSG_WHISPER"
+    local ok, req, label, why = Analyze(msg, isWhisper)
     if not ok then
         -- only log "near misses", otherwise every trade-chat sentence would end up in the log
         if why and (why.lock or why.verb or why.rogue) then
-            LP.Debug("chat", "no request from %s (lock=%s verb=%s rogue=%s seek=%s excl=%s): %s",
+            LP.DevDebug("chat", "no request from %s (lock=%s verb=%s rogue=%s seek=%s excl=%s): %s",
                 name, why.lock, why.verb, why.rogue, why.seek, why.excl, msg)
         end
         return
@@ -248,6 +261,7 @@ function LP.OnChat(event, msg, sender, sim)
         if existing.status == "timeout" or existing.status == "toohigh" then
             existing.status = "new"   -- repeated request after expiry / skill too low: re-evaluate
             LP.Decide(existing)
+            LP.ReplyTooHigh(existing, isWhisper)
         end
         Touch()
         return
@@ -268,6 +282,7 @@ function LP.OnChat(event, msg, sender, sim)
         LP.Decide(r)    -- decide first (invite/decline), then notify: the notification shows the real status
     end
     LP.Debug("chat", "status of %s: %s", name, r.status)
+    LP.ReplyTooHigh(r, isWhisper)
     if r.status == "toohigh" then
         LP.Feed("warn", L["%s: skill too low (needs %d)"]:format(name, req or 0))
     elseif r.status == "queued" then
@@ -301,7 +316,7 @@ end
 
 LP.On("PARTY_INVITE_REQUEST", function(_, inviter)
     local f = LP.db and LP.db.finder
-    LP.Debug("group", "party invite from %s (finder %s, auto accept %s, already in group %s)", tostring(inviter), tostring(f and f.enabled), tostring(f and f.autoAccept), tostring(LP.InGroup()))
+    LP.DevDebug("group", "party invite from %s (finder %s, auto accept %s, already in group %s)", tostring(inviter), tostring(f and f.enabled), tostring(f and f.autoAccept), tostring(LP.InGroup()))
     LP.lastInviter = { name = inviter, t = GetTime() }   -- who invited me last (see CheckRoster)
     if LP.Toast then LP.Toast.DismissRequest(inviter) end   -- they invite me themselves: the request toast is obsolete
     local accept, why = LP.ShouldAcceptInvite(inviter)
@@ -410,7 +425,7 @@ end
 --  2. they invited ME (announcement: "just invite me") or joined the group some other way
 function LP.CheckRoster()
     local f = LP.db and LP.db.finder
-    LP.Debug("group", "roster check: in group %s, customer %s, finder %s, pending %s", tostring(LP.InGroup()), tostring(LP.partner), tostring(f and f.enabled), tostring(LP.pending and LP.pending.name))
+    LP.DevDebug("group", "roster check: in group %s, customer %s, finder %s, pending %s", tostring(LP.InGroup()), tostring(LP.partner), tostring(f and f.enabled), tostring(LP.pending and LP.pending.name))
     if not f or LP.partner or not LP.InGroup() then return false end
     local p = LP.pending
     if p and p.status == "invited" and LP.InGroupWith(p.name) then
@@ -475,6 +490,11 @@ function LP.OnPickSuccess(simulated)
     if not simulated then LP.db.stats.picked = LP.db.stats.picked + 1 end
     LP.Debug("pick", "pick success%s (customer: %s)", simulated and " (simulated)" or "", LP.partner)
     LP.Feed("pick", L["Box picked"])
+    if not LP.partner and LP.tradePartner then
+        -- customer who traded without joining the group (see HandleTradeStart): still count the box on the order
+        local order = LP.FindRequest(LP.tradePartner)
+        if order and order.tradedWithoutGroup then order.boxes = (order.boxes or 0) + 1 end
+    end
     if LP.partner then
         LP.pickedForPartner = true
         local order = LP.FindRequest(LP.partner)
@@ -499,13 +519,15 @@ LP.On("TRADE_SHOW", function()
     tradeName = (UnitName("NPC")) or (TradeFrameRecipientNameText and TradeFrameRecipientNameText:GetText())
     tradeTip, tipHandled = 0, false
     tradeStartMoney = GetMoney and GetMoney() or 0
-    LP.Debug("trade", "trade window opened with %s", tradeName)
+    LP.DevDebug("trade", "trade window opened with %s", tradeName)
+    LP.tradePartner = tradeName
+    LP.HandleTradeStart(tradeName)
     if LP.partner then LP.CancelLeave() end   -- the customer trades again (another box): do not leave
 end)
 local function UpdateTip()
     if GetTargetTradeMoney then
         local m = GetTargetTradeMoney() or 0
-        if m ~= tradeTip then LP.Debug("trade", "partner offers %s", LP.Money(m)) end
+        if m ~= tradeTip then LP.DevDebug("trade", "partner offers %s", LP.Money(m)) end
         tradeTip = m
     end
 end
@@ -528,7 +550,7 @@ LP.On("UI_INFO_MESSAGE", function(_, a, b)
     local msg = (type(b) == "string" and b) or (type(a) == "string" and a)
     if not msg then return end
     if msg == _G.ERR_TRADE_COMPLETE then
-        LP.Debug("trade", "'trade complete' message (tip %s, partner %s)", LP.Money(tradeTip), tostring(tradeName))
+        LP.DevDebug("trade", "'trade complete' message (tip %s, partner %s)", LP.Money(tradeTip), tostring(tradeName))
         LP.HandleTradeComplete(tradeName or (closedAt and GetTime() - closedAt < 5 and closedName) or nil)
         if tradeTip > 0 and tradeName and not tipHandled then
             tipHandled = true   -- the message came before the window closed
@@ -537,9 +559,29 @@ LP.On("UI_INFO_MESSAGE", function(_, a, b)
             ResolveTip("complete message")   -- the message came AFTER the window closed (as in this client)
         end
     elseif LP.db and (LP.db.debug or LP.db.logLive) and msg:lower():find("trade", 1, true) then
-        LP.Debug("trade", "info message: %s", msg)   -- helps if the completion message is worded differently in this client
+        LP.DevDebug("trade", "info message: %s", msg)   -- helps if the completion message is worded differently in this client
     end
 end)
+
+-- Someone with an open request trades with us although they never joined the group (they ignored or missed the invite,
+-- or you invited and they simply opened a trade). Treat the order as accepted: no "did not join" timeout, boxes and tip
+-- are counted on the order, the request moves to "Done".
+function LP.HandleTradeStart(name)
+    local r = name and LP.FindRequest(name)
+    if not r or (LP.partner and LP.SameName(name, LP.partner)) then return end
+    local st = r.status
+    if not (st == "new" or st == "manual" or st == "queued" or st == "invited" or st == "timeout") then return end
+    r.status = "done"
+    r.endStamp = time()
+    r.tradedWithoutGroup = true
+    r.boxes, r.tipTotal = r.boxes or 0, r.tipTotal or 0
+    if LP.pending == r then LP.pending = nil end
+    LP.Debug("group", "%s trades with us without joining the group -> order accepted", r.name)
+    LP.Feed("join", L["%s trades with you (without joining the group)"]:format(r.name))
+    if LP.Toast then LP.Toast.DismissRequest(r.name) end
+    Touch()
+    if not LP.forceDry then LP.After(5, LP.TryNext) end   -- (simulations and self tests must not leave timers behind)
+end
 
 -- A trade finished successfully. With the customer in the group: show the "trade complete" toast
 -- (click = thank + leave) and make sure the group is left afterwards, whether or not there was a tip.
@@ -583,9 +625,10 @@ end
 
 LP.On("TRADE_CLOSED", function()
     local name, tip, start, handled = tradeName, tradeTip, tradeStartMoney, tipHandled
+    LP.tradePartner = nil
     if tradeName then closedName, closedAt = tradeName, GetTime() end   -- TRADE_CLOSED can fire twice: do not overwrite with nil
     tradeName, tradeTip = nil, 0
-    LP.Debug("trade", "trade window closed (tip offered %s, already handled: %s)", LP.Money(tip), tostring(handled))
+    LP.DevDebug("trade", "trade window closed (tip offered %s, already handled: %s)", LP.Money(tip), tostring(handled))
     -- the money arrives shortly AFTER closing: check several times (up to 4 s), the completion message can trigger it too
     if tip > 0 and name and not handled then
         lastTrade = { name = name, tip = tip, start = start, t = GetTime() }
@@ -598,7 +641,7 @@ LP.On("TRADE_CLOSED", function()
     local f = LP.db.finder
     if LP.partner and f.autoLeave and (LP.waitTradeClose or LP.pickedForPartner) then
         LP.waitTradeClose = false
-        LP.Debug("group", "trade closed, leaving soon")
+        LP.DevDebug("group", "trade closed, leaving soon")
         LP.ScheduleLeave(f.leaveDelay or 10)
     end
 end)
@@ -699,6 +742,20 @@ function LP.PostAd(manual)
         LP.Print(L["No matching channel found (trade only works in cities). Pick channels with the Channels button."])
     end
     return "none"
+end
+
+-- Developer tab: post the announcement from a TIMER (3 s later) and report whether the game allowed it.
+-- (Timer posts are normally blocked; a click on "Announce" or Shift-click on the minimap button always works.)
+function LP.AdTest()
+    if LP.IsDry() then LP.Print("adtest: test mode is on, nothing would be sent. Turn it off first (/picky debug).") return end
+    LP.Print("adtest: posting the announcement from a timer in 3 seconds ...")
+    LP.After(3, function()
+        LP.lastAd = nil   -- ignore the 60 s limit for this test
+        local res = LP.PostAd(false)
+        if res == "sent" then LP.Print("adtest: |cff4de88aposted|r - timer posts are allowed.")
+        elseif res == "blocked" then LP.Print("adtest: |cffff5959BLOCKED|r by the game - timer posts are not allowed, announcing needs a click.")
+        else LP.Print("adtest: nothing posted (no matching channel - tick channels with the Channels button).") end
+    end)
 end
 
 -- Simulations (debug page) ------------------------------------------------------------

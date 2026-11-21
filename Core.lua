@@ -2,7 +2,12 @@
 local ADDON, LP = ...
 _G.Picky = LP
 local L = LP.L
-LP.version = "1.0.0"
+-- Version comes from the TOC (## Version), so it can never go stale
+do
+    local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    local ok, v = pcall(function() return getMeta and getMeta(ADDON, "Version") end)
+    LP.version = (ok and v and v ~= "") and v or "?"
+end
 LP.PICK_SPELL_ID = 1804
 
 _G.BINDING_HEADER_PICKY = "Picky"
@@ -10,7 +15,7 @@ _G.BINDING_NAME_PICKY_TOGGLE = L["Picky window"]
 _G.BINDING_NAME_PICKY_AD = L["Announce service in trade chat"]
 
 LP.defaults = {
-    pick = { hint = true, glow = true },
+    pick = { hint = true },
     finder = {
         enabled = false,
         autoInvite = true,
@@ -27,6 +32,8 @@ LP.defaults = {
         maxAge = 120,
         welcomeText = L["default.welcome"],
         thanksText = L["default.thanks"],
+        tooHighReply = true,
+        tooHighText = L["default.toohigh"],
     },
     ad = {
         channelMatch = "handel,trade",
@@ -95,8 +102,18 @@ end
 -- Areas: chat, invite, group, trade, pick, skill, ui, test, sim
 LP.debugLog = {}
 local DEBUG_MAX = 300
-function LP.Debug(cat, fmt, ...)
-    if not (LP.db and (LP.db.debug or LP.db.logLive)) then return end
+-- Two separate logs:
+--  * LP.debugLog: for the USER (Test tab log): what Picky does and why. Written while test mode (or "live log") is on.
+--  * LP.devLog: for the DEVELOPER (Developer tab only): internals like skill/gear scans, hover checks, roster polling.
+--    Written only while the Developer tab is on (/picky dev), and never shown in the Test tab.
+LP.devLog = {}
+local DEV_CATS = { skill = true, ui = true, blocked = true }
+local function Log(dev, cat, fmt, ...)
+    if dev then
+        if not (LP.db and LP.db.dev) then return end
+    elseif not (LP.db and (LP.db.debug or LP.db.logLive)) then
+        return
+    end
     local n = select("#", ...)
     local args = { ... }
     for i = 1, n do
@@ -105,17 +122,23 @@ function LP.Debug(cat, fmt, ...)
     local ok, msg = pcall(string.format, tostring(fmt), unpack(args, 1, n))
     if not ok then msg = tostring(fmt) .. " (format error)" end
     -- do not repeat the same line within a second (otherwise the log fills up with repeats)
-    local key = cat .. "|" .. msg
+    local key = (dev and "d|" or "u|") .. cat .. "|" .. msg
     local nowT = GetTime()
     if key == LP.lastDebugKey and nowT - (LP.lastDebugT or 0) < 1 then return end
     LP.lastDebugKey, LP.lastDebugT = key, nowT
     local line = ("%s |cff9aa0ad[%s]|r %s"):format(date("%H:%M:%S"), cat, msg)
-    local log = LP.debugLog
+    local log = dev and LP.devLog or LP.debugLog
     log[#log + 1] = line
     if #log > DEBUG_MAX then table.remove(log, 1) end
-    if LP.db.debugChat then DEFAULT_CHAT_FRAME:AddMessage("|cff00ccffPicky|r " .. line) end
-    if LP.OnDebugLine then LP.OnDebugLine(line) end
+    if dev then
+        if LP.OnDevLine then LP.OnDevLine(line) end
+    else
+        if LP.db.debugChat then DEFAULT_CHAT_FRAME:AddMessage("|cff00ccffPicky|r " .. line) end
+        if LP.OnDebugLine then LP.OnDebugLine(line) end
+    end
 end
+function LP.DevDebug(cat, fmt, ...) Log(true, cat, fmt, ...) end
+function LP.Debug(cat, fmt, ...) Log(DEV_CATS[cat] and true or false, cat, fmt, ...) end
 
 -- Dry run: inviting/whispering/leaving/announcing are only logged.
 -- LP.forceDry is set by the simulations so they never trigger real actions.
@@ -386,6 +409,7 @@ LP.On("ADDON_LOADED", function(_, name)
     end
     FollowLocale(LP.db.finder, "welcomeText", "default.welcome")
     FollowLocale(LP.db.finder, "thanksText", "default.thanks")
+    FollowLocale(LP.db.finder, "tooHighText", "default.toohigh")
     FollowLocale(LP.db.ad, "text", "default.ad")
     -- Test mode replaces "debug mode + dry run": if debug mode was on WITHOUT dry run, it is turned off
     -- (test mode always simulates); the old setting is removed
