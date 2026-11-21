@@ -26,8 +26,8 @@ end
 
 local scan = CreateFrame("GameTooltip", "PickyScanTip", nil, "GameTooltipTemplate")
 
--- Ist genau DIESE Kiste (Tasche/Slot) gerade verschlossen? Der Zustand gehört zum einzelnen Item,
--- nicht zur Item-ID: eine geknackte Kiste zeigt kein "Verschlossen" mehr und muss normal geöffnet werden.
+-- Is exactly THIS box (bag/slot) currently locked? The state belongs to the individual item,
+-- not to the item ID: a picked box no longer shows "Locked" and must be opened normally.
 local function SlotLocked(bag, slot)
     if C_TooltipInfo and C_TooltipInfo.GetBagItem then
         local data = C_TooltipInfo.GetBagItem(bag, slot)
@@ -45,8 +45,8 @@ local function SlotLocked(bag, slot)
     return locked
 end
 
--- Gerade geknackte Kisten: der Client braucht einen Moment, bis der Tooltip "Verschlossen" nicht mehr zeigt.
--- In dieser Schonfrist gilt der Platz als offen, damit nie erneut "Schloss knacken" auf eine offene Kiste ausgelöst wird.
+-- Boxes just picked: the client needs a moment until the tooltip no longer shows "Locked".
+-- During this grace period the slot counts as open, so "Pick Lock" is never cast again on an open box.
 local recentPick = {}
 local PICK_GRACE = 3
 function LP.MarkPicked(bag, slot)
@@ -57,12 +57,12 @@ function LP.RecentlyPicked(bag, slot)
     return t ~= nil and (GetTime() - t) < PICK_GRACE
 end
 
-local lockableID = {}      -- Item-IDs, die schon einmal "Verschlossen" gezeigt haben
-local notLockableUntil = {} -- unbekannte Items ohne Schloss: 30 Sekunden nicht erneut prüfen
+local lockableID = {}      -- item IDs that have shown "Locked" at least once
+local notLockableUntil = {} -- unknown items without a lock: do not check again for 30 seconds
 function LP.IsLockedItem(bag, slot)
     local id = ContainerItemID(bag, slot)
     if not id then return false end
-    if LP.RecentlyPicked(bag, slot) then return false end   -- eben geknackt: gilt als offen (siehe oben)
+    if LP.RecentlyPicked(bag, slot) then return false end   -- just picked: counts as open (see above)
     local box = LP.BOXES[id]
     local req = box and box[1]
     if not box and not lockableID[id] then
@@ -97,15 +97,15 @@ local function TradeSlotLocked()
     return locked
 end
 
--- 2) Klickfläche: Rechtsklick auf die Kiste = knacken ----------------------------------------------
--- Secure-Buttons dürfen im Kampf nicht verändert werden -> nur außerhalb des Kampfes.
+-- 2) Click area: right-click on the box = pick ----------------------------------------------
+-- Secure buttons must not be changed in combat -> only outside combat.
 local overlay = CreateFrame("Button", "PickyOverlay", UIParent, "SecureActionButtonTemplate")
-overlay:RegisterForClicks("RightButtonUp", "RightButtonDown")   -- Auslösung je nach Client-Einstellung (runter/hoch)
+overlay:RegisterForClicks("RightButtonUp", "RightButtonDown")   -- trigger depends on client setting (down/up)
 overlay:SetFrameStrata("DIALOG")
 overlay:EnableMouse(true)
 overlay:Hide()
 
--- Merken, WORAUF zuletzt per Rechtsklick geknackt wurde (für die Schonfrist nach dem Erfolg)
+-- Remember WHAT was last picked via right-click (for the grace period after success)
 overlay:HookScript("PreClick", function(self, button)
     if button == "RightButton" then
         LP.lastPickTarget = { bag = self.bag, slot = self.slot, trade = self.isTrade, t = GetTime() }
@@ -128,7 +128,7 @@ end
 local function GetBagAndSlot(frame)
     if not frame then return nil, nil end
     local bag, slot
-    local via = "api"   -- woher wir den Taschenplatz haben: "api" = der Button sagt es selbst, "parent" = geraten über das Eltern-Frame
+    local via = "api"   -- where we got the bag slot from: "api" = the button tells us itself, "parent" = guessed via the parent frame
     if type(frame.GetBagID) == "function" then
         bag = frame:GetBagID()
     elseif frame.bag then
@@ -144,8 +144,8 @@ local function GetBagAndSlot(frame)
     return nil, nil
 end
 
--- Sicherheit für den geratenen Taschenplatz (Eltern-ID): zeigt der Tooltip ein ANDERES Item als das, das in diesem Platz liegt,
--- ist es ein fremdes Fenster (Aktionsleiste, Chat-Link ...) und es bekommt keine Klickfläche. Weiß man es nicht, wird nicht abgelehnt.
+-- Safety for the guessed bag slot (parent ID): if the tooltip shows a DIFFERENT item than the one in this slot,
+-- it is a foreign window (action bar, chat link ...) and gets no click area. If unsure, it is not rejected.
 local function TooltipItemMismatch(bag, slot)
     local want = ContainerItemID(bag, slot)
     if not want then return true end
@@ -158,10 +158,10 @@ local function CheckOverlayRaw(focus)
     if InCombatLockdown() or not LP.db or not LP.IsRogue() then return end
     if not focus or not focus:IsVisible() then HideOverlay() return end
     if focus == overlay or (focus.GetParent and focus:GetParent() == overlay) then return end
-    if IsShiftKeyDown() then HideOverlay() return end   -- Shift gedrückt = Kiste normal bewegen
+    if IsShiftKeyDown() then HideOverlay() return end   -- Shift held = move the box normally
 
-    -- Handelsfenster, Slot 7 ("Wird nicht getauscht")
-    -- Fremde Frames liefern bei GetName() teils kein Text (z.B. der Schadensmesser): nur Strings verwenden
+    -- Trade window, slot 7 ("Wird nicht getauscht" / "Will not be traded")
+    -- Foreign frames sometimes return no text from GetName() (e.g. the damage meter): only use strings
     local function SafeName(f)
         if not f or type(f.GetName) ~= "function" then return "" end
         local ok, n = pcall(f.GetName, f)
@@ -172,7 +172,7 @@ local function CheckOverlayRaw(focus)
     local pname = SafeName(parent)
     if fname:find("TradeRecipientItem7") or pname:find("TradeRecipientItem7") then
         if TradeSlotLocked() then
-            if overlay:IsShown() and overlay.isTrade and overlay:GetParent() == focus then return end   -- schon da, nichts neu setzen
+            if overlay:IsShown() and overlay.isTrade and overlay:GetParent() == focus then return end   -- already there, do not set anything again
             overlay.isTrade, overlay.bag, overlay.slot = true, nil, nil
             overlay:SetParent(focus)
             overlay:ClearAllPoints()
@@ -201,7 +201,7 @@ local function CheckOverlayRaw(focus)
         if locked then
             local ok = (not req) or LP.skillEstimated or LP.Skill() >= req
             if ok then
-                if overlay:IsShown() and overlay.bag == bag and overlay.slot == slot and overlay:GetParent() == focus then return end   -- schon da
+                if overlay:IsShown() and overlay.bag == bag and overlay.slot == slot and overlay:GetParent() == focus then return end   -- already there
                 overlay.isTrade, overlay.bag, overlay.slot = nil, bag, slot
                 overlay:SetParent(focus)
                 overlay:ClearAllPoints()
@@ -223,8 +223,8 @@ local function CheckOverlayRaw(focus)
     HideOverlay()
 end
 
--- Der Tooltip-Hook läuft für JEDEN Item-Tooltip im ganzen Spiel (auch fremde Addons, Schadensmesser, ...):
--- ein Fehler darf hier nie nach außen dringen, im Zweifel wird die Klickfläche einfach versteckt.
+-- The tooltip hook runs for EVERY item tooltip in the whole game (including other addons, damage meters, ...):
+-- an error must never escape here; when in doubt the click area is simply hidden.
 local function CheckOverlay(focus)
     local ok = pcall(CheckOverlayRaw, focus)
     if not ok then HideOverlay() end
@@ -248,7 +248,7 @@ overlay:SetScript("OnLeave", function()
     GameTooltip:Hide()
 end)
 
--- Tooltip-Hook (moderner Client) bzw. Fallback für ältere Clients
+-- Tooltip hook (modern client) or fallback for older clients
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
         if tooltip == GameTooltip then CheckOverlay(GetMouseFocusCompat()) end
@@ -263,18 +263,18 @@ LP.On("MODIFIER_STATE_CHANGED", function()
 end)
 LP.On("TRADE_CLOSED", HideOverlay)
 
--- Nach dem Knacken (oder jeder Änderung an Taschen/Handel) Zustand neu prüfen:
--- Klickfläche weg, dann mit dem aktuellen Zustand der Kiste neu entscheiden.
--- Ist die Kiste jetzt offen, bleibt die Fläche weg und der normale Rechtsklick öffnet sie.
--- Nach dem Kampf: im Kampf kann die Klickfläche nicht versteckt werden. Jetzt aufräumen und neu entscheiden,
--- damit sie nicht mit veralteten Tasche/Slot-Angaben auf einem wiederverwendeten Button hängen bleibt.
+-- After picking (or any change to bags/trade) re-check the state:
+-- click area gone, then decide again with the box's current state.
+-- If the box is open now, the area stays gone and the normal right-click opens it.
+-- After combat: the click area cannot be hidden in combat. Clean up now and decide again,
+-- so it does not hang on a reused button with stale bag/slot values.
 LP.On("PLAYER_REGEN_ENABLED", function()
     HideOverlay()
     LP.After(0.1, function() CheckOverlay(GetMouseFocusCompat()) end)
 end)
 
--- Tooltip ohne Mausbewegung auffrischen: der Client baut ihn sonst erst beim erneuten Betreten neu auf.
--- Wir lösen dafür das "Betreten" des Taschenplatzes (oder unserer Klickfläche) selbst aus.
+-- Refresh the tooltip without mouse movement: otherwise the client only rebuilds it on re-entering.
+-- For that we trigger the "enter" of the bag slot (or our click area) ourselves.
 local function RefreshTooltip()
     pcall(function()
         if overlay:IsShown() and overlay:IsMouseOver() then
@@ -314,11 +314,11 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
     if unit ~= "player" then return end
     local id = (type(b) == "number" and b) or (type(a) == "number" and a)
     local name = (type(a) == "string" and a)
-    -- nur nach "Schloss knacken" neu prüfen (nicht nach jedem Zauber)
+    -- only re-check after "Pick Lock" (not after every spell)
     if id == LP.PICK_SPELL_ID or (name and name == LP.PickName()) then Recheck(true) end
 end)
 
--- 3) Funkeln in den Taschen --------------------------------------------------------------------
+-- 3) Sparkle in the bags --------------------------------------------------------------------
 local function GetGlow(button)
     if button.PickyGlow then return button.PickyGlow end
     local g = CreateFrame("Frame", nil, button)
@@ -398,7 +398,7 @@ function LP.UpdateGlow()
     end
 end
 
--- Hover-Prüfung (Debug): erklärt, warum unter der Maus eine Klickfläche erscheint oder nicht ----------------------
+-- Hover check (debug): explains why a click area appears under the mouse or not ----------------------
 function LP.InspectHover()
     local focus = GetMouseFocusCompat()
     if not focus then LP.Print(L["Nothing under the mouse."]) return end
@@ -438,7 +438,7 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
     local id = (type(b) == "number" and b) or (type(a) == "number" and a)
     local name = (type(a) == "string" and a)
     if id == LP.PICK_SPELL_ID or (name and name == LP.PickName()) then
-        -- die geknackte Kiste für kurze Zeit als offen behandeln (kein zweites "Schloss knacken" auf eine offene Kiste)
+        -- treat the picked box as open for a short time (no second "Pick Lock" on an open box)
         local t = LP.lastPickTarget
         if t and (GetTime() - t.t) < 15 then
             if t.bag and t.slot then LP.MarkPicked(t.bag, t.slot) end
@@ -451,7 +451,7 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
 end)
 
 function LP.OnLogin()
-    -- Taschen-Frames werden vom Client dauernd neu aufgebaut: einfacher Takt statt fragiler Hooks
+    -- The client rebuilds bag frames constantly: a simple timer instead of fragile hooks
     C_Timer.NewTicker(0.5, function() pcall(LP.UpdateGlow) end)
     if LP.StartAdLoop then LP.StartAdLoop() end
     if LP.BuildMinimap then LP.BuildMinimap() end

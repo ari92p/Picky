@@ -1,13 +1,13 @@
--- Picky / Tests.lua : Selbsttests, laufen im Spiel mit /picky test (oder dem Knopf auf der Debug-Seite).
--- Die Tests ändern nichts Bleibendes: Anfragen, Statistik und Einstellungen werden vorher gesichert und danach
--- wiederhergestellt; Einladen/Flüstern/Verlassen laufen als Trockenlauf.
+-- Picky / Tests.lua : self tests, run in game with /picky test (or the button on the debug page).
+-- The tests change nothing permanent: requests, statistics and settings are saved beforehand and
+-- restored afterwards; inviting/whispering/leaving run as dry run.
 local ADDON, LP = ...
 local L = LP.L
 
 local tests = {}
 local function T(name, fn) tests[#tests + 1] = { name = name, fn = fn } end
 
--- Prüf-Funktionen ------------------------------------------------------------------------------
+-- Check functions ------------------------------------------------------------------------------
 local function fail(msg) error(msg, 0) end
 local function eq(actual, expected, what)
     if actual ~= expected then
@@ -17,7 +17,7 @@ end
 local function truthy(v, what) if not v then fail((what or "value") .. " should be true") end end
 local function falsy(v, what) if v then fail((what or "value") .. " should be false") end end
 
--- Sandbox: sichert den Zustand, setzt Testwerte, stellt alles wieder her (auch bei Fehlern) -----------------
+-- Sandbox: saves the state, sets test values, restores everything (even on errors) -----------------
 local FINDER_KEYS = { "autoInvite", "onlyWhenFree", "inviteUnknown", "welcome", "thanks", "autoLeave", "idleLeave", "sound", "enabled" }
 local UI_KEYS = { "toast", "flash", "chatLine" }
 local STAT_KEYS = { "picked", "tips", "invited", "thanked" }
@@ -33,17 +33,17 @@ local function Sandbox(setup, fn)
     for _, k in ipairs(UI_KEYS) do saved.ui[k] = db.ui[k] end
     for _, k in ipairs(STAT_KEYS) do saved.stats[k] = db.stats[k] end
 
-    -- Ausgangslage: leer, Trockenlauf, keine Meldungen/Töne
+    -- Starting point: empty, dry run, no notifications/sounds
     LP.requests, LP.pending, LP.partner, LP.partnerSim, LP.pickedForPartner, LP.waitTradeClose = {}, nil, nil, nil, false, false
     LP.forceDry = true
-    LP.feed, LP.lastInviter = {}, nil   -- der Verlauf der Tests soll nicht im echten Verlauf landen
+    LP.feed, LP.lastInviter = {}, nil   -- the history of the tests must not end up in the real history
     LP.InGroup = function() return false end
     LP.GroupCount = function() return 1 end
     db.ui.toast, db.ui.flash, db.ui.chatLine, db.finder.sound = false, false, false, false
     db.finder.enabled, db.finder.autoInvite, db.finder.onlyWhenFree, db.finder.inviteUnknown = true, true, true, true
     db.finder.welcome, db.finder.thanks, db.finder.autoLeave = true, true, true
     LP.skill, LP.skillEstimated = 200, false
-    local ok, err = pcall(function()   -- auch setup() ist geschützt: ein Fehler darf den Zustand nie dauerhaft verbiegen
+    local ok, err = pcall(function()   -- setup() is protected too: an error must never permanently distort the state
         if setup then setup(db) end
         fn(db)
     end)
@@ -69,7 +69,7 @@ end
 -- 1) Chat-Erkennung -----------------------------------------------------------------------------------------
 local ITEM_IRON = "|cffffffff|Hitem:4634::::::::60:::::|h[Iron Lockbox]|h|r"
 local CHAT_CASES = {
-    -- { Nachricht, geflüstert, soll erkannt werden, erwarteter Skill (oder nil) }
+    -- { message, whispered, should be detected, expected skill (or nil) }
     { "hi can u open some low level chersts for me?", false, true },
     { "hi can u open some low level chersts for me?", true, true },
     { "LF rogue to open lockbox pls", false, true },
@@ -80,7 +80,7 @@ local CHAT_CASES = {
     { "Brauche einen Schurken für meine Eisenkiste", false, true, 125 },
     { "can someone unlock my chest", false, true },
     { "LF rogue pls open this " .. ITEM_IRON, false, true, 70 },
-    -- Item-Link im neuen Farbformat (|cnIQ1:) wie in WoW Forever
+    -- Item link in the new color format (|cnIQ1:) as in WoW Forever
     { "Ich hätte eine Kiste |cnIQ1:|Hitem:6355::::::::29:1482:::::::::|h[Stabile verschlossene Truhe]|h|r", true, true, 70 },
     { "anyone know where the chest in SM is?", false, false },
     { "Kann jemand meine Stahlschließkassette öffnen bitte", true, true, 225 },
@@ -134,7 +134,7 @@ T("'locked' tooltip words", function()
     falsy(LP.IsLockedText(nil), "nil")
 end)
 T("just-picked box counts as open for a few seconds (no second pick on an open box)", function()
-    -- Plätze, die es im echten Rucksack nicht gibt (Tasche 90/91): der Test fasst keinen echten Platz an
+    -- Slots that do not exist in the real backpack (bag 90/91): the test touches no real slot
     falsy(LP.RecentlyPicked(90, 1), "fresh slot")
     LP.MarkPicked(90, 1)
     truthy(LP.RecentlyPicked(90, 1), "marked slot")
@@ -197,14 +197,14 @@ T("debug log accepts nil/table/number arguments", function()
     local was = db.debug
     db.debug = true
     local before = #LP.debugLog
-    local stamp = math.floor(GetTime() * 1000)   -- eindeutig, damit die Entdoppelung (gleiche Zeile binnen 1 s) nicht stört
+    local stamp = math.floor(GetTime() * 1000)   -- unique, so the de-duplication (same line within 1 s) does not interfere
     LP.Debug("test", "nil args %d: %s %d %s", stamp, nil, 5, {})
     LP.Debug("test", "no arguments %d", stamp + 1)
     db.debug = was
     eq(#LP.debugLog >= before + 2 or #LP.debugLog == 300, true, "two lines logged")
 end)
 
--- 3) Übersetzungen -------------------------------------------------------------------------------------------------
+-- 3) Translations -------------------------------------------------------------------------------------------------
 local function count(s, pat)
     local n = 0
     for _ in s:gmatch(pat) do n = n + 1 end
@@ -294,7 +294,7 @@ T("invite: full group -> queued", function()
     end)
 end)
 
--- 5) Zustand / Anzeige-Daten ------------------------------------------------------------------------------------------
+-- 5) State / display data ------------------------------------------------------------------------------------------
 T("state: counts, phase and next invitable", function()
     Sandbox(nil, function()
         local a, b, c = Req("A", "done"), Req("B", "queued"), Req("C", "new")
@@ -314,7 +314,7 @@ T("state: counts, phase and next invitable", function()
     end)
 end)
 
--- 6) Ganzer Ablauf mit Simulation ---------------------------------------------------------------------------------------
+-- 6) Whole flow with simulation ---------------------------------------------------------------------------------------
 T("flow: request -> invite -> join -> tip -> pick -> leave (simulated, nothing real is sent)", function()
     Sandbox(nil, function(db)
         local before = { picked = db.stats.picked, tips = db.stats.tips, invited = db.stats.invited }
@@ -359,7 +359,7 @@ T("dry run: invite and whisper are only logged", function()
     Sandbox(nil, function()
         local db = LP.db
         local was = db.debug
-        LP.forceDry = false   -- den TESTMODUS selbst prüfen, nicht die Sandbox
+        LP.forceDry = false   -- check the TEST MODE itself, not the sandbox
         db.debug = true
         local before = #LP.debugLog
         LP.Invite("Nobody")
@@ -574,7 +574,7 @@ T("announcement: the countdown is set and the x cancels the automatic repeat", f
         eq(LP.nextAdAt, nil, "countdown cleared")
     end)
     ad.auto, LP.nextAdAt = saved.auto, saved.at
-    if saved.auto then LP.StartAdLoop() end   -- den eigenen Zustand wiederherstellen
+    if saved.auto then LP.StartAdLoop() end   -- restore its own state
     if not ok then error(err, 0) end
 end)
 T("leave: the 'Leave' button thanks and leaves immediately", function()
@@ -701,7 +701,7 @@ T("group: invited customer with a two-part name is recognized in the group", fun
     local ok, err = pcall(function()
         Sandbox(nil, function()
             LP.InGroup = function() return true end
-            -- die Gruppe meldet nur "Arkanos", die Anfrage heißt "Arkanos Spellix"
+            -- the group only reports "Arkanos", the request is named "Arkanos Spellix"
             LP.InGroupWith = function(n) return LP.SameName(n, "Arkanos") end
             local r = Req("Arkanos Spellix", "invited", { sender = "Arkanos Spellix" })
             LP.requests = { r }
@@ -720,7 +720,7 @@ T("group: someone you did not invite (no request) becomes a customer when you jo
         Sandbox(nil, function()
             LP.InGroup = function() return true end
             LP.InGroupWith = function() return true end
-            LP.lastInviter = { name = "Esco Ba", t = GetTime(), auto = true }   -- Picky hat die Einladung selbst angenommen
+            LP.lastInviter = { name = "Esco Ba", t = GetTime(), auto = true }   -- Picky accepted the invite itself
             LP.requests = {}
             truthy(LP.CheckRoster(), "customer created")
             eq(#LP.requests, 1, "one request created")
@@ -753,7 +753,7 @@ T("group: customer invited you FIRST, the message comes later -> customer, not '
     local ok, err = pcall(function()
         Sandbox(nil, function()
             LP.InGroup = function() return true end
-            LP.InGroupWith = function() return true end   -- der Absender ist bereits in meiner Gruppe
+            LP.InGroupWith = function() return true end   -- the sender is already in my group
             local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
             truthy(r, "request created")
             eq(r.status, "grouped", "status")
@@ -767,11 +767,11 @@ T("group: a customer already in the group who writes AGAIN is picked up too", fu
     local orig = LP.InGroupWith
     local ok, err = pcall(function()
         Sandbox(nil, function()
-            -- erste Nachricht: noch nicht in der Gruppe -> Anfrage wartet/eingeladen
+            -- first message: not in the group yet -> request waits/invited
             LP.InGroupWith = function() return false end
             local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
             truthy(r, "request created")
-            -- jetzt ist er in der Gruppe (hat dich eingeladen) und schreibt innerhalb der Wartezeit nochmal
+            -- now they are in the group (they invited you) and write again within the wait time
             LP.InGroup = function() return true end
             LP.InGroupWith = function(n) return n == r.name end
             LP.pending = nil
@@ -815,7 +815,7 @@ T("group: greeting is not sent when the option is off", function()
     end)
 end)
 
--- 7) Live-Prüfungen (nur Hinweise, brechen nicht ab) ------------------------------------------------------------------------
+-- 7) Live checks (hints only, do not abort) ------------------------------------------------------------------------
 T("live: skill is read from the game (not estimated)", function()
     if LP.skillEstimated then return "warn: skill is only estimated, set it with /picky skill <number>" end
 end)
@@ -838,7 +838,7 @@ T("live: bag scan works", function()
     if checked == 0 then return "warn: no bag slots found" end
 end)
 
--- Ausführen -------------------------------------------------------------------------------------------------------------------
+-- Run -------------------------------------------------------------------------------------------------------------------
 function LP.RunTests()
     local pass, failed, warned = 0, 0, 0
     local out = {}

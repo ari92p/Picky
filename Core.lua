@@ -20,7 +20,7 @@ LP.defaults = {
         welcome = true,
         thanks = true,
         autoLeave = true,
-        leaveDelay = 10,       -- Sekunden Wartezeit nach dem letzten Handel, dann verlässt Picky die Gruppe
+        leaveDelay = 10,       -- seconds to wait after the last trade, then Picky leaves the group
         idleLeave = 180,
         sound = true,
         cooldown = 180,
@@ -36,18 +36,18 @@ LP.defaults = {
     },
     ui = {
         minimap = true, angle = 215,
-        toast = true,        -- Meldung bei Anfragen / Beitritt / Trinkgeld
-        chatLine = false,    -- zusätzlich eine Zeile im Chat
+        toast = true,        -- notification on requests / join / tip
+        chatLine = false,    -- additionally a line in chat
         flash = true,        -- Taskleiste blinken
-        scale = 100,         -- Fenstergröße in Prozent
+        scale = 100,         -- window size in percent
     },
     stats = { picked = 0, tips = 0, invited = 0, thanked = 0 },
     ignore = {},
-    orders = {},         -- alle Aufträge/Anfragen, dauerhaft gespeichert (neueste zuerst); nur du löschst sie
-    debug = false,       -- TESTMODUS: Protokoll läuft, Einladen/Flüstern/Verlassen/Ankündigen werden nur simuliert
-    debugChat = false,   -- Protokollzeilen zusätzlich in den Chat schreiben
-    dev = false,         -- Developer-Tab (nur per /picky dev sichtbar)
-    logLive = false,     -- Protokoll auch im Normalbetrieb führen (Developer-Tab)
+    orders = {},         -- all orders/requests, stored permanently (newest first); only you delete them
+    debug = false,       -- TEST MODE: log runs, inviting/whispering/leaving/announcing are only simulated
+    debugChat = false,   -- also write log lines to chat
+    dev = false,         -- Developer tab (only visible via /picky dev)
+    logLive = false,     -- keep the log in normal operation too (Developer tab)
 }
 
 local function Merge(dst, src)
@@ -69,7 +69,7 @@ function LP.On(event, fn)
     if not handlers[event] then
         handlers[event] = {}
         if event == "UNIT_SPELLCAST_SUCCEEDED" and frame.RegisterUnitEvent then
-            pcall(frame.RegisterUnitEvent, frame, event, "player")   -- nur eigene Zauber, nicht die aller Spieler im Raid
+            pcall(frame.RegisterUnitEvent, frame, event, "player")   -- only own spells, not those of all players in the raid
         else
             pcall(frame.RegisterEvent, frame, event)
         end
@@ -93,7 +93,7 @@ function LP.After(sec, fn)
 end
 
 -- Debug-Modus ----------------------------------------------------------------------
--- LP.Debug(Bereich, Format, ...) schreibt nur, wenn der Debug-Modus an ist (kostet sonst fast nichts).
+-- LP.Debug(area, format, ...) only writes when debug mode is on (otherwise costs almost nothing).
 -- Bereiche: chat, invite, group, trade, pick, skill, ui, test, sim
 LP.debugLog = {}
 local DEBUG_MAX = 300
@@ -106,7 +106,7 @@ function LP.Debug(cat, fmt, ...)
     end
     local ok, msg = pcall(string.format, tostring(fmt), unpack(args, 1, n))
     if not ok then msg = tostring(fmt) .. " (format error)" end
-    -- dieselbe Zeile innerhalb einer Sekunde nicht mehrfach (sonst läuft das Protokoll mit Wiederholungen voll)
+    -- do not repeat the same line within a second (otherwise the log fills up with repeats)
     local key = cat .. "|" .. msg
     local nowT = GetTime()
     if key == LP.lastDebugKey and nowT - (LP.lastDebugT or 0) < 1 then return end
@@ -119,14 +119,14 @@ function LP.Debug(cat, fmt, ...)
     if LP.OnDebugLine then LP.OnDebugLine(line) end
 end
 
--- Trockenlauf: Einladen/Flüstern/Verlassen/Ankündigen werden nur protokolliert.
--- LP.forceDry wird von den Simulationen gesetzt, damit sie nie echte Aktionen auslösen.
--- Testmodus ein/aus: Protokoll + alles wird nur simuliert (Einladen, Flüstern, Verlassen, Ankündigen)
+-- Dry run: inviting/whispering/leaving/announcing are only logged.
+-- LP.forceDry is set by the simulations so they never trigger real actions.
+-- Test mode on/off: log + everything is only simulated (inviting, whispering, leaving, announcing)
 function LP.SetTestMode(on)
     on = on and true or false
     LP.db.debug = on
     if not on and LP.partnerSim then
-        -- ein simulierter Kunde darf nicht im echten Betrieb hängen bleiben (er würde Einladen/Flüstern/Ankündigen stumm schalten)
+        -- a simulated customer must not linger in real operation (it would silence inviting/whispering/announcing)
         LP.partner, LP.partnerSim, LP.pickedForPartner, LP.leaveAt = nil, nil, false, nil
         LP.leaveToken = (LP.leaveToken or 0) + 1
     end
@@ -147,9 +147,9 @@ function LP.Short(name)
     return name and (name:match("^[^%-]+") or name) or name
 end
 
--- Gleicher Spieler? In diesem Client haben Namen zwei Teile ("Arkanos Spellix"): der Chat meldet den vollen Namen,
--- UnitName() und der Handel nur "Arkanos". Der erste Teil (ohne Realm-Zusatz, klein geschrieben) muss gleich sein;
--- haben BEIDE Namen einen zweiten Teil, muss auch der gleich sein ("Arkanos Spellix" ist nicht "Arkanos Voidwalker").
+-- Same player? In this client names have two parts ("Arkanos Spellix"): chat reports the full name,
+-- UnitName() and trade only "Arkanos". The first part (without realm suffix, lowercase) must match;
+-- if BOTH names have a second part, it must match too ("Arkanos Spellix" is not "Arkanos Voidwalker").
 local function NameParts(n)
     if not n then return "", "" end
     n = tostring(n):lower():gsub("%-.*$", "")
@@ -165,7 +165,7 @@ function LP.SameName(a, b)
     return true
 end
 
--- Steht der Spieler auf deiner Ignorierliste? (gleicher Namensvergleich wie überall)
+-- Is the player on your ignore list? (same name comparison as everywhere)
 function LP.IsIgnored(name)
     if not name or not LP.db then return false end
     for k in pairs(LP.db.ignore) do
@@ -193,15 +193,15 @@ function LP.SpellName(id)
 end
 function LP.PickName() return LP.SpellName(LP.PICK_SPELL_ID) or "Pick Lock" end
 
--- Klickbarer Zauber-Link, wie er im Chat aussieht: [Pick Lock] bzw. [Schloss knacken]
+-- Clickable spell link as it looks in chat: [Pick Lock] or [Schloss knacken]
 function LP.PickLink()
     local id = LP.PICK_SPELL_ID
     local link = (C_Spell and C_Spell.GetSpellLink and C_Spell.GetSpellLink(id)) or (GetSpellLink and GetSpellLink(id))
     return link or ("[" .. LP.PickName() .. "]")
 end
 
--- Ankündigungstext fertig machen: {skill} = Skill, {pick} = Zauber-Link, {city} = aktuelles Gebiet (z.B. Sturmwind),
--- ein einfaches [Zaubername] ohne Link wird ebenfalls zum Link.
+-- Finish the announcement text: {skill} = skill, {pick} = spell link, {city} = current zone (e.g. Stormwind),
+-- a plain [Spell name] without a link also becomes a link.
 function LP.ExpandAd(text)
     local link = LP.PickLink()
     text = text:gsub("{skill}", function() return tostring(LP.Skill()) end)
@@ -220,7 +220,7 @@ function LP.IsRogue()
     return class == "ROGUE"
 end
 
--- Gruppen-Wrapper (alte/neue API)
+-- Group wrappers (old/new API)
 function LP.InGroup()
     if IsInGroup then return IsInGroup() end
     return GetNumPartyMembers() > 0
@@ -238,7 +238,7 @@ function LP.Leave()
     if C_PartyInfo and C_PartyInfo.LeaveParty then C_PartyInfo.LeaveParty() else LeaveParty() end
 end
 function LP.InGroupWith(name)
-    if IsInRaid and IsInRaid() then   -- Schlachtzugsgruppe: raid1..raidN statt party1..4
+    if IsInRaid and IsInRaid() then   -- raid group: raid1..raidN instead of party1..4
         for i = 1, (GetNumGroupMembers and GetNumGroupMembers() or 0) do
             local n = UnitName("raid" .. i)
             if n and LP.SameName(n, name) then return true end
@@ -253,7 +253,7 @@ function LP.InGroupWith(name)
 end
 function LP.Whisper(name, text)
     if LP.IsDry() then LP.Debug("invite", "[dry run] would whisper %s: %s", name, text) return end
-    -- neuere Clients haben SendChatMessage nur noch unter C_ChatInfo; Fehler werden protokolliert statt verschluckt
+    -- newer clients only have SendChatMessage under C_ChatInfo; errors are logged instead of swallowed
     local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
     local ok, err = pcall(send, text, "WHISPER", nil, name)
     LP.Debug("invite", "whisper to %s: %s", name, ok and "sent" or ("FAILED: " .. tostring(err)))
@@ -268,13 +268,13 @@ function LP.SendChannel(text, id)
 end
 
 -- Skill --------------------------------------------------------------------
--- WoW Forever hat keine Skill-Liste (GetNumSkillLines/GetSkillLineInfo fehlen). Quellen der Reihe nach:
---  1. Skill-Liste (falls der Client eine hat)
---  2. C_TradeSkillUI (Skill-Linie 633 = Schlossknacken)
---  3. zuletzt bekannter Wert: aus der Skill-Meldung im Chat oder per /picky skill <Zahl>
---  4. Schätzung Level x 5 (nur Notlösung, in der Anzeige als "geschätzt" markiert)
--- Der Bonus aus Ausrüstung ("Equip: Lockpicking +4" / "Anlegen: Schlossknacken +4") kommt aus den Tooltips
--- der angelegten Items (Englisch und Deutsch).
+-- WoW Forever has no skill list (GetNumSkillLines/GetSkillLineInfo are missing). Sources in order:
+--  1. skill list (if the client has one)
+--  2. C_TradeSkillUI (skill line 633 = Lockpicking)
+--  3. last known value: from the skill message in chat or via /picky skill <number>
+--  4. estimate level x 5 (last resort, marked "estimated" in the display)
+-- The bonus from equipment ("Equip: Lockpicking +4" / "Anlegen: Schlossknacken +4") comes from the tooltips
+-- of the equipped items (English and German).
 local SKILL_NAMES = { "lockpick", "schlossknack", "schlösser", "schloss", "crochetage" }
 local LOCKPICKING_SKILL_LINE = 633
 
@@ -282,7 +282,7 @@ local function IsLockWord(l)
     return l:find("lockpick", 1, true) or l:find("schloss", 1, true) or l:find("schlö", 1, true)
 end
 
--- Bonus aus EINER Tooltip-Zeile: "Equip: Lockpicking +4." / "Anlegen: Schlossknacken +4." -> 4, sonst 0
+-- Bonus from ONE tooltip line: "Equip: Lockpicking +4." / "Anlegen: Schlossknacken +4." -> 4, otherwise 0
 function LP.ParseBonus(text)
     if type(text) ~= "string" then return 0 end
     local l = text:lower()
@@ -352,9 +352,9 @@ end
 function LP.Skill() return LP.skill or LP.RefreshSkill() end
 
 -- Start ----------------------------------------------------------------------
--- Gespeicherte Standardtexte folgen der Spielsprache: stimmt der Text noch mit einem der beiden
--- mitgelieferten Standardtexte (Deutsch/Englisch) überein, wird er durch den der aktuellen Sprache ersetzt.
--- Selbst geschriebene Texte bleiben unberührt.
+-- Saved default texts follow the game language: if the text still matches one of the two
+-- bundled default texts (German/English), it is replaced by the one for the current language.
+-- Custom-written texts are left untouched.
 local function FollowLocale(tbl, key, id)
     local en, de = LP.Both(id)
     local v = tbl[key]
@@ -374,32 +374,32 @@ LP.On("ADDON_LOADED", function(_, name)
     FollowLocale(LP.db.finder, "welcomeText", "default.welcome")
     FollowLocale(LP.db.finder, "thanksText", "default.thanks")
     FollowLocale(LP.db.ad, "text", "default.ad")
-    -- Testmodus ersetzt "Debug-Modus + Trockenlauf": war der Debug-Modus OHNE Trockenlauf an, wird er ausgeschaltet
-    -- (der Testmodus simuliert immer); die alte Einstellung wird entfernt
+    -- Test mode replaces "debug mode + dry run": if debug mode was on WITHOUT dry run, it is turned off
+    -- (test mode always simulates); the old setting is removed
     if PickyDB.dryRun ~= nil then
         if PickyDB.dryRun == false then PickyDB.debug = false end
         PickyDB.dryRun = nil
     end
-    -- die Mini-Anzeige gibt es nicht mehr: alte Einstellungen dazu entfernen
+    -- the mini display no longer exists: remove old settings for it
     PickyDB.ui.tracker, PickyDB.ui.trackerCollapsed, PickyDB.ui.trackerPos = nil, nil, nil
     PickyDB.feedMigrated = nil
-    PickyDB.ui.feed, PickyDB.ui.feedExpand, PickyDB.ui.feedPos = nil, nil, nil   -- das Verlauf-Feld auf dem Bildschirm gibt es nicht mehr
-    -- Reste früherer Versionen entfernen
+    PickyDB.ui.feed, PickyDB.ui.feedExpand, PickyDB.ui.feedPos = nil, nil, nil   -- the history field on screen no longer exists
+    -- remove leftovers from earlier versions
     PickyDB.ui.lastDisplay = nil
     if PickyDB.pick then PickyDB.pick.outline, PickyDB.pick.cursor, PickyDB.pick.cursorIcon = nil, nil, nil end
     PickyDB.finder.declineText, PickyDB.finder.declineTooHigh = nil, nil
-    -- Wartezeit vor dem Verlassen: alter Standard 2 s -> 15 s (mehrere Kisten nacheinander); einmalig
+    -- wait before leaving: old default 2 s -> 15 s (several boxes in a row); once
     if not PickyDB.leaveDelayMigrated then
         PickyDB.leaveDelayMigrated = true
         if PickyDB.finder.leaveDelay == 2 then PickyDB.finder.leaveDelay = 15 end
     end
-    -- 15 s waren zu lang (der Kunde wusste nicht, ob noch etwas kommt): neuer Standard 10 s, einmalig
+    -- 15 s was too long (the customer did not know whether more was coming): new default 10 s, once
     if not PickyDB.leaveDelay10 then
         PickyDB.leaveDelay10 = true
         if PickyDB.finder.leaveDelay == 15 then PickyDB.finder.leaveDelay = 10 end
     end
     LP.db = PickyDB
-    if LP.LoadOrders then LP.LoadOrders() end   -- gespeicherte Aufträge laden (Finder.lua)
+    if LP.LoadOrders then LP.LoadOrders() end   -- load saved orders (Finder.lua)
 end)
 LP.On("PLAYER_LOGIN", function()
     LP.RefreshSkill()
@@ -421,7 +421,7 @@ LP.On("SKILL_LINES_CHANGED", function()
     LP.RefreshSkill()
     if LP.RefreshUI then LP.RefreshUI() end
 end)
--- Skill-Meldung im Chat ("Your skill in Lockpicking has increased to 151" / deutsch) -> Wert merken
+-- Skill message in chat ("Your skill in Lockpicking has increased to 151" / German) -> remember value
 LP.On("CHAT_MSG_SKILL", function(_, msg)
     if type(msg) == "string" and LP.db and IsLockWord(msg:lower()) then
         local n = tonumber(msg:match("(%d+)%D*$"))
@@ -430,7 +430,7 @@ LP.On("CHAT_MSG_SKILL", function(_, msg)
     LP.RefreshSkill()
     if LP.RefreshUI then LP.RefreshUI() end
 end)
--- Ausrüstung gewechselt -> Bonus neu lesen (kurz warten, bis die Tooltips aktuell sind)
+-- Equipment changed -> re-read bonus (wait briefly until the tooltips are current)
 LP.On("PLAYER_EQUIPMENT_CHANGED", function()
     LP.After(0.3, function()
         LP.RefreshSkill()
@@ -438,14 +438,14 @@ LP.On("PLAYER_EQUIPMENT_CHANGED", function()
     end)
 end)
 
--- Protokoll + Verlauf beim /reload bzw. Abmelden mitspeichern (ohne Farbcodes), damit sie danach lesbar sind
+-- Also save the log + history on /reload or logout (without color codes) so they are readable afterwards
 LP.On("PLAYER_LOGOUT", function()
     if not LP.db then return end
     local function Clean(s) return (tostring(s):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
     local log = {}
     for i, line in ipairs(LP.debugLog) do log[i] = Clean(line) end
     LP.db.savedLog = log
-    -- simulierte Aufträge nicht speichern
+    -- do not save simulated orders
     local orders = LP.db.orders
     if type(orders) == "table" then
         for i = #orders, 1, -1 do if orders[i].sim then table.remove(orders, i) end end
@@ -463,7 +463,7 @@ SlashCmdList["PICKY"] = function(msg)
         LP.ToggleUI()
     elseif cmd == "skill" then
         -- /picky skill          -> Diagnose
-        -- /picky skill <Zahl>   -> Basiswert von Hand setzen (ohne Ausrüstungsbonus, z.B. 150)
+        -- /picky skill <number>   -> set base value by hand (without equipment bonus, e.g. 150)
         local num = tonumber(arg)
         if num and num > 0 and num <= 300 then
             LP.db.skillBase = num

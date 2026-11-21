@@ -1,8 +1,8 @@
--- Picky / Finder.lua : Chat-Erkennung, Auto-Einladen, Ankündigung, Danke, Auto-Verlassen
+-- Picky / Finder.lua : chat detection, auto-invite, announcement, thanks, auto-leave
 local ADDON, LP = ...
 local L = LP.L
 
-LP.requests = {}   -- neueste zuerst; nach dem Laden ist das LP.db.orders (dauerhaft gespeichert), siehe LoadOrders
+LP.requests = {}   -- newest first; after loading this is LP.db.orders (stored permanently), see LoadOrders
 LP.STATUS = {
     new = { L["New"], "ffd100" },
     queued = { L["Waiting"], "9aa0ad" },
@@ -14,14 +14,14 @@ LP.STATUS = {
     timeout = { L["No answer"], "6c7280" },
 }
 
--- Schlüsselwörter (de + en) ---------------------------------------------------------
+-- Keywords (de + en) ---------------------------------------------------------
 local ROGUE = { "rogue", "rogues", "rouge", "rog", "schurke", "schurken", "schurkin" }
 local LOCKTOK = { "lockpick", "lockpicker", "lockpicking", "picklock", "lockbox", "lockboxes", "junkbox", "junkboxes", "lock", "locked",
     "chest", "chests", "box", "boxes", "kiste", "kisten", "truhe", "truhen", "footlocker", "schloss", "schlösser", "schlüssel" }
--- "open / unlock" allein: reicht für Flüstern und zusammen mit "rogue"
+-- "open / unlock" alone: enough for whispers and together with "rogue"
 local VERB = { "open", "opening", "unlock", "unlocking" }
 local LOCKSUB = { "lockpick", "pick lock", "schlossknack", "schlösser", "knack", "aufschlie", "schließkass", "schliesskass", "öffnen", "aufmachen", "aufbrechen",
-    "kiste", "truhe", "kassette", "plunder" }   -- deutsche Zusammensetzungen: "Eisenkiste", "Holztruhe", "Stahlschließkassette", "Plunderkiste"
+    "kiste", "truhe", "kassette", "plunder" }   -- German compounds: "Eisenkiste", "Holztruhe", "Stahlschließkassette", "Plunderkiste"
 local SEEK = { "lf", "lf1", "suche", "suchen", "sucht", "gesucht", "need", "needs", "brauche", "braucht", "wer", "jemand",
     "anyone", "anybody", "someone", "wtb", "pls", "plz", "bitte", "please", "help", "hilfe", "can", "could", "would" }
 local EXCL = { "lfm", "dps", "tank", "tanks", "healer", "heal", "wts", "wtt", "biete", "bietet", "bieten", "offering",
@@ -40,15 +40,15 @@ local function HasSub(s, list)
     return false
 end
 
--- "chest/chests" auch mit Tippfehlern ("chersts", "chesst"): ch + 1-2 Buchstaben + st(s), als ganzes Wort
+-- "chest/chests" also with typos ("chersts", "chesst"): ch + 1-2 letters + st(s), as a whole word
 local function ChestLike(s)
     return s:find("%f[%a]ch%a%a?st%f[%A]") ~= nil or s:find("%f[%a]ch%a%a?sts%f[%A]") ~= nil
 end
 
--- Nachricht analysieren -> ok, benötigter Skill, Kisten-Bezeichnung
+-- Analyze message -> ok, required skill, box name
 local function Analyze(msg, isWhisper)
     local ids = {}
-    -- Farbcodes entfernen (altes Format |cffRRGGBB und neues |cnIQ1:), dann Item-Links lesen, dann alle übrigen Links auf ihren Text kürzen
+    -- Strip color codes (old format |cffRRGGBB and new |cnIQ1:), then read item links, then reduce all remaining links to their text
     local plain = msg:gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     local clean = plain:gsub("|Hitem:(%d+)[^|]*|h(%[?[^|]*%]?)|h", function(id, name)
         ids[#ids + 1] = tonumber(id)
@@ -63,8 +63,8 @@ local function Analyze(msg, isWhisper)
         local b = LP.BOXES[id]
         if b and (not req or b[1] > req) then req, label = b[1], LP.BoxName(id) end
     end
-    local linked = req ~= nil   -- ein Item-Link der Kiste ist ein sicherer Hinweis
-    -- Stichwörter ("bronze", "iron" ...) nur als Schätzung, wenn kein Item-Link den genauen Wert liefert
+    local linked = req ~= nil   -- an item link of the box is a reliable hint
+    -- Keywords ("bronze", "iron" ...) only as an estimate when no item link gives the exact value
     local hint = HasTok(s, LOCKTOK) or HasSub(s, LOCKSUB) or ChestLike(s)
     if not req and hint then
         for _, k in ipairs(LP.BOXKEYS) do
@@ -80,17 +80,17 @@ local function Analyze(msg, isWhisper)
 
     local ok
     if isWhisper then
-        -- direkt angeflüstert: eine Kiste/ein Schloss genügt, oder "open/unlock" + Bitte
+        -- whispered directly: a box/lock is enough, or "open/unlock" + request
         ok = lock or (verb and (rogue or seek)) or (rogue and seek)
     else
-        -- öffentlicher Chat strenger: Kiste/Schloss (oder open/unlock + rogue) UND eine Bitte, kein Verkauf/Gruppensuche
+        -- public chat is stricter: box/lock (or open/unlock + rogue) AND a request, no sale/group search
         ok = (lock or (verb and rogue)) and (rogue or seek) and not excl
     end
     return ok, req, label, { lock = lock, verb = verb, rogue = rogue, seek = seek, excl = excl }
 end
 LP.Analyze = Analyze
 
--- Anfragen verwalten -------------------------------------------------------------------
+-- Manage requests -------------------------------------------------------------------
 function LP.FindRequest(name)
     for _, r in ipairs(LP.requests) do
         if LP.SameName(r.name, name) then return r end
@@ -101,7 +101,7 @@ local function Touch()
     if LP.RefreshAll then LP.RefreshAll() end
 end
 
--- Meldung an alle Anzeigen (Toast, Ton, Taskleiste, Mini-Liste ...): siehe State.lua
+-- Notify all displays (toast, sound, taskbar, mini list ...): see State.lua
 local function Notify(req)
     LP.Notice("request", req)
 end
@@ -121,7 +121,7 @@ function LP.TryInvite(req)
     LP.pending = req
     if not LP.IsDry() then LP.db.stats.invited = LP.db.stats.invited + 1 end
     Touch()
-    if LP.IsDry() then return end   -- Trockenlauf: nie ein echter Beitritt, also auch kein "nicht beigetreten"-Timeout
+    if LP.IsDry() then return end   -- dry run: never a real join, so no "not joined" timeout either
     LP.After(60, function()
         if req.status == "invited" then
             req.status = "timeout"
@@ -138,7 +138,7 @@ function LP.TryNext()
     local f = LP.db.finder
     if not f.enabled or LP.InGroup() or LP.pending then return end
     local now = GetTime()
-    for i = #LP.requests, 1, -1 do   -- ältestes zuerst
+    for i = #LP.requests, 1, -1 do   -- oldest first
         local r = LP.requests[i]
         if r.status == "queued" then
             if now - r.time <= f.maxAge then
@@ -152,12 +152,12 @@ function LP.TryNext()
     Touch()
 end
 
--- Entscheidung für eine neue Anfrage: einladen, in die Warteschlange, manuell oder wegen zu niedrigem Skill nicht
+-- Decision for a new request: invite, queue, manual, or not because the skill is too low
 function LP.Decide(req)
     local f = LP.db.finder
     local skill = LP.Skill()
     if req.req and req.req > skill then
-        req.status = "toohigh"   -- Skill reicht nicht: nicht einladen, aber auch niemanden anschreiben
+        req.status = "toohigh"   -- skill is not enough: do not invite, but do not message anyone either
         LP.Debug("invite", "%s needs skill %d, you have %d -> not invited", req.name, req.req, skill)
         return
     end
@@ -171,7 +171,7 @@ function LP.Decide(req)
         LP.Debug("invite", "auto invite is off -> %s waits for a click", req.name)
         return
     end
-    if (LP.InGroup() or LP.pending) and f.onlyWhenFree then   -- Gruppe belegt ODER schon jemand eingeladen
+    if (LP.InGroup() or LP.pending) and f.onlyWhenFree then   -- group is busy OR someone has already been invited
         req.status = "queued"
         LP.Debug("invite", "you are in a group or waiting for an invite -> %s queued", req.name)
         return
@@ -180,14 +180,14 @@ function LP.Decide(req)
 end
 
 local simCount = 0
--- Chat-Nachricht verarbeiten. sim = true: Simulation (umgeht "Finder an" und "Schurke", Name wird nicht gegen dich geprüft)
+-- Process a chat message. sim = true: simulation (bypasses "Finder on" and "Rogue", name is not checked against you)
 function LP.OnChat(event, msg, sender, sim)
     local db = LP.db
     if not db or not msg or not sender then return end
     if not sim and (not db.finder.enabled or not LP.IsRogue()) then return end
     local name = LP.Short(sender)
     if name and not sim and LP.SameName(name, UnitName("player")) then
-        -- eigene Nachricht: enthält sie den Zauber-Link (z.B. aus deinem Makro), gilt das als Ankündigung
+        -- own message: if it contains the spell link (e.g. from your macro), it counts as an announcement
         if msg:find("|Hspell:" .. LP.PICK_SPELL_ID, 1, true) then LP.lastAdSeen = GetTime() LP.Debug("chat", "own announcement seen") end
         return
     end
@@ -199,7 +199,7 @@ function LP.OnChat(event, msg, sender, sim)
 
     local ok, req, label, why = Analyze(msg, event == "CHAT_MSG_WHISPER")
     if not ok then
-        -- nur "knappe Fehlschläge" protokollieren, sonst würde jeder Handelschat-Satz im Log landen
+        -- only log "near misses", otherwise every trade-chat sentence would end up in the log
         if why and (why.lock or why.verb or why.rogue) then
             LP.Debug("chat", "no request from %s (lock=%s verb=%s rogue=%s seek=%s excl=%s): %s",
                 name, why.lock, why.verb, why.rogue, why.seek, why.excl, msg)
@@ -209,36 +209,36 @@ function LP.OnChat(event, msg, sender, sim)
 
     local now = GetTime()
     local existing = LP.FindRequest(name)
-    if existing and existing.status ~= "done" and now - existing.time < db.finder.cooldown then   -- ein abgeschlossener Auftrag zählt nicht: wer nach dem Ende wieder schreibt, hat einen neuen
+    if existing and existing.status ~= "done" and now - existing.time < db.finder.cooldown then   -- a finished order does not count: whoever writes again after the end has a new one
         existing.time, existing.msg = now, msg
         if req then existing.req, existing.label = req, label end
         LP.Debug("chat", "%s asked again within the cooldown, updated the existing request", name)
-        -- schreibt jemand, der schon in meiner Gruppe ist (er hat mich vorher eingeladen): als Kunde behandeln
+        -- someone who is already in my group writes (they invited me earlier): treat as customer
         if not LP.partner and LP.InGroup() and LP.InGroupWith(name) and existing.status ~= "grouped" and existing.status ~= "done" then
             LP.Debug("group", "%s writes and is already in your group -> customer", name)
             LP.HandleJoin(existing)
         end
         if existing.status == "timeout" or existing.status == "toohigh" then
-            existing.status = "new"   -- erneute Anfrage nach Ablauf / zu niedrigem Skill: neu bewerten
+            existing.status = "new"   -- repeated request after expiry / skill too low: re-evaluate
             LP.Decide(existing)
         end
         Touch()
         return
     end
 
-    -- sender = voller Name (mit Realm bei Spielern anderer Realms): damit das Flüstern wirklich ankommt
-    -- stamp = Zeitstempel (Epoche) für die Anzeige und das Speichern; time = GetTime() nur für Wartezeiten in dieser Sitzung
+    -- sender = full name (with realm for players from other realms): so the whisper really arrives
+    -- stamp = timestamp (epoch) for display and storage; time = GetTime() only for wait times in this session
     local r = { name = name, sender = sender, msg = msg, time = now, stamp = time(), req = req, label = label, status = "new", sim = sim }
     table.insert(LP.requests, 1, r)
     while #LP.requests > 1000 do table.remove(LP.requests) end   -- Sicherheitsgrenze, praktisch unbegrenzt
     LP.Debug("chat", "request from %s (%s): need=%s box=%s | %s", name, event, req, label, msg)
     LP.Feed("request", label and L["Request from %s (%s)"]:format(name, label) or L["Request from %s"]:format(name))
     if not LP.partner and LP.InGroup() and LP.InGroupWith(name) then
-        -- der Kunde hat DICH schon eingeladen, bevor seine Nachricht kam: sofort als Kunde behandeln, nicht in die Warteschlange
+        -- the customer already invited YOU before their message came: treat as customer immediately, not in the queue
         LP.Debug("group", "%s is already in your group -> customer, no invite needed", name)
         LP.HandleJoin(r)
     else
-        LP.Decide(r)    -- erst entscheiden (einladen/absagen), dann melden: die Meldung zeigt den echten Status
+        LP.Decide(r)    -- decide first (invite/decline), then notify: the notification shows the real status
     end
     LP.Debug("chat", "status of %s: %s", name, r.status)
     if r.status == "toohigh" then
@@ -255,29 +255,29 @@ for _, ev in ipairs({ "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT
 end
 
 -- Einladungen annehmen -------------------------------------------------------------------
--- Wurde in den letzten 10 Minuten angekündigt? (über Picky ODER eine eigene Nachricht mit dem Zauber-Link, z.B. aus einem Makro)
+-- Was an announcement made in the last 10 minutes? (via Picky OR your own message with the spell link, e.g. from a macro)
 local AD_WINDOW = 600
 function LP.AdRecent()
     local t = math.max(LP.lastAd or 0, LP.lastAdSeen or 0)
     return t > 0 and (GetTime() - t) < AD_WINDOW
 end
 
--- Soll eine Gruppeneinladung automatisch angenommen werden? -> ja/nein + Grund (für das Protokoll und die Tests)
+-- Should a group invite be accepted automatically? -> yes/no + reason (for the log and the tests)
 function LP.ShouldAcceptInvite(inviter)
     local f = LP.db and LP.db.finder
     if not f or not f.enabled or not f.autoAccept then return false, "auto accept is off or finder is off" end
     if LP.InGroup() then return false, "already in a group" end
     local short = LP.Short(inviter) or ""
     if LP.IsIgnored(short) then return false, "ignored player" end
-    return true, "auto accept is on"   -- Einstellung "Einladungen automatisch annehmen" + Finder an: jede Einladung, ohne Wenn und Aber
+    return true, "auto accept is on"   -- setting "Accept invites automatically" + Finder on: every invite, no ifs and buts
 end
 
 LP.On("PARTY_INVITE_REQUEST", function(_, inviter)
     local f = LP.db and LP.db.finder
     LP.Debug("group", "party invite from %s (finder %s, auto accept %s, already in group %s)", tostring(inviter), tostring(f and f.enabled), tostring(f and f.autoAccept), tostring(LP.InGroup()))
-    LP.lastInviter = { name = inviter, t = GetTime() }   -- wer mich zuletzt eingeladen hat (siehe CheckRoster)
+    LP.lastInviter = { name = inviter, t = GetTime() }   -- who invited me last (see CheckRoster)
     local accept, why = LP.ShouldAcceptInvite(inviter)
-    LP.lastInviter.auto = accept and true or false   -- hat Picky selbst angenommen? (nur dann zählt ein Unbekannter als Kunde)
+    LP.lastInviter.auto = accept and true or false   -- did Picky accept it itself? (only then does an unknown person count as a customer)
     LP.Debug("group", "invite from %s: %s (%s)", tostring(inviter), accept and "accepting" or "not accepting", why)
     if not accept then return end
     if LP.IsDry() then LP.Debug("group", "[dry run] would accept the invite") return end
@@ -285,7 +285,7 @@ LP.On("PARTY_INVITE_REQUEST", function(_, inviter)
     LP.After(0.2, function() pcall(StaticPopup_Hide, "PARTY_INVITE") end)
 end)
 
--- Blockierte Aktionen: WoW meldet "Interface-Aktion auf Grund eines Addons fehlgeschlagen" ohne Namen. Hier steht, welche Funktion es war.
+-- Blocked actions: WoW reports "Interface action failed because of an AddOn" without a name. This shows which function it was.
 for _, ev in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
     LP.On(ev, function(event, addon, func)
         if addon == "Picky" or addon == ADDON then
@@ -297,8 +297,8 @@ for _, ev in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
     end)
 end
 
--- Gruppe beigetreten / verlassen ------------------------------------------------------------------
--- Kunde ist der Gruppe beigetreten (echtes Ereignis oder Simulation)
+-- Group joined / left ------------------------------------------------------------------
+-- Customer joined the group (real event or simulation)
 function LP.HandleJoin(p)
     local f = LP.db.finder
     p.status = "grouped"
@@ -309,7 +309,7 @@ function LP.HandleJoin(p)
     if LP.pending == p then LP.pending = nil end
     LP.Debug("group", "%s joined the group (greeting whisper: %s)", p.name, f.welcome and "on" or "off")
     LP.Feed("join", L["%s joined the group"]:format(p.name))
-    -- erst die Begrüßung, dann die Meldung: ein Fehler in der Anzeige darf das Flüstern nie verhindern
+    -- greeting first, then the notification: an error in the display must never prevent the whisper
     if f.welcome then LP.Whisper(p.sender or p.name, f.welcomeText) end
     LP.Notice("joined", p)
     if f.autoLeave and f.idleLeave and f.idleLeave > 0 then
@@ -325,11 +325,11 @@ function LP.HandleJoin(p)
     Touch()
 end
 
--- Kunde ist weg / die Gruppe ist aufgelöst
+-- Customer is gone / the group is disbanded
 function LP.HandleLeave()
     local r = LP.partner and LP.FindRequest(LP.partner)
-    LP.SendThanks(r)   -- ging der Kunde von selbst: das gesammelte Danke jetzt senden (falls noch nicht geschehen)
-    LP.leaveToken = (LP.leaveToken or 0) + 1   -- geplantes Verlassen ist erledigt
+    LP.SendThanks(r)   -- the customer left on their own: send the collected thanks now (if not already done)
+    LP.leaveToken = (LP.leaveToken or 0) + 1   -- planned leave is done
     if r and r.status == "grouped" then r.status = "done" r.endStamp = time() end
     LP.leaveAt = nil
     if LP.partner then LP.Feed("leave", L["Group with %s ended"]:format(LP.partner)) end
@@ -339,8 +339,8 @@ function LP.HandleLeave()
     LP.After(1, LP.TryNext)
 end
 
--- Gruppe verlassen; im Trockenlauf wird das Verlassen nur simuliert (Zustand läuft trotzdem weiter)
--- EIN Danke für alles Trinkgeld, das der Kunde in dieser Sitzung gegeben hat (nur einmal)
+-- Leave the group; in dry run the leave is only simulated (state continues anyway)
+-- ONE thank-you for all tips the customer gave in this session (only once)
 function LP.SendThanks(r)
     local f = LP.db.finder
     if not r or r.thanked or not f.thanks or (r.tipTotal or 0) <= 0 then return end
@@ -350,11 +350,11 @@ function LP.SendThanks(r)
     if not LP.IsDry() then LP.db.stats.thanked = LP.db.stats.thanked + 1 end
 end
 
--- Verlassen nach einer Wartezeit; ein neuer Handel des Kunden bricht es ab (mehrere Kisten nacheinander)
+-- Leave after a wait; a new trade by the customer cancels it (several boxes in a row)
 function LP.ScheduleLeave(delay)
     LP.leaveToken = (LP.leaveToken or 0) + 1
     local my = LP.leaveToken
-    LP.leaveAt = GetTime() + delay   -- für den Countdown im Verlauf-Feld
+    LP.leaveAt = GetTime() + delay   -- for the countdown on the requests page
     LP.Debug("group", "leaving in %ds unless another trade starts", delay)
     LP.After(delay, function()
         if LP.leaveToken == my and LP.partner and (LP.IsDry() or LP.InGroup()) then LP.DoLeave() end
@@ -367,16 +367,16 @@ function LP.CancelLeave()
 end
 
 function LP.DoLeave()
-    LP.leaveToken = (LP.leaveToken or 0) + 1   -- ein noch geplantes Verlassen ist damit erledigt
+    LP.leaveToken = (LP.leaveToken or 0) + 1   -- a still-planned leave is thereby done
     LP.leaveAt = nil
-    LP.SendThanks(LP.partner and LP.FindRequest(LP.partner))   -- erst bedanken, dann gehen
+    LP.SendThanks(LP.partner and LP.FindRequest(LP.partner))   -- thank first, then leave
     LP.Leave()
     if LP.IsDry() then LP.HandleLeave() end
 end
 
--- Ist jemand aus der Anfrageliste in meiner Gruppe? Zwei Wege:
---  1. ich habe ihn eingeladen und er ist beigetreten
---  2. er hat MICH eingeladen (Ankündigung: "ladet mich einfach ein") oder ist anders in die Gruppe gekommen
+-- Is anyone from the request list in my group? Two ways:
+--  1. I invited them and they joined
+--  2. they invited ME (announcement: "just invite me") or joined the group some other way
 function LP.CheckRoster()
     local f = LP.db and LP.db.finder
     LP.Debug("group", "roster check: in group %s, customer %s, finder %s, pending %s", tostring(LP.InGroup()), tostring(LP.partner), tostring(f and f.enabled), tostring(LP.pending and LP.pending.name))
@@ -396,10 +396,10 @@ function LP.CheckRoster()
             end
         end
     end
-    -- Niemand aus der Anfrageliste: hat mich ein Unbekannter eingeladen und ich bin beigetreten, ist er mein Kunde
-    -- (er hat nichts Erkennbares geschrieben oder gleich eingeladen). Dafür wird eine Anfrage angelegt.
+    -- Nobody from the request list: if a stranger invited me and I joined, they are my customer
+    -- (they wrote nothing recognizable or invited right away). A request is created for that.
     local inv = LP.lastInviter
-    if f.enabled and inv and GetTime() - inv.t < 180 and LP.InGroupWith(inv.name) then   -- Finder an: jeder, der dich einlädt, ist ein Kunde
+    if f.enabled and inv and GetTime() - inv.t < 180 and LP.InGroupWith(inv.name) then   -- Finder on: everyone who invites you is a customer
         LP.lastInviter = nil
         local r = { name = LP.Short(inv.name), sender = inv.name, msg = L["(invited you)"], time = GetTime(), stamp = time(), status = "new" }
         table.insert(LP.requests, 1, r)
@@ -415,10 +415,10 @@ LP.On("GROUP_ROSTER_UPDATE", function()
     local f = LP.db and LP.db.finder
     if not f then return end
     if LP.partner and not LP.InGroup() then
-        if LP.partnerSim then return end   -- die Simulation steuert ihren Zustand selbst
+        if LP.partnerSim then return end   -- the simulation controls its own state
         LP.HandleLeave()
     elseif LP.partner then
-        -- Kunde weg, ich bin aber noch in einer Gruppe (mehr als 2 Mitglieder)? Nach kurzer Pause prüfen: die Namen kommen verzögert
+        -- Customer gone, but I am still in a group (more than 2 members)? Check after a short pause: names arrive delayed
         if not LP.partnerSim then
             LP.After(2, function()
                 if LP.partner and not LP.partnerSim and LP.InGroup() and not LP.InGroupWith(LP.partner) then
@@ -428,7 +428,7 @@ LP.On("GROUP_ROSTER_UPDATE", function()
             end)
         end
     elseif LP.InGroup() then
-        -- die Namen der Gruppenmitglieder sind beim ersten Ereignis manchmal noch nicht da: später nochmal prüfen
+        -- group member names are sometimes not there yet on the first event: check again later
         if not LP.CheckRoster() then
             LP.After(1, LP.CheckRoster)
             LP.After(3, LP.CheckRoster)
@@ -438,7 +438,7 @@ LP.On("GROUP_ROSTER_UPDATE", function()
     end
 end)
 
--- Knacken erfolgreich -> ggf. Gruppe verlassen -----------------------------------------------------
+-- Pick succeeded -> leave the group if applicable -----------------------------------------------------
 function LP.OnPickSuccess(simulated)
     local f = LP.db.finder
     if not simulated then LP.db.stats.picked = LP.db.stats.picked + 1 end
@@ -447,10 +447,10 @@ function LP.OnPickSuccess(simulated)
     if LP.partner then
         LP.pickedForPartner = true
         local order = LP.FindRequest(LP.partner)
-        if order then order.boxes = (order.boxes or 0) + 1 end   -- Kisten pro Auftrag
+        if order then order.boxes = (order.boxes or 0) + 1 end   -- boxes per order
         if f.autoLeave then
             if TradeFrame and TradeFrame:IsShown() and not simulated then
-                LP.waitTradeClose = true   -- erst Handel abschließen (Trinkgeld/Danke)
+                LP.waitTradeClose = true   -- finish the trade first (tip/thanks)
                 LP.Debug("group", "trade window open: leaving after it closes")
             else
                 LP.ScheduleLeave(f.leaveDelay or 10)
@@ -460,15 +460,15 @@ function LP.OnPickSuccess(simulated)
     Touch()
 end
 
--- Handel: Trinkgeld erkennen + Danke ------------------------------------------------------------------
+-- Trade: detect tip + thanks ------------------------------------------------------------------
 local tradeName, tradeTip, tradeStartMoney, tipHandled = nil, 0, 0, false
-local lastTrade   -- letzter geschlossener Handel mit Trinkgeld: wartet auf den Geldeingang / die Abschluss-Meldung
+local lastTrade   -- last closed trade with a tip: waits for the money to arrive / the completion message
 LP.On("TRADE_SHOW", function()
     tradeName = (UnitName("NPC")) or (TradeFrameRecipientNameText and TradeFrameRecipientNameText:GetText())
     tradeTip, tipHandled = 0, false
     tradeStartMoney = GetMoney and GetMoney() or 0
     LP.Debug("trade", "trade window opened with %s", tradeName)
-    if LP.partner then LP.CancelLeave() end   -- der Kunde handelt nochmal (weitere Kiste): nicht gehen
+    if LP.partner then LP.CancelLeave() end   -- the customer trades again (another box): do not leave
 end)
 local function UpdateTip()
     if GetTargetTradeMoney then
@@ -480,7 +480,7 @@ end
 LP.On("TRADE_MONEY_CHANGED", UpdateTip)
 LP.On("TRADE_ACCEPT_UPDATE", UpdateTip)
 
--- Trinkgeld des gerade geschlossenen Handels bestätigen, sobald das Geld eingegangen ist
+-- Confirm the tip of the trade just closed as soon as the money has arrived
 local function ResolveTip(why)
     local lt = lastTrade
     if not lt or lt.done then return end
@@ -498,27 +498,27 @@ LP.On("UI_INFO_MESSAGE", function(_, a, b)
     if msg == _G.ERR_TRADE_COMPLETE then
         LP.Debug("trade", "'trade complete' message (tip %s, partner %s)", LP.Money(tradeTip), tostring(tradeName))
         if tradeTip > 0 and tradeName and not tipHandled then
-            tipHandled = true   -- die Meldung kam vor dem Schließen des Fensters
+            tipHandled = true   -- the message came before the window closed
             LP.HandleTip(LP.Short(tradeName), tradeTip)
         elseif lastTrade and not lastTrade.done and GetTime() - lastTrade.t < 5 then
-            ResolveTip("complete message")   -- die Meldung kam NACH dem Schließen (so in diesem Client)
+            ResolveTip("complete message")   -- the message came AFTER the window closed (as in this client)
         end
     elseif LP.db and (LP.db.debug or LP.db.logLive) and msg:lower():find("trade", 1, true) then
-        LP.Debug("trade", "info message: %s", msg)   -- hilft, wenn die Abschluss-Meldung in diesem Client anders heißt
+        LP.Debug("trade", "info message: %s", msg)   -- helps if the completion message is worded differently in this client
     end
 end)
 
--- Trinkgeld erhalten (echter Handel oder Simulation)
+-- Tip received (real trade or simulation)
 function LP.HandleTip(name, tip, simulated)
     local f = LP.db.finder
     LP.Debug("trade", "tip %s from %s%s", LP.Money(tip), name, simulated and " (simulated)" or "")
     LP.Feed("tip", L["Tip from %s: |cffffd100%s|r"]:format(name, LP.Money(tip)))
     if not simulated then LP.db.stats.tips = LP.db.stats.tips + tip end
     local req = LP.FindRequest(name)
-    local how   -- für den Hinweis im Toast: "later" = Danke folgt beim Verlassen, "sent" = sofort gesendet
+    local how   -- for the hint in the toast: "later" = thanks follows on leaving, "sent" = sent immediately
     if f.thanks then
         if req and LP.partner and LP.SameName(req.name, LP.partner) then
-            -- Kunde ist noch in der Gruppe (vielleicht kommt noch eine Kiste): Trinkgeld sammeln, EIN Danke beim Verlassen
+            -- customer is still in the group (maybe another box is coming): collect tips, ONE thank-you on leaving
             req.tipTotal = (req.tipTotal or 0) + tip
             req.thanked = false
             how = "later"
@@ -526,11 +526,11 @@ function LP.HandleTip(name, tip, simulated)
         else
             LP.Whisper((req and req.sender) or name, f.thanksText)   -- voller Name (Realm), falls bekannt
             if not LP.IsDry() then LP.db.stats.thanked = LP.db.stats.thanked + 1 end
-            if req then req.tipTotal = (req.tipTotal or 0) + tip req.thanked = true end   -- auch hier beim Auftrag mitzählen
+            if req then req.tipTotal = (req.tipTotal or 0) + tip req.thanked = true end   -- also count it on the order here
             how = "sent"
         end
     elseif req then
-        req.tipTotal = (req.tipTotal or 0) + tip   -- Danke ist aus: Trinkgeld trotzdem beim Auftrag mitzählen
+        req.tipTotal = (req.tipTotal or 0) + tip   -- thanks is off: still count the tip on the order
     end
     LP.Notice("tip", name, tip, how)
     Touch()
@@ -540,15 +540,15 @@ LP.On("TRADE_CLOSED", function()
     local name, tip, start, handled = tradeName, tradeTip, tradeStartMoney, tipHandled
     tradeName, tradeTip = nil, 0
     LP.Debug("trade", "trade window closed (tip offered %s, already handled: %s)", LP.Money(tip), tostring(handled))
-    -- das Geld kommt kurz NACH dem Schließen: mehrfach prüfen (bis 4 s), die Abschluss-Meldung kann es auch auslösen
+    -- the money arrives shortly AFTER closing: check several times (up to 4 s), the completion message can trigger it too
     if tip > 0 and name and not handled then
         lastTrade = { name = name, tip = tip, start = start, t = GetTime() }
         for _, delay in ipairs({ 0.6, 1.5, 3, 4 }) do
             LP.After(delay, function() ResolveTip("money check") end)
         end
     end
-    -- Verlassen planen: nach dem Knacken (waitTradeClose) ODER nach jedem weiteren Handel des Kunden (z.B. nur Trinkgeld),
-    -- sonst bliebe Picky nach einem zweiten Handel dauerhaft in der Gruppe
+    -- Schedule leaving: after picking (waitTradeClose) OR after every further trade by the customer (e.g. tip only),
+    -- otherwise Picky would stay in the group permanently after a second trade
     local f = LP.db.finder
     if LP.partner and f.autoLeave and (LP.waitTradeClose or LP.pickedForPartner) then
         LP.waitTradeClose = false
@@ -556,7 +556,7 @@ LP.On("TRADE_CLOSED", function()
         LP.ScheduleLeave(f.leaveDelay or 10)
     end
 end)
--- Der Kunde legt eine Kiste ins Handelsfenster: ist sie zu hoch für dich, sofort sagen (sonst klickst du ins Leere)
+-- The customer puts a box in the trade window: if it is too high for you, say so immediately (otherwise you click into the void)
 local warnedBox = {}
 LP.On("TRADE_TARGET_ITEM_CHANGED", function()
     if not GetTradeTargetItemLink then return end
@@ -576,8 +576,8 @@ LP.On("TRADE_TARGET_ITEM_CHANGED", function()
         end
     end
 end)
--- Ankündigung (Handelschat) ---------------------------------------------------------------------------
--- Kanäle: Schlüssel = Name ohne Zusatz ("Handel - Sturmwind" -> "handel"), damit die Wahl in jeder Stadt/Zone gilt
+-- Announcement (trade chat) ---------------------------------------------------------------------------
+-- Channels: key = name without suffix ("Trade - Stormwind" -> "trade"), so the choice applies in every city/zone
 function LP.ChannelKey(name) return (tostring(name):gsub("%s*%-.*$", ""):lower()) end
 function LP.ChannelList()
     local out, list = {}, { GetChannelList() }
@@ -588,7 +588,7 @@ function LP.ChannelList()
     end
     return out
 end
--- Ohne eigene Wahl gilt der Namensfilter aus den Einstellungen (Handel/Trade)
+-- Without own choice the name filter from the settings applies (Trade)
 function LP.AdChannelOn(ch)
     local ad = LP.db.ad
     if type(ad.channels) == "table" then return ad.channels[ch.key] == true end
@@ -600,14 +600,14 @@ function LP.AdChannelOn(ch)
 end
 function LP.SetAdChannel(key, on)
     local ad = LP.db.ad
-    if type(ad.channels) ~= "table" then   -- erste Wahl: mit dem bisherigen Filter starten
+    if type(ad.channels) ~= "table" then   -- first choice: start with the previous filter
         ad.channels = {}
         for _, ch in ipairs(LP.ChannelList()) do
             if LP.AdChannelOn(ch) then ad.channels[ch.key] = true end
         end
     end
     ad.channels[key] = on and true or nil
-    -- Namensteile des alten Filters bleiben vorgemerkt, auch wenn der Kanal gerade fehlt (z.B. Handel außerhalb der Stadt)
+    -- Name parts of the old filter stay noted even if the channel is currently missing (e.g. trade outside the city)
     if not ad.channelsSeeded then
         ad.channelsSeeded = true
         for m in (ad.channelMatch or ""):gmatch("[^,%s]+") do
@@ -625,11 +625,11 @@ function LP.PostAd(manual)
     local text = LP.ExpandAd(ad.text)
     local sent = 0
     for _, ch in ipairs(LP.ChannelList()) do
-        if LP.AdChannelOn(ch) and LP.SendChannel(text, ch.id) then sent = sent + 1 end   -- nur gelungene Sendungen zählen
+        if LP.AdChannelOn(ch) and LP.SendChannel(text, ch.id) then sent = sent + 1 end   -- only successful sends count
     end
     if sent > 0 then
         if LP.IsDry() then
-            -- Trockenlauf: nichts wurde wirklich gesendet, das muss die Meldung auch sagen
+            -- dry run: nothing was really sent, the message must say so too
             LP.Feed("warn", L["Test mode: announcement not sent"])
             if manual then
                 LP.Print(L["Test mode: would have announced in %d channel(s) - nothing was sent. Turn off the test mode in the Test tab (/picky debug)."]:format(sent))
@@ -653,14 +653,14 @@ function LP.StartAdLoop()
         if my ~= adToken then return end
         local ad = LP.db.ad
         if ad.auto and LP.db.finder.enabled and not LP.InGroup() then LP.PostAd(false) end
-        LP.nextAdAt = GetTime() + wait()   -- für den Countdown auf der Anfragen-Seite
+        LP.nextAdAt = GetTime() + wait()   -- for the countdown on the requests page
         LP.After(wait(), tick)
     end
     LP.nextAdAt = GetTime() + wait()
     LP.After(wait(), tick)
 end
 
--- Automatische Ankündigung abbrechen (das x auf der Anfragen-Seite); wieder einschalten: Einstellungen, Ankündigung
+-- Cancel the automatic announcement (the x on the requests page); re-enable: settings, announcement
 function LP.CancelAutoAd()
     LP.db.ad.auto = false
     LP.nextAdAt = nil
@@ -669,7 +669,7 @@ function LP.CancelAutoAd()
 end
 
 -- Simulationen (Debug-Seite) ------------------------------------------------------------------------
--- Alle laufen als Trockenlauf: es wird nichts wirklich eingeladen, geflüstert oder verlassen.
+-- All run as dry run: nothing is really invited, whispered or left.
 local function Dry(fn)
     local old = LP.forceDry
     LP.forceDry = true
@@ -679,7 +679,7 @@ local function Dry(fn)
     return a
 end
 
--- Chat-Nachricht eines erfundenen Spielers durch die echte Erkennung schicken
+-- Send a chat message of an invented player through the real detection
 function LP.SimulateChat(msg, whisper)
     simCount = simCount + 1
     local name = "Testplayer" .. simCount
@@ -689,7 +689,7 @@ function LP.SimulateChat(msg, whisper)
     end)
 end
 
--- Der eingeladene (oder nächste wartende) Spieler tritt der Gruppe bei
+-- The invited (or next waiting) player joins the group
 function LP.SimulateJoin()
     Dry(function()
         local p = LP.pending
@@ -725,10 +725,10 @@ function LP.SimulateLeave()
 end
 
 
--- Aufträge: dauerhaft speichern, laden, ablaufen lassen, löschen -----------------------------------------------
--- LP.requests ist nach dem Laden LP.db.orders: alles bleibt über /reload und Neustart erhalten, bis DU es löschst.
--- r.time ist eine GetTime()-Zeit und gilt nur in dieser Sitzung: aus dem gespeicherten Zeitstempel (Epoche) neu berechnen.
-local OPEN_EXPIRE = 900   -- offene Anfragen, die älter als 15 Minuten sind, werden zu "keine Antwort"
+-- Orders: store permanently, load, expire, delete -----------------------------------------------
+-- LP.requests is LP.db.orders after loading: everything survives /reload and restart until YOU delete it.
+-- r.time is a GetTime() time and only valid in this session: recompute from the stored timestamp (epoch).
+local OPEN_EXPIRE = 900   -- open requests older than 15 minutes become "no reply"
 function LP.LoadOrders()
     local orders = LP.db.orders
     if type(orders) ~= "table" then orders = {} LP.db.orders = orders end
@@ -743,7 +743,7 @@ function LP.LoadOrders()
             r.time = nowT - age
             if r.joinStamp then r.joinedAt = nowT - math.max(0, nowE - r.joinStamp) end
             if r.status == "invited" then
-                r.status = "timeout"   -- die Einladung von damals ist nicht mehr gültig
+                r.status = "timeout"   -- the invite from back then is no longer valid
             elseif (r.status == "new" or r.status == "manual" or r.status == "queued") and age > OPEN_EXPIRE then
                 r.status = "timeout"
             end
@@ -752,7 +752,7 @@ function LP.LoadOrders()
     LP.requests = orders
 end
 
--- Zu alte offene Anfragen (neu/manuell/wartend) laufen ab und wandern nach "Erledigt"
+-- Open requests that are too old (new/manual/waiting) expire and move to "Done"
 function LP.ExpireOpen()
     local now = GetTime()
     local changed = false
@@ -765,7 +765,7 @@ function LP.ExpireOpen()
     if changed then Touch() end
 end
 
--- Auftrag löschen / alle erledigten löschen (nur auf deinen Klick)
+-- Delete order / delete all finished (only on your click)
 function LP.RemoveOrder(r)
     for i, v in ipairs(LP.requests) do
         if v == r then table.remove(LP.requests, i) break end
@@ -782,14 +782,14 @@ function LP.ClearDone()
     return n
 end
 
--- Gruppe sofort verlassen (Knopf "Gehen" im Verlauf-Feld): erst bedanken (falls Trinkgeld da war), dann gehen
+-- Leave the group immediately (the "Leave" button in the history field): thank first (if there was a tip), then leave
 function LP.LeaveNow()
     if not LP.partner then return end
     LP.Debug("group", "manual leave requested")
     LP.DoLeave()
 end
 
--- Nach /reload mitten in einem Kunden: Gruppe wiedererkennen, sonst den Auftrag als erledigt abschließen
+-- After /reload in the middle of a customer: recognize the group again, otherwise close the order as done
 local restored = false
 LP.On("PLAYER_ENTERING_WORLD", function()
     if restored then return end

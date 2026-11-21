@@ -1,21 +1,21 @@
--- Picky / UI.lua : Hauptfenster im Forever-Look (Blizzard-Fensterschablone wie HealKit),
--- Icon-Tabs am rechten Rand (Anfragen | Guide | Einstellungen), Minimap-Button mit Zustand.
+-- Picky / UI.lua : main window in the Forever look (Blizzard window template like HealKit),
+-- icon tabs on the right edge (Requests | Guide | Settings), minimap button with state.
 local ADDON, LP = ...
 local L = LP.L
 
 local ICON_PICK = "Interface\\Icons\\Spell_Nature_MoonKey"
 local win, pages, tabs = nil, {}, {}
 local rows = {}
-local refreshers = {}      -- Funktionen, die die Einstellungs-Widgets aus der DB neu laden
+local refreshers = {}      -- functions that reload the settings widgets from the DB
 local currentTab = 1
 local guideStage
 local ROWS = 7
 
--- Fenster aufbauen -----------------------------------------------------------------------------
+-- Build the window -----------------------------------------------------------------------------
 local function CreateWindow()
     local ok, f = pcall(CreateFrame, "Frame", "PickyFrame", UIParent, "ButtonFrameTemplate")
     if ok and f and f.SetTitle then
-        -- Blizzards eigene Fensterschablone (wie das Freundefenster): Kupferrahmen, Titelleiste, X, Portrait
+        -- Blizzard's own window template (like the friends window): copper frame, title bar, X, portrait
         f.onCloseCallback = function() f:Hide() return false end
         if f.TitleContainer then
             f.TitleContainer:ClearAllPoints()
@@ -24,13 +24,13 @@ local function CreateWindow()
         end
         pcall(f.SetPortraitToAsset, f, ICON_PICK)
         if f.SetPortraitTextureSizeAndOffset then pcall(f.SetPortraitTextureSizeAndOffset, f, 62, -6, 9) end
-        if f.Inset then   -- keine Button-Leiste unten: dunkles Feld bis unten ziehen
+        if f.Inset then   -- no button bar at the bottom: extend the dark area to the bottom
             f.Inset:ClearAllPoints()
             f.Inset:SetPoint("TOPLEFT", 4, -60)
             f.Inset:SetPoint("BOTTOMRIGHT", -6, 4)
         end
     else
-        -- Notlösung, falls der Client die Schablone nicht hat
+        -- fallback in case the client does not have the template
         f = CreateFrame("Frame", "PickyFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
         f:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -52,7 +52,7 @@ local function SavePos()
     LP.db.ui.winPos = { point = point, x = x, y = y }
 end
 
--- Icon-Tab (Muster HealKit Tabs.lua / Forevers Berufe-Fenster)
+-- Icon tab (pattern HealKit Tabs.lua / Forever professions window)
 local function CreateTab(parent)
     local ok, tab = pcall(CreateFrame, "Frame", nil, parent, "LargeSideTabButtonTemplate")
     if ok and tab and tab.Icon then return tab end
@@ -92,13 +92,13 @@ local function FS(parent, font, text)
     return fs
 end
 
--- Seite 1: Anfragen --------------------------------------------------------------------------------
--- Zwei Reiter: Offen (laufende Aufträge) und Erledigt (alles Abgeschlossene, dauerhaft gespeichert).
--- Erledigte bleiben, bis du sie löschst (x je Auftrag oder "Erledigte löschen").
+-- Page 1: Requests --------------------------------------------------------------------------------
+-- Two tabs: Open (running orders) and Done (everything finished, stored permanently).
+-- Done orders stay until you delete them (x per order or "Delete finished").
 local view, offset, armedAt = "open", 0, nil
 local RefreshRequests
 
--- Zeile 2 eines Auftrags: Datum (nur Erledigte) · Kisten · Trinkgeld · Dauer, sonst die ursprüngliche Nachricht
+-- Line 2 of an order: date (Done only) · boxes · tip · duration, otherwise the original message
 local function Summary(r)
     local parts = {}
     if not LP.OPEN_STATUS[r.status] and r.stamp then parts[#parts + 1] = date("%d.%m. %H:%M", r.stamp) end
@@ -116,7 +116,7 @@ local function BuildRequests(p)
     p.ad:SetText(L["Announce"])
     p.ad:SetScript("OnClick", function() LP.PostAd(true) end)
 
-    -- Kanal-Auswahl: kleines Menü mit Häkchen für jeden beigetretenen Kanal
+    -- Channel selection: small menu with a checkmark for each joined channel
     p.ad:SetSize(100, 24)
     p.chan = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.chan:SetSize(95, 24)
@@ -124,14 +124,14 @@ local function BuildRequests(p)
     p.chan:SetText(L["Channels (%d)"]:format(0))
     local menu = CreateFrame("Frame", nil, p, BackdropTemplateMixin and "BackdropTemplate" or nil)
     menu:SetFrameStrata("FULLSCREEN_DIALOG")
-    -- unsichtbare Fläche hinter dem Menü: ein Klick irgendwo anders schließt es (die Wahl ist schon gespeichert)
-    -- (keine Klickfläche: eine frische Maustaste außerhalb von Menü und Knopf schließt es)
+    -- invisible area behind the menu: a click anywhere else closes it (the choice is already saved)
+    -- (no click area: a fresh mouse press outside menu and button closes it)
     menu:SetScript("OnUpdate", function(self)
         local down = IsMouseButtonDown("LeftButton") or IsMouseButtonDown("RightButton")
         if down and not self.wasDown and not self:IsMouseOver() and not p.chan:IsMouseOver() then self:Hide() end
         self.wasDown = down
     end)
-    menu:SetScript("OnShow", function(self) self.wasDown = true end)   -- der Klick, der das Menü öffnet, zählt nicht
+    menu:SetScript("OnShow", function(self) self.wasDown = true end)   -- the click that opens the menu does not count
     menu:SetPoint("TOPRIGHT", p.chan, "BOTTOMRIGHT", 0, -2)
     menu:SetSize(220, 40)
     menu:EnableMouse(true)
@@ -152,7 +152,7 @@ local function BuildRequests(p)
             if not row then
                 row = CreateFrame("CheckButton", nil, menu, "UICheckButtonTemplate")
                 row:SetSize(22, 22)
-                row:SetHitRectInsets(0, -170, 0, 0)   -- auch ein Klick auf den Namen schaltet um
+                row:SetHitRectInsets(0, -170, 0, 0)   -- a click on the name toggles too
                 row:SetPoint("TOPLEFT", 6, -22 - (i - 1) * 22)
                 row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 row.text:SetPoint("LEFT", row, "RIGHT", 2, 0)
@@ -172,7 +172,7 @@ local function BuildRequests(p)
         if menu:IsShown() then menu:Hide() else Fill() menu:Show() end
     end)
     p:HookScript("OnHide", function() menu:Hide() end)
-    -- Beschriftung: wie viele der aktuellen Kanäle angekreuzt sind
+    -- Label: how many of the current channels are ticked
     p.leave = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.leave:SetSize(70, 20)
     p.leave:SetPoint("TOPRIGHT", 0, -28)
@@ -225,7 +225,7 @@ local function BuildRequests(p)
         r.w:SetScript("OnClick", function()
             if r.req then
                 local target = r.req.sender or r.req.name
-                if ChatFrame_SendTell then ChatFrame_SendTell(target) else ChatFrame_OpenChat("/w " .. target .. " ") end   -- auch mit zweiteiligen Namen
+                if ChatFrame_SendTell then ChatFrame_SendTell(target) else ChatFrame_OpenChat("/w " .. target .. " ") end   -- also with two-part names
             end
         end)
         r.inv = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
@@ -245,17 +245,17 @@ local function BuildRequests(p)
         rows[i] = r
     end
 
-    -- Mausrad: durch lange Listen blättern
+    -- Mouse wheel: scroll through long lists
     p:EnableMouseWheel(true)
     p:SetScript("OnMouseWheel", function(_, delta)
         offset = offset - delta
         RefreshRequests()
     end)
 
-    -- unten: Countdown zur nächsten automatischen Ankündigung (mit x zum Abbrechen), Statistik, Erledigte löschen
+    -- bottom: countdown to the next automatic announcement (with x to cancel), statistics, Delete finished
     p.adText = FS(p, "GameFontHighlightSmall")
-    p.adText:SetPoint("BOTTOMLEFT", 0, 4)   -- gleiche Reihe wie der Knopf "Erledigte löschen"
-    p.adText:SetWidth(170)                  -- feste Breite: der x-Knopf bleibt an seinem Platz, egal wie lang die Zeit ist
+    p.adText:SetPoint("BOTTOMLEFT", 0, 4)   -- same row as the "Delete finished" button
+    p.adText:SetWidth(170)                  -- fixed width: the x button stays in place no matter how long the time is
     p.adText:SetJustifyH("LEFT")
     p.adText:SetWordWrap(false)
     p.adX = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
@@ -274,7 +274,7 @@ local function BuildRequests(p)
     p.clear:SetSize(150, 20)
     p.clear:SetPoint("BOTTOMRIGHT", 0, 0)
     p.clear:SetScript("OnClick", function()
-        if armedAt and GetTime() - armedAt < 4 then   -- zweiter Klick innerhalb von 4 Sekunden bestätigt
+        if armedAt and GetTime() - armedAt < 4 then   -- a second click within 4 seconds confirms
             armedAt, offset = nil, 0
             LP.ClearDone()
         else
@@ -296,9 +296,9 @@ function RefreshRequests()
     elseif st.on then
         p.now:SetText(L["Free - waiting for requests"])
     else
-        p.now:SetText("")   -- "Finder ist aus" steht schon am Schalter im Kopf
+        p.now:SetText("")   -- "Finder is off" is already shown at the switch in the header
     end
-    do   -- Kanäle-Knopf: Anzahl angekreuzter Kanäle, in denen du gerade bist
+    do   -- Channels button: number of ticked channels you are currently in
         local n = 0
         for _, ch in ipairs(LP.ChannelList()) do if LP.AdChannelOn(ch) then n = n + 1 end end
         p.chan:SetText(L["Channels (%d)"]:format(n))
@@ -307,7 +307,7 @@ function RefreshRequests()
     p.queue:SetText(st.waiting > 0 and (L["Queue"] .. ": " .. table.concat(st.waitingNames, ", ")) or "")
     if win and win.stats then win.stats:SetText(L["Picked %d   ·   Tips %s"]:format(st.picked or 0, LP.Money(st.tips or 0))) end
 
-    -- Aufträge in Offen / Erledigt aufteilen (LP.requests ist neueste zuerst)
+    -- Split orders into Open / Done (LP.requests is newest first)
     local open, done = {}, {}
     for _, r in ipairs(LP.requests) do
         if LP.OPEN_STATUS[r.status] then open[#open + 1] = r else done[#done + 1] = r end
@@ -341,8 +341,8 @@ function RefreshRequests()
         end
     end
 
-    -- Countdown zur nächsten automatischen Ankündigung
-    -- nur sichtbar, solange die automatische Ankündigung wirklich läuft (an + Finder an + keine Gruppe): eine Abkürzung zum Abbrechen
+    -- Countdown to the next automatic announcement
+    -- only visible while the automatic announcement is really running (on + Finder on + no group): a shortcut to cancel it
     local ad, text = LP.db.ad, nil
     if ad.auto and LP.db.finder.enabled and not LP.InGroup() and LP.nextAdAt then
         text = L["Next announcement in %s"]:format(LP.Mmss(LP.nextAdAt - GetTime()))
@@ -351,11 +351,11 @@ function RefreshRequests()
     p.adText:SetShown(text ~= nil)
     p.adX:SetShown(text ~= nil)
 
-    -- Löschen nur im Reiter Erledigt; zweiter Klick bestätigt
+    -- Delete only in the Done tab; a second click confirms
     p.clear:SetShown(view == "done" and #done > 0)
     p.clear:SetText((armedAt and GetTime() - armedAt < 4) and L["Really delete?"] or L["Delete finished"])
 end
--- Seite 2: Guide ------------------------------------------------------------------------------------
+-- Page 2: Guide ------------------------------------------------------------------------------------
 local function BuildGuide(p)
     p.head = FS(p, "GameFontNormalLarge")
     p.head:SetPoint("TOPLEFT", 0, -2)
@@ -434,7 +434,7 @@ local function RefreshGuide()
     p.bags:SetText("|cffffd100" .. L["In your bags"] .. ":|r  " .. (#found > 0 and table.concat(found, "   ") or L["no locked boxes"]))
 end
 
--- Seite 3: Einstellungen -------------------------------------------------------------------------------
+-- Page 3: Settings -------------------------------------------------------------------------------
 local function BuildSettings(p)
     local sf = CreateFrame("ScrollFrame", "PickySettingsScroll", p, "UIPanelScrollFrameTemplate")
     sf:SetPoint("TOPLEFT", 0, 0)
@@ -456,7 +456,7 @@ local function BuildSettings(p)
         cb:SetPoint("TOPLEFT", 0, y)
         local t = FS(child, "GameFontHighlight", label)
         t:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-        local function Holder() return tbl and LP.db[tbl] or LP.db end   -- tbl = nil: Einstellung auf oberster Ebene
+        local function Holder() return tbl and LP.db[tbl] or LP.db end   -- tbl = nil: top-level setting
         cb:SetScript("OnClick", function(self)
             Holder()[key] = self:GetChecked() and true or false
             if onchange then onchange(Holder()[key]) end
@@ -485,7 +485,7 @@ local function BuildSettings(p)
         e:SetScript("OnEnterPressed", function(s) Save() s:ClearFocus() end)
         e:SetScript("OnEscapePressed", function(s) Load() s:ClearFocus() end)
         e:SetScript("OnEditFocusLost", Save)
-        refreshers[#refreshers + 1] = function() if not e:HasFocus() then Load() end end   -- nicht überschreiben, während getippt wird
+        refreshers[#refreshers + 1] = function() if not e:HasFocus() then Load() end end   -- do not overwrite while typing
         y = y - 30
     end
 
@@ -509,7 +509,7 @@ local function BuildSettings(p)
     Check(L["Tooltip hint on locks"], "pick", "hint")
     Check(L["Minimap button"], "ui", "minimap", function() LP.UpdateMinimap() end)
 
-    -- Fenstergröße
+    -- Window size
     local st = FS(child, "GameFontNormalSmall", L["Window size"])
     st:SetPoint("TOPLEFT", 4, y)
     y = y - 22
@@ -523,8 +523,8 @@ local function BuildSettings(p)
         local low, high, text = _G["PickyScaleSliderLow"], _G["PickyScaleSliderHigh"], _G["PickyScaleSliderText"]
         if low then low:SetText("70%") end
         if high then high:SetText("130%") end
-        -- Beim Ziehen nur die Zahl anzeigen; die Fenstergröße wird erst beim LOSLASSEN übernommen.
-        -- (Würde das Fenster schon beim Ziehen skalieren, wanderte der Regler unter der Maus weg.)
+        -- While dragging only show the number; the window size is applied only on RELEASE.
+        -- (If the window scaled while dragging, the slider would move away under the mouse.)
         slider:SetScript("OnValueChanged", function(self, v)
             v = math.floor(v + 0.5)
             if text then text:SetText(v .. "%") end
@@ -560,7 +560,7 @@ local function RefreshSettings()
     for _, f in ipairs(refreshers) do f() end
 end
 
--- Seite 4: Debug (nur im Debug-Modus sichtbar) -------------------------------------------------------------------------
+-- Page 4: Debug (only visible in debug mode) -------------------------------------------------------------------------
 local MAX_REAL = 6
 local testSlots = {}
 local simLocked = true
@@ -576,12 +576,12 @@ end
 local function GetRealSlot(p, i)
     local b = testSlots[i]
     if b then return b end
-    b = CreateFrame("Button", nil, p, "SecureActionButtonTemplate")   -- derselbe Mechanismus wie die Klickfläche im Inventar
+    b = CreateFrame("Button", nil, p, "SecureActionButtonTemplate")   -- same mechanism as the click area in the inventory
     b:SetSize(36, 36)
     b:SetPoint("TOPLEFT", 44 * i, -164)
     b:RegisterForClicks("RightButtonUp", "RightButtonDown")
     b:SetAttribute("type", "spell")
-    b:HookScript("PreClick", function(self, button)   -- auch hier merken, was geknackt wird (Schonfrist nach Erfolg)
+    b:HookScript("PreClick", function(self, button)   -- also remember here what is picked (grace period after success)
         if button == "RightButton" and self.bag then
             LP.lastPickTarget = { bag = self.bag, slot = self.slot, t = GetTime() }
         end
@@ -606,8 +606,8 @@ end
 
 local function RefreshTestSlots()
     local p = pages[4]
-    if not p or not p.testHint or InCombatLockdown() then return end   -- Secure-Buttons nur außerhalb des Kampfes ändern
-    if not LP.db.debug then   -- Testbereich nur im Testmodus
+    if not p or not p.testHint or InCombatLockdown() then return end   -- only change secure buttons outside combat
+    if not LP.db.debug then   -- test area only in test mode
         for i = 1, MAX_REAL do local b = testSlots[i] if b then b:Hide() end end
         p.testHint:SetText(L["Turn on the test mode to use the test area."])
         return
@@ -645,7 +645,7 @@ local function RefreshTestSlots()
     end
     p.testHint:SetText(#list == 0 and L["No locked boxes in your bags - only the simulated box is available."]
         or L["The first slot is a simulated box. The other slots are your real locked boxes: right-click picks them with the same mechanism as in your bags."])
-    -- steht die Maus noch auf einem Slot, den Tooltip sofort aktualisieren
+    -- if the mouse is still on a slot, update the tooltip immediately
     for i = 1, MAX_REAL do
         local b = testSlots[i]
         if b and b:IsShown() and b:IsMouseOver() then b:GetScript("OnEnter")(b) end
@@ -662,7 +662,7 @@ local function BuildDebug(p)
         return b
     end
 
-    -- Großer Testmodus-Schalter: an = alles wird nur simuliert + Protokoll läuft, aus = Picky arbeitet normal
+    -- Big test mode switch: on = everything is only simulated + log runs, off = Picky works normally
     local big = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
     big:SetSize(40, 40)
     big:SetPoint("TOPLEFT", -6, 4)
@@ -675,7 +675,7 @@ local function BuildDebug(p)
     p.modeInfo:SetWidth(404)
     p.modeInfo:SetJustifyV("TOP")
 
-    -- Werkzeuge: nur im Testmodus benutzbar
+    -- Tools: only usable in test mode
     local tools = CreateFrame("Frame", nil, p)
     tools:SetPoint("TOPLEFT", 0, -72)
     tools:SetPoint("BOTTOMRIGHT", p, "TOPRIGHT", 0, -244)
@@ -687,7 +687,7 @@ local function BuildDebug(p)
         return b
     end
 
-    -- Anfrage simulieren (läuft durch die echte Erkennung, immer als Trockenlauf)
+    -- Simulate request (goes through the real detection, always as dry run)
     local h = FS(tools, "GameFontNormalSmall", L["Simulate a request"])
     h:SetPoint("TOPLEFT", 2, 0)
     local e = CreateFrame("EditBox", nil, tools, "InputBoxTemplate")
@@ -708,7 +708,7 @@ local function BuildDebug(p)
     ToolBtn(L["Pick succeeded"], 112, 176, -44, function() LP.SimulatePick() end)
     ToolBtn(L["Customer leaves"], 114, 292, -44, function() LP.SimulateLeave() end)
 
-    -- Testbereich für den Rechtsklick (simulierte Kiste; die echten Kisten kommen als Slots daneben)
+    -- Test area for the right-click (simulated box; the real boxes appear as slots next to it)
     local t = FS(tools, "GameFontNormalSmall", L["Right-click test area"])
     t:SetPoint("TOPLEFT", 2, -74)
     local sim = CreateFrame("Button", nil, tools)
@@ -742,7 +742,7 @@ local function BuildDebug(p)
             simLocked = true
         end
         self.icon:SetDesaturated(not simLocked)
-        SimTooltip(self)   -- Tooltip sofort aktualisieren, ohne die Maus zu bewegen
+        SimTooltip(self)   -- update the tooltip immediately without moving the mouse
     end)
     p.simSlot = sim
 
@@ -751,7 +751,7 @@ local function BuildDebug(p)
     p.testHint:SetWidth(404)
     p.testHint:SetJustifyV("TOP")
 
-    -- Protokoll: Titel, Chat-Schalter und "Protokoll leeren" in einer Kopfzeile direkt über dem Feld
+    -- Log: title, chat switch and "Clear log" in one header row directly above the field
     local lh = FS(p, "GameFontNormalSmall", L["Log"])
     lh:SetPoint("TOPLEFT", 2, -252)
     local cb = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
@@ -782,7 +782,7 @@ local function BuildDebug(p)
     for _, line in ipairs(LP.debugLog) do log:AddMessage(line) end
     LP.OnDebugLine = function(line) log:AddMessage(line) end
 
-    -- nach dem Knacken / bei Änderungen in den Taschen die echten Slots neu aufbauen
+    -- after picking / on changes in the bags rebuild the real slots
     LP.On("BAG_UPDATE_DELAYED", function() if pages[4] and pages[4]:IsShown() then RefreshTestSlots() end end)
     LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit)
         if unit == "player" and pages[4] and pages[4]:IsShown() then LP.After(0.3, RefreshTestSlots) end
@@ -799,7 +799,7 @@ local function RefreshDebug()
     else
         p.modeInfo:SetText("|cff4de88a" .. L["Live: Picky works normally. Turn the test mode on to use the tools below."] .. "|r")
     end
-    -- Werkzeuge nur im Testmodus benutzbar
+    -- tools only usable in test mode
     p.tools:SetAlpha(on and 1 or 0.4)
     for _, b in ipairs(p.toolButtons) do
         if b.SetEnabled then b:SetEnabled(on) end
@@ -810,8 +810,8 @@ local function RefreshDebug()
     RefreshTestSlots()
 end
 
--- Seite 5: Developer (versteckt, nur per /picky dev) -------------------------------------------------------------------
--- Nur für die Entwicklung: Selbsttests, Maus-Prüfung, Diagnosen. Absichtlich ohne Übersetzung.
+-- Page 5: Developer (hidden, only via /picky dev) -------------------------------------------------------------------
+-- Development only: self tests, hover check, diagnostics. Intentionally untranslated.
 local function BuildDev(p)
     local function Btn(label, w, x, y, fn)
         local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
@@ -840,7 +840,7 @@ local function BuildDev(p)
     bg:SetColorTexture(0, 0, 0, 0.45)
     p.out = out
 
-    -- Ausgaben von LP.Print zusätzlich in dieses Feld schreiben
+    -- also write LP.Print output into this field
     local function Capture(fn)
         local old = LP.Print
         LP.Print = function(m) old(m) out:AddMessage(tostring(m)) end
@@ -894,7 +894,7 @@ end
 local function RefreshDev()
     local p = pages[5]
     if p and p.liveCb then p.liveCb:SetChecked(LP.db.logLive and true or false) end
-end-- Fenster zusammenbauen ----------------------------------------------------------------------------------
+end-- Assemble the window ----------------------------------------------------------------------------------
 local function SelectTab(i)
     currentTab = i
     local titles = { L["Requests"], "Guide", L["Settings"], L["Test mode"], "Developer" }
@@ -906,12 +906,12 @@ local function SelectTab(i)
     LP.RefreshUI()
 end
 
--- Test-Tab ist immer da; bei Änderung des Testmodus nur auffrischen
+-- Test tab is always there; when test mode changes only refresh
 function LP.RefreshDebugTab()
     if win and win:IsShown() then LP.RefreshUI() end
 end
 
--- Developer-Tab nur zeigen, wenn per /picky dev eingeschaltet
+-- show the Developer tab only when enabled via /picky dev
 function LP.RefreshDevTab()
     if not win or not tabs[5] then return end
     tabs[5]:SetShown(LP.db.dev and true or false)
@@ -940,7 +940,7 @@ local function Build()
     win:SetScript("OnDragStart", win.StartMoving)
     win:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() SavePos() end)
 
-    -- Kopfzeile: Skill + Finder-Schalter
+    -- Header: skill + Finder switch
     win.skillText = FS(win, "GameFontHighlight")
     win.skillText:SetPoint("TOPLEFT", 76, -27)
     win.stats = FS(win, "GameFontNormalSmall")
@@ -1026,7 +1026,7 @@ function LP.ToggleUI()
     if win:IsShown() then win:Hide() else win:Show() end
 end
 
--- Shift-Klick auf Zauber/Item/Link fügt ihn in das fokussierte Picky-Textfeld ein
+-- Shift-click on spell/item/link inserts it into the focused Picky text field
 local function InsertIntoPickyEdit(link)
     local f = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
     if f and f.PickyEdit and link then f:Insert(link) end
@@ -1037,7 +1037,7 @@ elseif ChatEdit_InsertLink then
     hooksecurefunc("ChatEdit_InsertLink", InsertIntoPickyEdit)
 end
 
--- Minimap-Button (mit Zustand) ----------------------------------------------------------------------------
+-- Minimap button (with state) ----------------------------------------------------------------------------
 local mm
 -- true = runde Ecke in diesem Quadranten (Reihenfolge: rechts-oben, links-oben, rechts-unten, links-unten)
 local SHAPES = {
@@ -1077,7 +1077,7 @@ function LP.UpdateMinimap()
     if mm then mm:SetShown(LP.db.ui.minimap) end
 end
 
--- Zustand am Button: grau = Finder aus, normal = an, grün = Kunde in der Gruppe, Zahl = Wartende
+-- State on the button: gray = Finder off, normal = on, green = customer in the group, number = waiting
 function LP.UpdateMinimapState()
     if not mm or not LP.db then return end
     local st = LP.GetState()
@@ -1117,7 +1117,7 @@ function LP.BuildMinimap()
     mm:SetFrameStrata("MEDIUM")
     mm:SetFrameLevel(8)
     mm:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-    -- gleicher Aufbau wie die üblichen Minimap-Buttons: Hintergrund, Icon, Ring
+    -- same structure as the usual minimap buttons: background, icon, ring
     local bg = mm:CreateTexture(nil, "BACKGROUND")
     bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
     bg:SetSize(20, 20)

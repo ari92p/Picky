@@ -1,10 +1,10 @@
--- Picky / Data.lua : Kisten, Schlüsselwörter, Skill-Guide
--- Alle Werte sind aus dem Gedächtnis (Vanilla-Daten) und leicht anpassbar.
--- Falls WoW Forever etwas ändert: hier editieren. Texte stehen mit englischem Schlüssel in Locale.lua.
+-- Picky / Data.lua : boxes, keywords, skill guide
+-- All values are from memory (Vanilla data) and easy to adjust.
+-- If WoW Forever changes something, edit here. Texts use an English key in Locale.lua.
 local ADDON, LP = ...
 local L = LP.L
 
--- itemID = { benötigter Skill, englischer Name }
+-- itemID = { required skill, English name }
 LP.BOXES = {
     [6712]  = { 1,   "Practice Lock" },
     [6354]  = { 1,   "Small Locked Chest" },
@@ -27,9 +27,9 @@ LP.BOXES = {
     [5760]  = { 300, "Eternium Lockbox" },
 }
 
--- Deutsche Namen (Ersatz). Maßgeblich ist immer der Name, den das Spiel selbst liefert (GetItemInfo): LP.BoxName.
--- Bestätigt (Wowhead de): 6354, 6355, 6356, 16882-16885 (6712 "Aufziehkiste" nur von der allgemeinen de-Seite). Der Rest (Schließkassetten, Eisenbeschlagene/Verstärkte Truhe) ist geraten,
--- bis das Spiel selbst die Namen liefert: Picky merkt sich sie beim Einloggen in PickyDB.itemNames (siehe unten).
+-- German names (fallback). The name the game itself returns (GetItemInfo) always wins: LP.BoxName.
+-- Confirmed (Wowhead de): 6354, 6355, 6356, 16882-16885 (6712 "Aufziehkiste" only from the general de page). The rest (Schließkassetten, Eisenbeschlagene/Verstärkte Truhe) is guessed,
+-- until the game provides the names itself: Picky stores them at login in PickyDB.itemNames (see below).
 local DE_NAMES = {
     [6712] = "Aufziehkiste", [6354] = "Kleine verschlossene Truhe", [16882] = "Ramponierte Plunderkiste",
     [4632] = "Verzierte Bronzeschließkassette", [4633] = "Schwere Bronzeschließkassette", [4634] = "Eisenschließkassette",
@@ -39,18 +39,18 @@ local DE_NAMES = {
     [13918] = "Verstärkte verschlossene Truhe", [5759] = "Thoriumschließkassette", [16885] = "Schwere Plunderkiste",
     [5760] = "Eterniumschließkassette",
 }
--- Name einer Kiste in der Sprache des Spiels: erst vom Spiel, sonst aus der Tabelle, sonst englisch
+-- Name of a box in the game language: first from the game, otherwise from the table, otherwise English
 function LP.BoxName(id)
     local name = GetItemInfo and GetItemInfo(id)
     if name then return name end
     local cached = LP.db and LP.db.itemNames and LP.db.itemNames[id]   -- vom Spiel selbst gemerkt
     if cached then return cached end
-    if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end   -- fürs nächste Mal vormerken
+    if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end   -- queue it up for next time
     local b = LP.BOXES[id]
     if LP.isGerman and DE_NAMES[id] then return DE_NAMES[id] end
     return b and b[2] or "?"
 end
--- Beim Einloggen alle Kisten-Namen vom Spiel anfordern und in PickyDB.itemNames merken: das sind dann die ECHTEN Namen deiner Spielsprache
+-- At login, request all box names from the game and store them in PickyDB.itemNames: these are then the REAL names in your game language
 local function LearnName(id)
     local name = GetItemInfo and GetItemInfo(id)
     if name and LP.db then
@@ -67,7 +67,7 @@ end)
 LP.On("GET_ITEM_INFO_RECEIVED", function(_, id)
     if id and LP.BOXES[id] then LearnName(id) end
 end)
--- Wörter im Chat (Englisch + Deutsch) -> geschätzter Skill (bei Mehrdeutigkeit der höhere Wert, sicher ist sicher)
+-- Words in chat (English + German) -> estimated skill (when ambiguous the higher value, better safe than sorry)
 LP.BOXKEYS = {
     { "bronz", 50, L["Bronze box"] },        -- "bronze" / "bronze-kiste"
     { "iron", 125, L["Iron box"] },

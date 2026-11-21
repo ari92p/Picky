@@ -1,13 +1,13 @@
--- Picky / State.lua : EIN Zustand und EIN Ereignispunkt für alle Anzeigen
+-- Picky / State.lua : ONE state and ONE event point for all displays
 -- (Hauptfenster, Mini-Liste, Toast, Minimap-Button). Die Logik (Finder.lua) meldet hierher,
--- die Anzeigen lesen von hier. So bleibt alles gleich, auch wenn das Fenster geschlossen ist.
+-- the displays read from here. This keeps everything consistent even when the window is closed.
 local ADDON, LP = ...
 local L = LP.L
 
--- Anfragen, die noch "offen" sind (alles andere ist erledigt oder abgelehnt)
+-- Requests that are still "open" (everything else is done or declined)
 LP.OPEN_STATUS = { new = true, manual = true, queued = true, invited = true, grouped = true }
 
--- Verlauf: kurze, lesbare Ereignisse für das Verlauf-Feld (Feed.lua). kind bestimmt die Farbe.
+-- History: short, readable events for the history field (Feed.lua). kind determines the color.
 LP.feed = {}
 local FEED_MAX = 50
 function LP.Feed(kind, text)
@@ -26,7 +26,7 @@ end
 function LP.GetState()
     local db = LP.db
     local st = { on = db and db.finder.enabled or false, phase = "idle", waiting = 0, waitingNames = {}, open = 0 }
-    for i = #LP.requests, 1, -1 do   -- älteste zuerst
+    for i = #LP.requests, 1, -1 do   -- oldest first
         local r = LP.requests[i]
         if r.status == "queued" then
             st.waiting = st.waiting + 1
@@ -44,17 +44,17 @@ function LP.GetState()
     return st
 end
 
--- Die älteste Anfrage, die noch auf eine Einladung wartet (neu / manuell / in der Warteschlange).
--- Zu hohe Skill-Anforderung, schon eingeladene oder erledigte Anfragen zählen nicht.
+-- The oldest request still waiting for an invite (new / manual / queued).
+-- Requests with too high a skill requirement, already invited or finished do not count.
 local INVITABLE = { new = true, manual = true, queued = true }
 function LP.NextInvitable()
-    for i = #LP.requests, 1, -1 do   -- älteste zuerst
+    for i = #LP.requests, 1, -1 do   -- oldest first
         local r = LP.requests[i]
         if INVITABLE[r.status] then return r end
     end
 end
 
--- Alle Anzeigen auffrischen (jede prüft selbst, ob sie überhaupt sichtbar ist)
+-- Refresh all displays (each one checks for itself whether it is visible)
 function LP.RefreshAll()
     if LP.RefreshUI then pcall(LP.RefreshUI) end
     if LP.UpdateMinimapState then pcall(LP.UpdateMinimapState) end
@@ -75,7 +75,7 @@ local function PlayAlert()
     pcall(PlaySound, snd or "TellMessage")
 end
 
--- Ereignisse: "request" (neue Anfrage), "joined" (Kunde in der Gruppe), "tip" (Trinkgeld)
+-- Events: "request" (new request), "joined" (customer in the group), "tip" (tip)
 function LP.Notice(kind, a, b, c)
     local db = LP.db
     if not db then return end
@@ -93,8 +93,8 @@ function LP.Notice(kind, a, b, c)
         if ui.toast and LP.Toast then LP.Toast.Joined(a) end
     elseif kind == "tip" then
         if ui.toast and LP.Toast then LP.Toast.Tip(a, b, c) end
-        -- ohne Toast bleibt wenigstens eine Chatzeile als Beleg
-        if (ui.chatLine or not ui.toast) and not LP.forceDry then   -- bei Simulationen/Tests keine Chatzeile
+        -- without a toast, at least a chat line remains as proof
+        if (ui.chatLine or not ui.toast) and not LP.forceDry then   -- no chat line for simulations/tests
             LP.Print(L["Tip from %s: |cffffd100%s|r"]:format(tostring(a), LP.Money(b)))
         end
     end

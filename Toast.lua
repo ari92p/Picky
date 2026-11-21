@@ -1,6 +1,6 @@
--- Picky / Toast.lua : kleine Meldung bei Ereignissen (Muster: GearQuestForever Toast.lua)
--- Große klickbare Fläche mit Text (bei Anfragen: Klick = einladen) + fester Button "Fenster öffnen".
--- Warteschlange, Pause bei Mouseover, blendet sich selbst aus.
+-- Picky / Toast.lua : small notification for events (pattern: GearQuestForever Toast.lua)
+-- Large clickable area with text (for requests: click = invite) + fixed "Open window" button.
+-- Queue, pauses on mouseover, fades out on its own.
 local ADDON, LP = ...
 local L = LP.L
 local T = {}
@@ -54,7 +54,7 @@ local function Ensure()
     frame.hint:SetJustifyH("LEFT")
     frame.hint:SetWordWrap(false)
 
-    -- fester Button: Picky-Fenster öffnen
+    -- fixed button: open the Picky window
     local open = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     open:SetSize(72, 24)
     open:SetPoint("RIGHT", -10, 0)
@@ -73,7 +73,7 @@ local function Ensure()
     frame:SetScript("OnLeave", function() hover = false end)
     frame:SetScript("OnUpdate", function() T.OnUpdate() end)
 
-    -- Position: ca. 20% über dem unteren Rand, wie bei GearQuest
+    -- Position: about 20% above the bottom edge, as in GearQuest
     frame:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, math.floor((UIParent:GetHeight() or 768) * 0.20))
     return frame
 end
@@ -123,17 +123,17 @@ function T.OnUpdate()
     end
 end
 
--- Meldung einreihen; gleiche Meldungen (key) werden nicht doppelt eingereiht
+-- Queue a message; identical messages (key) are not queued twice
 function T.Push(item)
     if item.key then
         for _, q in ipairs(queue) do if q.key == item.key then return end end
     end
     queue[#queue + 1] = item
-    while #queue > 3 do table.remove(queue, 1) end   -- Staus vermeiden: nur die letzten 3 wartenden Meldungen zählen, alte sind überholt
+    while #queue > 3 do table.remove(queue, 1) end   -- avoid a backlog: only the last 3 waiting messages count, older ones are outdated
     ShowNext()
 end
 
--- Neue Anfrage: große Fläche. Je nach Status: Klick = einladen, oder reine Info.
+-- New request: large area. Depending on status: click = invite, or info only.
 function T.Request(req)
     local box = req.label or (req.req and L["Box, skill %d"]:format(req.req)) or L["Box unknown"]
     local item = { key = "req:" .. req.name, title = L["New request"], line = req.name .. "  ·  " .. box }

@@ -1,11 +1,11 @@
--- Picky / Locale.lua : Texte in Englisch und Deutsch
--- Im Code steht überall L["Englischer Text"]. Ein deutscher Client (deDE) bekommt die Übersetzung aus DE,
--- jeder andere Client den englischen Text. Fehlt ein Eintrag, erscheint der englische Schlüssel selbst,
--- es gibt also nie ein leeres Feld. Neue Sprache: eine weitere Tabelle wie DE anlegen und unten eintragen.
--- Schlüssel wie "default.welcome" sind Kennungen für lange Texte; deren englischer Text steht in EN.
+-- Picky / Locale.lua : texts in English and German
+-- The code uses L["English text"] everywhere. A German client (deDE) gets the translation from DE,
+-- every other client gets the English text. If an entry is missing, the English key itself appears,
+-- so there is never an empty field. New language: add another table like DE and register it below.
+-- Keys like "default.welcome" are identifiers for long texts; their English text is in EN.
 local ADDON, LP = ...
 
--- Englische Texte für Kennungs-Schlüssel (alle anderen Schlüssel sind schon der englische Text)
+-- English texts for identifier keys (all other keys are already the English text)
 local EN = {
     ["default.welcome"] = "Hello! I'm ready. Please open a trade and put the box in the bottom slot (\"Will not be traded\"). Tips are welcome :)",
     ["default.thanks"] = "Thank you so much for the tip! Enjoy the contents :)",
@@ -119,7 +119,7 @@ local DE = {
     -- Pick
     ["Right-click to pick"] = "Rechtsklick zum Knacken",
 
-    -- UI: Fenster
+    -- UI: window
     ["Announce"] = "Ankündigen",
     ["%s needs lockpicking %d, you have %d"] = "%s braucht Schlossknacken %d, du hast %d.",
     ["Box too high"] = "Kiste zu hoch",
@@ -169,7 +169,7 @@ local DE = {
     ["Right-click"] = "Rechtsklick",
     ["toggle duty"] = "Dienst an/aus",
 
-    -- UI: Einstellungen
+    -- UI: settings
     ["Group"] = "Gruppe",
     ["Display"] = "Anzeige",
     ["Messages"] = "Nachrichten",
@@ -232,7 +232,7 @@ local DE = {
 
 local isGerman = (GetLocale() == "deDE")
 LP.isGerman = isGerman
-LP.LOCALE = { EN = EN, DE = DE }   -- für die Selbsttests
+LP.LOCALE = { EN = EN, DE = DE }   -- for the self tests
 
 local L = setmetatable({}, {
     __index = function(_, key)
@@ -242,7 +242,7 @@ local L = setmetatable({}, {
 })
 LP.L = L
 
--- Beide Sprachfassungen eines Textes (für das Mitführen gespeicherter Standardtexte beim Sprachwechsel)
+-- Both language versions of a text (to carry saved default texts along when the language changes)
 function LP.Both(key)
     return EN[key] or key, DE[key] or EN[key] or key
 end
