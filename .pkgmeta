@@ -1,0 +1,7 @@
+package-as: Picky
+
+ignore:
+  - check.ps1
+  - CURSEFORGE.md
+  - .gitignore
+  - .github

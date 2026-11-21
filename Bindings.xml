@@ -1,0 +1,8 @@
+<Bindings>
+    <Binding name="PICKY_TOGGLE" header="PICKY" category="ADDONS">
+        if Picky and Picky.ToggleUI then Picky.ToggleUI() end
+    </Binding>
+    <Binding name="PICKY_AD" category="ADDONS">
+        if Picky and Picky.PostAd then Picky.PostAd(true) end
+    </Binding>
+</Bindings>

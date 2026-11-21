@@ -1,0 +1,870 @@
+-- Picky / Tests.lua : Selbsttests, laufen im Spiel mit /picky test (oder dem Knopf auf der Debug-Seite).
+-- Die Tests ändern nichts Bleibendes: Anfragen, Statistik und Einstellungen werden vorher gesichert und danach
+-- wiederhergestellt; Einladen/Flüstern/Verlassen laufen als Trockenlauf.
+local ADDON, LP = ...
+local L = LP.L
+
+local tests = {}
+local function T(name, fn) tests[#tests + 1] = { name = name, fn = fn } end
+
+-- Prüf-Funktionen ------------------------------------------------------------------------------
+local function fail(msg) error(msg, 0) end
+local function eq(actual, expected, what)
+    if actual ~= expected then
+        fail(("%s: expected %s, got %s"):format(what or "value", tostring(expected), tostring(actual)))
+    end
+end
+local function truthy(v, what) if not v then fail((what or "value") .. " should be true") end end
+local function falsy(v, what) if v then fail((what or "value") .. " should be false") end end
+
+-- Sandbox: sichert den Zustand, setzt Testwerte, stellt alles wieder her (auch bei Fehlern) -----------------
+local FINDER_KEYS = { "autoInvite", "onlyWhenFree", "inviteUnknown", "welcome", "thanks", "autoLeave", "idleLeave", "sound", "enabled" }
+local UI_KEYS = { "toast", "flash", "chatLine" }
+local STAT_KEYS = { "picked", "tips", "invited", "thanked" }
+local function Sandbox(setup, fn)
+    local db = LP.db
+    local saved = {
+        requests = LP.requests, pending = LP.pending, partner = LP.partner, partnerSim = LP.partnerSim,
+        pickedForPartner = LP.pickedForPartner, waitTradeClose = LP.waitTradeClose,
+        skill = LP.skill, skillEstimated = LP.skillEstimated, inGroup = LP.InGroup, groupCount = LP.GroupCount,
+        forceDry = LP.forceDry, leaveAt = LP.leaveAt, feed = LP.feed, lastInviter = LP.lastInviter, finder = {}, ui = {}, stats = {},
+    }
+    for _, k in ipairs(FINDER_KEYS) do saved.finder[k] = db.finder[k] end
+    for _, k in ipairs(UI_KEYS) do saved.ui[k] = db.ui[k] end
+    for _, k in ipairs(STAT_KEYS) do saved.stats[k] = db.stats[k] end
+
+    -- Ausgangslage: leer, Trockenlauf, keine Meldungen/Töne
+    LP.requests, LP.pending, LP.partner, LP.partnerSim, LP.pickedForPartner, LP.waitTradeClose = {}, nil, nil, nil, false, false
+    LP.forceDry = true
+    LP.feed, LP.lastInviter = {}, nil   -- der Verlauf der Tests soll nicht im echten Verlauf landen
+    LP.InGroup = function() return false end
+    LP.GroupCount = function() return 1 end
+    db.ui.toast, db.ui.flash, db.ui.chatLine, db.finder.sound = false, false, false, false
+    db.finder.enabled, db.finder.autoInvite, db.finder.onlyWhenFree, db.finder.inviteUnknown = true, true, true, true
+    db.finder.welcome, db.finder.thanks, db.finder.autoLeave = true, true, true
+    LP.skill, LP.skillEstimated = 200, false
+    local ok, err = pcall(function()   -- auch setup() ist geschützt: ein Fehler darf den Zustand nie dauerhaft verbiegen
+        if setup then setup(db) end
+        fn(db)
+    end)
+
+    LP.requests, LP.pending, LP.partner, LP.partnerSim = saved.requests, saved.pending, saved.partner, saved.partnerSim
+    LP.pickedForPartner, LP.waitTradeClose = saved.pickedForPartner, saved.waitTradeClose
+    LP.skill, LP.skillEstimated, LP.InGroup, LP.GroupCount, LP.forceDry = saved.skill, saved.skillEstimated, saved.inGroup, saved.groupCount, saved.forceDry
+    LP.leaveAt = saved.leaveAt
+    LP.feed, LP.lastInviter = saved.feed, saved.lastInviter
+    for k, v in pairs(saved.finder) do db.finder[k] = v end
+    for k, v in pairs(saved.ui) do db.ui[k] = v end
+    for k, v in pairs(saved.stats) do db.stats[k] = v end
+    if LP.RefreshAll then LP.RefreshAll() end
+    if not ok then error(err, 0) end
+end
+
+local function Req(name, status, extra)
+    local r = { name = name, status = status, msg = "x", time = GetTime() }
+    if extra then for k, v in pairs(extra) do r[k] = v end end
+    return r
+end
+
+-- 1) Chat-Erkennung -----------------------------------------------------------------------------------------
+local ITEM_IRON = "|cffffffff|Hitem:4634::::::::60:::::|h[Iron Lockbox]|h|r"
+local CHAT_CASES = {
+    -- { Nachricht, geflüstert, soll erkannt werden, erwarteter Skill (oder nil) }
+    { "hi can u open some low level chersts for me?", false, true },
+    { "hi can u open some low level chersts for me?", true, true },
+    { "LF rogue to open lockbox pls", false, true },
+    { "Suche Schurke zum Schlösser knacken", false, true },
+    { "need rogue for bronze chest", false, true, 50 },
+    { "anyone have a rogue? mithril lockbox", false, true, 225 },
+    { "can you open this thorium lockbox", true, true, 250 },
+    { "Brauche einen Schurken für meine Eisenkiste", false, true, 125 },
+    { "can someone unlock my chest", false, true },
+    { "LF rogue pls open this " .. ITEM_IRON, false, true, 70 },
+    -- Item-Link im neuen Farbformat (|cnIQ1:) wie in WoW Forever
+    { "Ich hätte eine Kiste |cnIQ1:|Hitem:6355::::::::29:1482:::::::::|h[Stabile verschlossene Truhe]|h|r", true, true, 70 },
+    { "anyone know where the chest in SM is?", false, false },
+    { "Kann jemand meine Stahlschließkassette öffnen bitte", true, true, 225 },
+    { "suche Schurke für eine Stabile Plunderkiste", false, true },
+    { "wäre jemand so lieb und könnte mir in ironforge 10 mithrilerz in barren umwandeln bitte", false, false },
+    { "kann jemand 20 eisenerz schmelzen bitte", false, false },
+    { "LFM dps tank heal for BRD", false, false },
+    { "WTS Heavy Bronze Lockbox 5g", false, false },
+    { "selling lockboxes cheap", false, false },
+    { "LF rogue", false, false },
+    { "hello how are you", true, false },
+    { "good morning everyone", false, false },
+    { "rogue lf group for deadmines", false, false },
+}
+for i, c in ipairs(CHAT_CASES) do
+    T(("chat detection #%d: %s%s"):format(i, c[2] and "[whisper] " or "", c[1]:sub(1, 48)), function()
+        local ok, req = LP.Analyze(c[1], c[2])
+        eq(ok and true or false, c[3], "recognized")
+        if c[4] then eq(req, c[4], "required skill") end
+    end)
+end
+
+-- 2) Hilfsfunktionen -------------------------------------------------------------------------------------------
+T("Money formatting", function()
+    eq(LP.Money(0), "0k", "0")
+    eq(LP.Money(5), "5k", "5")
+    eq(LP.Money(100), "1s", "100")
+    eq(LP.Money(10000), "1g", "10000")
+    eq(LP.Money(12345), "1g 23s 45k", "12345")
+    eq(LP.Money(10101), "1g 1s 1k", "10101")
+end)
+T("time formatting (m:ss)", function()
+    eq(LP.Mmss(0), "0:00")
+    eq(LP.Mmss(65), "1:05")
+    eq(LP.Mmss(3599), "59:59")
+    eq(LP.Mmss(-5), "0:00")
+end)
+T("gear bonus line parsing (English + German)", function()
+    eq(LP.ParseBonus("Equip: Lockpicking +4."), 4, "english")
+    eq(LP.ParseBonus("Equip: Increased Lockpicking +12."), 12, "english 12")
+    eq(LP.ParseBonus("Anlegen: Schlossknacken +4."), 4, "german")
+    eq(LP.ParseBonus("Anlegen: Schlösser knacken +3."), 3, "german plural")
+    eq(LP.ParseBonus("+6 Agility"), 0, "other stat")
+    eq(LP.ParseBonus(nil), 0, "nil")
+end)
+T("'locked' tooltip words", function()
+    truthy(LP.IsLockedText("Locked"), "Locked")
+    truthy(LP.IsLockedText("Verschlossen"), "Verschlossen")
+    truthy(LP.IsLockedText("Abgeschlossen"), "Abgeschlossen")
+    falsy(LP.IsLockedText("<Right Click to Open>"), "open hint")
+    falsy(LP.IsLockedText(nil), "nil")
+end)
+T("just-picked box counts as open for a few seconds (no second pick on an open box)", function()
+    -- Plätze, die es im echten Rucksack nicht gibt (Tasche 90/91): der Test fasst keinen echten Platz an
+    falsy(LP.RecentlyPicked(90, 1), "fresh slot")
+    LP.MarkPicked(90, 1)
+    truthy(LP.RecentlyPicked(90, 1), "marked slot")
+    falsy(LP.RecentlyPicked(90, 2), "other slot unaffected")
+    falsy(LP.RecentlyPicked(91, 1), "other bag unaffected")
+end)
+T("feed: events are stored in order and capped", function()
+    local saved = LP.feed
+    LP.feed = {}
+    local ok, err = pcall(function()
+        LP.Feed("request", "one")
+        LP.Feed("invite", "two")
+        eq(#LP.feed, 2, "two entries")
+        eq(LP.feed[1].text, "one", "oldest first")
+        eq(LP.feed[2].kind, "invite", "kind stored")
+        truthy(LP.feed[2].clock and LP.feed[2].clock ~= "", "clock stored")
+        for i = 1, 70 do LP.Feed("pick", "x" .. i) end
+        truthy(#LP.feed <= 50, "capped at 50")
+        eq(LP.feed[#LP.feed].text, "x70", "newest kept")
+    end)
+    LP.feed = saved
+    if LP.RefreshFeed then LP.RefreshFeed() end
+    if not ok then error(err, 0) end
+end)
+T("feed: a chat request writes request + invite lines", function()
+    local saved = LP.feed
+    LP.feed = {}
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
+            local kinds = {}
+            for _, e in ipairs(LP.feed) do kinds[#kinds + 1] = e.kind end
+            eq(kinds[1], "request", "first entry")
+            eq(kinds[2], "invite", "second entry")
+        end)
+    end)
+    LP.feed = saved
+    if LP.RefreshFeed then LP.RefreshFeed() end
+    if not ok then error(err, 0) end
+end)
+T("guide stage by skill", function()
+    eq(LP.StageForSkill(1), 1, "1")
+    eq(LP.StageForSkill(99), 1, "99")
+    eq(LP.StageForSkill(100), 2, "100")
+    eq(LP.StageForSkill(149), 2, "149")
+    eq(LP.StageForSkill(150), 3, "150")
+    eq(LP.StageForSkill(224), 3, "224")
+    eq(LP.StageForSkill(225), 4, "225")
+    eq(LP.StageForSkill(300), 4, "300")
+end)
+T("announcement text placeholders", function()
+    local text = LP.ExpandAd("Skill {skill} and {pick}!")
+    falsy(text:find("{skill}", 1, true), "{skill} replaced")
+    falsy(LP.ExpandAd("Bin in {city}."):find("{city}", 1, true), "{city} replaced")
+    falsy(text:find("{pick}", 1, true), "{pick} replaced")
+    truthy(text:find(tostring(LP.Skill()), 1, true), "skill number present")
+end)
+T("debug log accepts nil/table/number arguments", function()
+    local db = LP.db
+    local was = db.debug
+    db.debug = true
+    local before = #LP.debugLog
+    local stamp = math.floor(GetTime() * 1000)   -- eindeutig, damit die Entdoppelung (gleiche Zeile binnen 1 s) nicht stört
+    LP.Debug("test", "nil args %d: %s %d %s", stamp, nil, 5, {})
+    LP.Debug("test", "no arguments %d", stamp + 1)
+    db.debug = was
+    eq(#LP.debugLog >= before + 2 or #LP.debugLog == 300, true, "two lines logged")
+end)
+
+-- 3) Übersetzungen -------------------------------------------------------------------------------------------------
+local function count(s, pat)
+    local n = 0
+    for _ in s:gmatch(pat) do n = n + 1 end
+    return n
+end
+T("translations: same format placeholders in English and German", function()
+    local en, de = LP.LOCALE.EN, LP.LOCALE.DE
+    local bad = {}
+    for key, val in pairs(de) do
+        local ref = en[key] or key
+        if count(val, "%%[sd]") ~= count(ref, "%%[sd]") then bad[#bad + 1] = key end
+        if count(val, "|c") ~= count(ref, "|c") or count(val, "|r") ~= count(ref, "|r") then bad[#bad + 1] = key .. " (color codes)" end
+        if val == "" then bad[#bad + 1] = key .. " (empty)" end
+    end
+    if #bad > 0 then fail("mismatch in: " .. table.concat(bad, "; ")) end
+end)
+T("translations: ad/welcome defaults keep their placeholders", function()
+    local en, de = LP.Both("default.ad")
+    truthy(en:find("{pick}", 1, true) and en:find("{skill}", 1, true), "english ad")
+    truthy(de:find("{pick}", 1, true) and de:find("{skill}", 1, true), "german ad")
+    truthy(en ~= de, "languages differ")
+end)
+T("translations: saved default text follows the client language", function()
+    local en, de = LP.Both("default.welcome")
+    local tbl = { a = en, b = de, c = "my own text" }
+    LP.FollowLocale(tbl, "a", "default.welcome")
+    LP.FollowLocale(tbl, "b", "default.welcome")
+    LP.FollowLocale(tbl, "c", "default.welcome")
+    eq(tbl.a, L["default.welcome"], "english default switched")
+    eq(tbl.b, L["default.welcome"], "german default switched")
+    eq(tbl.c, "my own text", "own text untouched")
+end)
+
+-- 4) Entscheidungslogik (Trockenlauf) --------------------------------------------------------------------------------
+T("decide: skill too low -> not invited", function()
+    Sandbox(nil, function()
+        LP.skill = 100
+        local r = Req("A", "new", { req = 175 })
+        LP.Decide(r)
+        eq(r.status, "toohigh", "status")
+        eq(LP.pending, nil, "pending")
+    end)
+end)
+T("decide: skill enough -> invited", function()
+    Sandbox(nil, function()
+        local r = Req("A", "new", { req = 175 })
+        LP.Decide(r)
+        eq(r.status, "invited", "status")
+        eq(LP.pending, r, "pending")
+    end)
+end)
+T("decide: box unknown + 'invite unknown' on -> invited", function()
+    Sandbox(nil, function()
+        local r = Req("A", "new")
+        LP.Decide(r)
+        eq(r.status, "invited", "status")
+    end)
+end)
+T("decide: box unknown + 'invite unknown' off -> manual", function()
+    Sandbox(function(db) db.finder.inviteUnknown = false end, function()
+        local r = Req("A", "new")
+        LP.Decide(r)
+        eq(r.status, "manual", "status")
+    end)
+end)
+T("decide: auto invite off -> waits for click", function()
+    Sandbox(function(db) db.finder.autoInvite = false end, function()
+        local r = Req("A", "new", { req = 25 })
+        LP.Decide(r)
+        eq(r.status, "new", "status")
+    end)
+end)
+T("decide: already in a group -> queued", function()
+    Sandbox(nil, function()
+        LP.InGroup = function() return true end
+        local r = Req("A", "new", { req = 25 })
+        LP.Decide(r)
+        eq(r.status, "queued", "status")
+    end)
+end)
+T("invite: full group -> queued", function()
+    Sandbox(nil, function()
+        LP.GroupCount = function() return 5 end
+        local r = Req("A", "new", { req = 25 })
+        LP.TryInvite(r)
+        eq(r.status, "queued", "status")
+    end)
+end)
+
+-- 5) Zustand / Anzeige-Daten ------------------------------------------------------------------------------------------
+T("state: counts, phase and next invitable", function()
+    Sandbox(nil, function()
+        local a, b, c = Req("A", "done"), Req("B", "queued"), Req("C", "new")
+        LP.requests = { c, b, a }   -- neueste zuerst
+        local st = LP.GetState()
+        eq(st.waiting, 1, "waiting")
+        eq(st.open, 2, "open")
+        eq(st.phase, "idle", "phase")
+        eq(LP.NextInvitable(), b, "oldest invitable")
+        LP.pending = Req("P", "invited")
+        eq(LP.GetState().phase, "invited", "invited phase")
+        LP.pending = nil
+        local g = Req("G", "grouped")
+        LP.requests[#LP.requests + 1] = g
+        LP.partner = "G"
+        eq(LP.GetState().phase, "grouped", "grouped phase")
+    end)
+end)
+
+-- 6) Ganzer Ablauf mit Simulation ---------------------------------------------------------------------------------------
+T("flow: request -> invite -> join -> tip -> pick -> leave (simulated, nothing real is sent)", function()
+    Sandbox(nil, function(db)
+        local before = { picked = db.stats.picked, tips = db.stats.tips, invited = db.stats.invited }
+        local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
+        truthy(r, "request created")
+        eq(r.status, "invited", "after request")
+        eq(LP.pending, r, "pending")
+        LP.SimulateJoin()
+        eq(LP.partner, r.name, "customer in group")
+        eq(r.status, "grouped", "status grouped")
+        LP.SimulateTip(12500)
+        LP.SimulatePick()
+        truthy(LP.pickedForPartner, "pick recorded for customer")
+        LP.SimulateLeave()
+        eq(LP.partner, nil, "customer gone")
+        eq(r.status, "done", "status done")
+        eq(db.stats.picked, before.picked, "stats.picked unchanged")
+        eq(db.stats.tips, before.tips, "stats.tips unchanged")
+        eq(db.stats.invited, before.invited, "stats.invited unchanged")
+    end)
+end)
+T("flow: skill too low request is not invited", function()
+    Sandbox(function() LP.skill = 50 end, function()
+        LP.skill = 50
+        local r = LP.SimulateChat("need rogue for thorium lockbox", false)
+        truthy(r, "request created")
+        eq(r.status, "toohigh", "status")
+        eq(LP.pending, nil, "pending")
+    end)
+end)
+T("flow: second request while a customer is in the group is queued", function()
+    Sandbox(nil, function()
+        local first = LP.SimulateChat("LF rogue open my bronze chest pls", false)
+        LP.SimulateJoin()
+        LP.InGroup = function() return true end
+        local second = LP.SimulateChat("hi can u open my iron lockbox pls", false)
+        eq(second.status, "queued", "second status")
+        eq(first.status, "grouped", "first still in group")
+    end)
+end)
+T("dry run: invite and whisper are only logged", function()
+    Sandbox(nil, function()
+        local db = LP.db
+        local was = db.debug
+        LP.forceDry = false   -- den TESTMODUS selbst prüfen, nicht die Sandbox
+        db.debug = true
+        local before = #LP.debugLog
+        LP.Invite("Nobody")
+        LP.Whisper("Nobody", "test")
+        truthy(LP.IsDry(), "test mode makes everything a dry run")
+        db.debug = was
+        truthy(#LP.debugLog >= before + 2 or #LP.debugLog == 300, "two dry-run lines logged")
+    end)
+end)
+
+T("group: a requester who invites YOU is recognized as customer", function()
+    local orig = LP.InGroupWith
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function(n) return n == "Anna" end
+            local r = Req("Anna", "new", { sender = "Anna" })
+            LP.requests = { r }
+            truthy(LP.CheckRoster(), "customer detected")
+            eq(LP.partner, "Anna", "partner")
+            eq(r.status, "grouped", "status")
+        end)
+    end)
+    LP.InGroupWith = orig
+    if not ok then error(err, 0) end
+end)
+T("auto accept: with the setting on and the finder on, every invite is accepted (no announcement needed)", function()
+    local saved = { ad = LP.lastAd, seen = LP.lastAdSeen, aa = LP.db.finder.autoAccept }
+    local ok, err = pcall(function()
+        Sandbox(function(db) db.finder.autoAccept = true end, function()
+            LP.lastAd, LP.lastAdSeen = nil, nil
+            local yes, why = LP.ShouldAcceptInvite("Stranger Person")
+            truthy(yes, "stranger, no announcement: " .. tostring(why))
+            LP.lastAdSeen = GetTime() - 700
+            truthy(LP.ShouldAcceptInvite("Stranger Person"), "announcement long ago")
+        end)
+    end)
+    LP.lastAd, LP.lastAdSeen, LP.db.finder.autoAccept = saved.ad, saved.seen, saved.aa
+    if not ok then error(err, 0) end
+end)T("auto accept: known requester, ignored player, existing group and setting off", function()
+    local saved = { ad = LP.lastAd, seen = LP.lastAdSeen, aa = LP.db.finder.autoAccept, ig = LP.db.ignore["blocked"] }
+    local ok, err = pcall(function()
+        Sandbox(function(db) db.finder.autoAccept = true end, function(db)
+            LP.lastAd, LP.lastAdSeen = nil, nil
+            LP.requests = { Req("Anna Test", "new") }
+            truthy(LP.ShouldAcceptInvite("Anna"), "known requester (first name only)")
+            LP.lastAdSeen = GetTime()
+            db.ignore["blocked"] = true
+            falsy(LP.ShouldAcceptInvite("Blocked"), "ignored player even after announcement")
+            LP.InGroup = function() return true end
+            falsy(LP.ShouldAcceptInvite("Stranger"), "already in a group")
+            LP.InGroup = function() return false end
+            db.finder.autoAccept = false
+            falsy(LP.ShouldAcceptInvite("Stranger"), "setting off")
+            db.finder.enabled = false
+            db.finder.autoAccept = true
+            falsy(LP.ShouldAcceptInvite("Stranger"), "finder off")
+        end)
+    end)
+    LP.lastAd, LP.lastAdSeen, LP.db.finder.autoAccept, LP.db.ignore["blocked"] = saved.ad, saved.seen, saved.aa, saved.ig
+    if not ok then error(err, 0) end
+end)
+T("thanks: tips from a customer in the group are collected, ONE thank-you when leaving", function()
+    local got = {}
+    local orig = LP.Whisper
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.Whisper = function(name, text) got[#got + 1] = name end
+            local r = Req("Anna", "grouped", { sender = "Anna" })
+            LP.requests = { r }
+            LP.partner = "Anna"
+            LP.HandleTip("Anna", 15000)
+            LP.HandleTip("Anna", 5000)
+            eq(#got, 0, "nothing whispered while the customer is still in the group")
+            eq(r.tipTotal, 20000, "tips summed")
+            LP.DoLeave()
+            eq(#got, 1, "exactly one thank-you when leaving")
+            LP.HandleLeave()
+            eq(#got, 1, "no second thank-you afterwards")
+        end)
+    end)
+    LP.Whisper = orig
+    if not ok then error(err, 0) end
+end)
+T("thanks: tip from someone who is not the customer is thanked right away", function()
+    local got = 0
+    local orig = LP.Whisper
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.Whisper = function() got = got + 1 end
+            LP.requests = {}
+            LP.partner = nil
+            LP.HandleTip("Passerby", 10000)
+            eq(got, 1, "thanked immediately")
+        end)
+    end)
+    LP.Whisper = orig
+    if not ok then error(err, 0) end
+end)
+T("thanks: customer leaves on their own -> the collected thank-you is sent then", function()
+    local got = 0
+    local orig = LP.Whisper
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.Whisper = function() got = got + 1 end
+            local r = Req("Anna", "grouped", { sender = "Anna" })
+            LP.requests = { r }
+            LP.partner = "Anna"
+            LP.HandleTip("Anna", 15000)
+            eq(got, 0, "deferred")
+            LP.HandleLeave()
+            eq(got, 1, "sent when the group ended")
+        end)
+    end)
+    LP.Whisper = orig
+    if not ok then error(err, 0) end
+end)
+T("leave: a new trade cancels the scheduled leave (several boxes in a row)", function()
+    Sandbox(nil, function()
+        LP.ScheduleLeave(30)
+        local token = LP.leaveToken
+        LP.CancelLeave()
+        truthy(LP.leaveToken ~= token, "token changed, the pending leave will not fire")
+    end)
+end)
+T("orders: saved orders are restored (times, expiry, stale invite, simulated dropped)", function()
+    local db = LP.db
+    local savedOrders, savedReq = db.orders, LP.requests
+    local ok, err = pcall(function()
+        local nowE = time()
+        db.orders = {
+            { name = "Fresh", status = "new", stamp = nowE - 30, msg = "x" },
+            { name = "Old", status = "new", stamp = nowE - 5000, msg = "x" },
+            { name = "Invited", status = "invited", stamp = nowE - 10, msg = "x" },
+            { name = "Done", status = "done", stamp = nowE - 86400, boxes = 3, tipTotal = 20000, msg = "x" },
+            { name = "Fake", status = "new", stamp = nowE, sim = true, msg = "x" },
+        }
+        LP.LoadOrders()
+        eq(#LP.requests, 4, "simulated order dropped")
+        truthy(LP.requests == db.orders, "requests is the saved table")
+        local by = {}
+        for _, r in ipairs(LP.requests) do by[r.name] = r end
+        eq(by.Fresh.status, "new", "fresh request stays open")
+        eq(by.Old.status, "timeout", "old open request expired")
+        eq(by.Invited.status, "timeout", "stale invite expired")
+        eq(by.Done.status, "done", "finished order kept")
+        eq(by.Done.boxes, 3, "boxes kept")
+        eq(by.Done.tipTotal, 20000, "tip kept")
+        truthy(math.abs((GetTime() - by.Fresh.time) - 30) < 3, "session time recomputed from the saved stamp")
+    end)
+    db.orders, LP.requests = savedOrders, savedReq
+    if not ok then error(err, 0) end
+end)
+T("orders: boxes are counted per customer", function()
+    Sandbox(nil, function()
+        local r = Req("Anna", "grouped")
+        LP.requests = { r }
+        LP.partner = "Anna"
+        LP.OnPickSuccess(true)
+        LP.OnPickSuccess(true)
+        eq(r.boxes, 2, "two boxes")
+    end)
+end)
+T("orders: a tip outside the group is added to the order and thanked right away", function()
+    local got = 0
+    local orig = LP.Whisper
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.Whisper = function() got = got + 1 end
+            local r = Req("Anna", "done", { sender = "Anna" })
+            LP.requests = { r }
+            LP.partner = nil
+            LP.HandleTip("Anna", 10000)
+            eq(got, 1, "thanked immediately")
+            eq(r.tipTotal, 10000, "added to the order")
+            truthy(r.thanked, "marked as thanked")
+        end)
+    end)
+    LP.Whisper = orig
+    if not ok then error(err, 0) end
+end)
+T("orders: 'delete finished' keeps open orders, single delete works", function()
+    Sandbox(nil, function()
+        local a, b, c = Req("A", "done"), Req("B", "new"), Req("C", "timeout")
+        LP.requests = { a, b, c }
+        eq(LP.ClearDone(), 2, "two finished orders removed")
+        eq(#LP.requests, 1, "one left")
+        truthy(LP.requests[1] == b, "the open order was kept")
+        LP.RemoveOrder(b)
+        eq(#LP.requests, 0, "removed by hand")
+    end)
+end)
+T("orders: open requests expire after 15 minutes", function()
+    Sandbox(nil, function()
+        local old, fresh = Req("Old", "new"), Req("Fresh", "new")
+        old.time = GetTime() - 1000
+        LP.requests = { fresh, old }
+        LP.ExpireOpen()
+        eq(old.status, "timeout", "old one expired")
+        eq(fresh.status, "new", "fresh one stays")
+    end)
+end)
+T("announcement: the countdown is set and the x cancels the automatic repeat", function()
+    local ad = LP.db.ad
+    local saved = { auto = ad.auto, at = LP.nextAdAt }
+    local ok, err = pcall(function()
+        ad.auto = true
+        LP.StartAdLoop()
+        truthy(LP.nextAdAt and LP.nextAdAt > GetTime(), "next announcement time set")
+        LP.CancelAutoAd()
+        eq(ad.auto, false, "automatic repeat is off")
+        eq(LP.nextAdAt, nil, "countdown cleared")
+    end)
+    ad.auto, LP.nextAdAt = saved.auto, saved.at
+    if saved.auto then LP.StartAdLoop() end   -- den eigenen Zustand wiederherstellen
+    if not ok then error(err, 0) end
+end)
+T("leave: the 'Leave' button thanks and leaves immediately", function()
+    local got = 0
+    local orig = LP.Whisper
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.Whisper = function() got = got + 1 end
+            local r = Req("Anna", "grouped", { sender = "Anna", tipTotal = 15000 })
+            LP.requests = { r }
+            LP.partner = "Anna"
+            LP.LeaveNow()
+            eq(LP.partner, nil, "left the group")
+            eq(r.status, "done", "order finished")
+            truthy(r.endStamp, "end time recorded")
+            eq(got, 1, "one thank-you")
+        end)
+    end)
+    LP.Whisper = orig
+    if not ok then error(err, 0) end
+end)
+T("group: with the finder on, everyone who invites you becomes a customer (even without an announcement)", function()
+    local orig, ad, seen = LP.InGroupWith, LP.lastAd, LP.lastAdSeen
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.db.finder.enabled = true
+            LP.lastAd, LP.lastAdSeen = nil, nil
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function() return true end
+            LP.lastInviter = { name = "Friend Name", t = GetTime() }
+            LP.requests = {}
+            truthy(LP.CheckRoster(), "customer created")
+            truthy(LP.partner ~= nil, "partner set")
+        end)
+    end)
+    LP.InGroupWith, LP.lastAd, LP.lastAdSeen = orig, ad, seen
+    if not ok then error(err, 0) end
+end)
+T("group: with the finder off, an invite does not create an order", function()
+    local orig = LP.InGroupWith
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.db.finder.enabled = false
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function() return true end
+            LP.lastInviter = { name = "Friend Name", t = GetTime() }
+            LP.requests = {}
+            falsy(LP.CheckRoster(), "no customer")
+            eq(#LP.requests, 0, "no order created")
+        end)
+    end)
+    LP.InGroupWith = orig
+    if not ok then error(err, 0) end
+end)
+T("group: a stranger who invites you shortly after your announcement becomes a customer", function()
+    local orig, ad, seen = LP.InGroupWith, LP.lastAd, LP.lastAdSeen
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.lastAd, LP.lastAdSeen = nil, GetTime() - 30
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function() return true end
+            LP.lastInviter = { name = "Stranger", t = GetTime() }
+            LP.requests = {}
+            truthy(LP.CheckRoster(), "customer created")
+            truthy(LP.partner ~= nil, "partner set")
+        end)
+    end)
+    LP.InGroupWith, LP.lastAd, LP.lastAdSeen = orig, ad, seen
+    if not ok then error(err, 0) end
+end)
+T("queue: a request while another invite is still pending is queued", function()
+    Sandbox(nil, function()
+        LP.pending = Req("First", "invited")
+        local r = Req("Second", "new", { req = 25 })
+        LP.Decide(r)
+        eq(r.status, "queued", "second request waits")
+    end)
+end)
+T("requests: asking again after 'no answer' / 'skill too low' re-evaluates the request", function()
+    Sandbox(nil, function()
+        local r = Req("Anna", "timeout", { sender = "Anna" })
+        LP.requests = { r }
+        LP.OnChat("CHAT_MSG_WHISPER", "can you open my bronze lockbox please", "Anna", true)
+        eq(r.status, "invited", "re-decided and invited")
+    end)
+end)
+T("requests: someone whose order is finished and who writes again gets a NEW order", function()
+    Sandbox(nil, function()
+        LP.requests = { Req("Anna", "done", { sender = "Anna", time = GetTime() }) }
+        LP.OnChat("CHAT_MSG_WHISPER", "can you open my bronze lockbox please", "Anna", true)
+        eq(#LP.requests, 2, "second order created")
+        eq(LP.requests[2].status, "done", "the finished order stays untouched")
+    end)
+end)T("names: both-part names must match; the ignore list uses the same comparison", function()
+    falsy(LP.SameName("Arkanos Spellix", "Arkanos Voidwalker"), "same first name, different second name")
+    truthy(LP.SameName("Arkanos Spellix", "Arkanos Spellix-Realm"), "same name with realm")
+    local ig = LP.db.ignore["arkanos spellix"]
+    LP.db.ignore["arkanos spellix"] = true
+    local a, b, c = LP.IsIgnored("Arkanos Spellix"), LP.IsIgnored("Arkanos"), LP.IsIgnored("Arkanos Voidwalker")
+    LP.db.ignore["arkanos spellix"] = ig
+    truthy(a, "full name ignored")
+    truthy(b, "short form of the ignored player")
+    falsy(c, "a different player with the same first name")
+end)
+T("names: two-part names match the short form used by trade and unit names", function()
+    truthy(LP.SameName("Arkanos Spellix", "Arkanos"), "full vs first name")
+    truthy(LP.SameName("Arkanos", "Arkanos Spellix"), "first name vs full")
+    truthy(LP.SameName("Arkanos Spellix", "Arkanos-SomeRealm"), "with realm suffix")
+    truthy(LP.SameName("ARKANOS", "arkanos"), "case")
+    falsy(LP.SameName("Anna", "Anne"), "different names")
+    falsy(LP.SameName(nil, "Anna"), "nil")
+    falsy(LP.SameName("", ""), "empty")
+end)
+T("names: a request is found by the short name", function()
+    Sandbox(nil, function()
+        local r = Req("Arkanos Spellix", "new")
+        LP.requests = { r }
+        eq(LP.FindRequest("Arkanos"), r, "found by first name")
+        eq(LP.FindRequest("Nobody"), nil, "unknown")
+    end)
+end)
+T("group: invited customer with a two-part name is recognized in the group", function()
+    local orig = LP.InGroupWith
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.InGroup = function() return true end
+            -- die Gruppe meldet nur "Arkanos", die Anfrage heißt "Arkanos Spellix"
+            LP.InGroupWith = function(n) return LP.SameName(n, "Arkanos") end
+            local r = Req("Arkanos Spellix", "invited", { sender = "Arkanos Spellix" })
+            LP.requests = { r }
+            LP.pending = r
+            truthy(LP.CheckRoster(), "customer detected")
+            eq(r.status, "grouped", "status")
+            eq(LP.partner, "Arkanos Spellix", "partner")
+        end)
+    end)
+    LP.InGroupWith = orig
+    if not ok then error(err, 0) end
+end)
+T("group: someone you did not invite (no request) becomes a customer when you join their group", function()
+    local orig = LP.InGroupWith
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function() return true end
+            LP.lastInviter = { name = "Esco Ba", t = GetTime(), auto = true }   -- Picky hat die Einladung selbst angenommen
+            LP.requests = {}
+            truthy(LP.CheckRoster(), "customer created")
+            eq(#LP.requests, 1, "one request created")
+            eq(LP.requests[1].status, "grouped", "status")
+            truthy(LP.partner ~= nil, "partner set")
+            eq(LP.lastInviter, nil, "inviter consumed")
+        end)
+    end)
+    LP.InGroupWith = orig
+    if not ok then error(err, 0) end
+end)
+T("group: an old invite (over 3 minutes ago) does not create a customer", function()
+    local orig = LP.InGroupWith
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function() return true end
+            LP.lastInviter = { name = "Someone", t = GetTime() - 600 }
+            LP.requests = {}
+            falsy(LP.CheckRoster(), "no customer")
+            eq(LP.partner, nil, "no partner")
+        end)
+    end)
+    LP.InGroupWith = orig
+    LP.lastInviter = nil
+    if not ok then error(err, 0) end
+end)
+T("group: customer invited you FIRST, the message comes later -> customer, not 'waiting'", function()
+    local orig = LP.InGroupWith
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function() return true end   -- der Absender ist bereits in meiner Gruppe
+            local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
+            truthy(r, "request created")
+            eq(r.status, "grouped", "status")
+            eq(LP.partner, r.name, "customer recognized")
+        end)
+    end)
+    LP.InGroupWith = orig
+    if not ok then error(err, 0) end
+end)
+T("group: a customer already in the group who writes AGAIN is picked up too", function()
+    local orig = LP.InGroupWith
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            -- erste Nachricht: noch nicht in der Gruppe -> Anfrage wartet/eingeladen
+            LP.InGroupWith = function() return false end
+            local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
+            truthy(r, "request created")
+            -- jetzt ist er in der Gruppe (hat dich eingeladen) und schreibt innerhalb der Wartezeit nochmal
+            LP.InGroup = function() return true end
+            LP.InGroupWith = function(n) return n == r.name end
+            LP.pending = nil
+            LP.OnChat("CHAT_MSG_WHISPER", "hello? can you open it", r.name, true)
+            eq(LP.partner, r.name, "customer recognized on second message")
+        end)
+    end)
+    LP.InGroupWith = orig
+    if not ok then error(err, 0) end
+end)
+T("group: greeting whisper goes to the full sender name (cross-realm)", function()
+    Sandbox(nil, function()
+        local got
+        local orig = LP.Whisper
+        LP.Whisper = function(name) got = name end
+        local ok, err = pcall(function()
+            local r = Req("Anna", "invited", { sender = "Anna-OtherRealm" })
+            LP.requests = { r }
+            LP.pending = r
+            LP.HandleJoin(r)
+        end)
+        LP.Whisper = orig
+        if not ok then error(err, 0) end
+        eq(got, "Anna-OtherRealm", "whisper target")
+    end)
+end)
+T("group: greeting is not sent when the option is off", function()
+    Sandbox(function(db) db.finder.welcome = false end, function()
+        local got = false
+        local orig = LP.Whisper
+        LP.Whisper = function() got = true end
+        local ok, err = pcall(function()
+            local r = Req("Anna", "invited", { sender = "Anna" })
+            LP.requests = { r }
+            LP.pending = r
+            LP.HandleJoin(r)
+        end)
+        LP.Whisper = orig
+        if not ok then error(err, 0) end
+        falsy(got, "whisper sent")
+    end)
+end)
+
+-- 7) Live-Prüfungen (nur Hinweise, brechen nicht ab) ------------------------------------------------------------------------
+T("live: skill is read from the game (not estimated)", function()
+    if LP.skillEstimated then return "warn: skill is only estimated, set it with /picky skill <number>" end
+end)
+T("live: Pick Lock spell name is known", function()
+    local name = LP.PickName()
+    if not name or name == "" then fail("spell name missing") end
+    if name == "Pick Lock" and LP.isGerman then return "warn: spell name is the English fallback" end
+end)
+T("live: bag scan works", function()
+    local checked, locked = 0, 0
+    for bag = 0, 4 do
+        local n = (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag)) or 0
+        for slot = 1, n do
+            checked = checked + 1
+            local lk = LP.IsLockedItem(bag, slot)
+            if lk then locked = locked + 1 end
+        end
+    end
+    LP.Debug("test", "bag scan: %d slots, %d locked", checked, locked)
+    if checked == 0 then return "warn: no bag slots found" end
+end)
+
+-- Ausführen -------------------------------------------------------------------------------------------------------------------
+function LP.RunTests()
+    local pass, failed, warned = 0, 0, 0
+    local out = {}
+    for _, t in ipairs(tests) do
+        local ok, ret = pcall(t.fn)
+        if not ok then
+            failed = failed + 1
+            out[#out + 1] = { "fail", t.name, tostring(ret) }
+        elseif type(ret) == "string" and ret:sub(1, 5) == "warn:" then
+            warned = warned + 1
+            out[#out + 1] = { "warn", t.name, ret:sub(6) }
+        else
+            pass = pass + 1
+        end
+    end
+    LP.lastTests = { pass = pass, fail = failed, warn = warned, total = #tests, lines = out }
+    local head = ("%d/%d tests passed, %d failed, %d warnings"):format(pass, #tests, failed, warned)
+    LP.Print((failed == 0 and "|cff4de88a" or "|cffff5959") .. head .. "|r")
+    LP.Debug("test", "%s", head)
+    for _, o in ipairs(out) do
+        local color = o[1] == "fail" and "|cffff5959FAIL|r" or "|cffffd100WARN|r"
+        LP.Print(("%s %s - %s"):format(color, o[2], o[3]))
+        LP.Debug("test", "%s %s - %s", o[1]:upper(), o[2], o[3])
+    end
+    if LP.OnTestsDone then LP.OnTestsDone(LP.lastTests) end
+    return LP.lastTests
+end
+
+LP.TestCount = function() return #tests end

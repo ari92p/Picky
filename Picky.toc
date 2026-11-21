@@ -1,0 +1,21 @@
+## Interface: 16001, 11508, 11507
+## Title: |cff00ccffPicky|r
+## Notes: Rogue lockpicking helper: right-click lockpicking, customer duty with auto-invite, auto-leave, tip thanks and skill guide.
+## Notes-deDE: Schurken-Schlossknacker: Rechtsklick-Knacken, Kunden-Dienst mit Auto-Einladung, Auto-Verlassen, Danke-Nachricht und Skill-Guide.
+## Author: ari92p
+## Version: 1.0.0
+## Category: Professions
+## SavedVariables: PickyDB
+## IconTexture: Interface\Icons\Spell_Nature_MoonKey
+## X-License: MIT
+## X-Website: https://github.com/ari92p/Picky
+
+Locale.lua
+Core.lua
+Data.lua
+Pick.lua
+Finder.lua
+State.lua
+Toast.lua
+UI.lua
+Tests.lua
