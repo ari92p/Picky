@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.9
+- Slash commands trimmed to what players need: `/lp` (window), `/lp duty` and `/lp stats`. The other commands were removed; the self tests, hover check, skill diagnostics and test mode are available in the Developer and Test tabs.
+- Developer tab: language switch (Auto / English / Deutsch).
+- Updated the CurseForge description.
+
 ## 1.0.8
 - New: whispers that need a higher skill than yours get an automatic reply (never in public chat, once per request). The text is editable in the settings and uses `{need}` and `{skill}`; it can be switched off.
 - New: if someone you invited never joins the group but trades with you anyway, the order counts as accepted (boxes and tip are counted, no "did not join" timeout).
