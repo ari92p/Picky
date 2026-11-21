@@ -36,5 +36,14 @@ Copy the `Picky` folder to:
 - Box list, skill values and the guide are in `Data.lua`, all texts in `Locale.lua`.
 - Saved default messages follow the client language unless you changed them.
 
+## Support
+
+If this app is useful to you, you can buy me a coffee:
+
+<p>
+  <a href="https://ko-fi.com/ari92p"><img alt="Support me on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg" height="36"></a>
+  <a href="https://buymeacoffee.com/ari92p"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="36"></a>
+</p>
+
 ## License
 MIT, see `LICENSE`.
