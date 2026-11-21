@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+- Fixed the game version: Picky is for WoW Forever only and is no longer listed as Classic.
+- All code comments, the README and the CurseForge page are now English.
+
 ## 1.0.1
 - Fixed the German leveling guide: Angor Fortress is in Ödland (Badlands).
 - Test tab: more room for the "As chat" / "As whisper" buttons.

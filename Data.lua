@@ -1,5 +1,5 @@
 -- Picky / Data.lua : boxes, keywords, skill guide
--- All values are from memory (Vanilla data) and easy to adjust.
+-- All values are from memory (WoW Forever data) and easy to adjust.
 -- If WoW Forever changes something, edit here. Texts use an English key in Locale.lua.
 local ADDON, LP = ...
 local L = LP.L
