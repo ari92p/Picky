@@ -11,8 +11,10 @@ end
 LP.PICK_SPELL_ID = 1804
 
 _G.BINDING_HEADER_PICKY = "Picky"
-_G.BINDING_NAME_PICKY_TOGGLE = L["Picky window"]
-_G.BINDING_NAME_PICKY_AD = L["Announce service in trade chat"]
+LP.OnLanguage(function()
+    _G.BINDING_NAME_PICKY_TOGGLE = L["Picky window"]
+    _G.BINDING_NAME_PICKY_AD = L["Announce service in trade chat"]
+end)
 
 LP.defaults = {
     pick = { hint = true },
@@ -153,7 +155,7 @@ function LP.SetTestMode(on)
     end
     LP.Print(L["Test mode: "] .. (on and ("|cff4de88a" .. L["ON"] .. "|r") or ("|cffff5959" .. L["OFF"] .. "|r")))
     if on then
-        LP.Print(L["Test mode is on: a log is kept and invites, whispers and announcements are only simulated. The Test tab has the tools; /picky test runs the self tests."])
+        LP.Print(L["Test mode is on: a log is kept and invites, whispers and announcements are only simulated. The Test tab has the tools."])
         LP.Debug("ui", "test mode switched on")
     end
     if LP.RefreshDebugTab then LP.RefreshDebugTab() end
@@ -298,7 +300,7 @@ end
 -- WoW Forever has no skill list (GetNumSkillLines/GetSkillLineInfo are missing). Sources in order:
 --  1. skill list (if the client has one)
 --  2. C_TradeSkillUI (skill line 633 = Lockpicking)
---  3. last known value: from the skill message in chat or via /picky skill <number>
+--  3. last known value: from the skill message in chat
 --  4. estimate level x 5 (last resort, marked "estimated" in the display)
 -- The bonus from equipment ("Equip: Lockpicking +4" / "Anlegen: Schlossknacken +4") comes from the tooltips
 -- of the equipped items (English and German).
@@ -403,6 +405,7 @@ LP.On("ADDON_LOADED", function(_, name)
     PickyDB = PickyDB or {}
     Merge(PickyDB, LP.defaults)
     LP.db = PickyDB
+    LP.SetLanguage(PickyDB.lang)   -- Developer-tab language override (nil = automatic); rebuilds the texts made at load time
     -- old default text (without spell link) -> current default text
     if LP.db.ad.text == "Schurke knackt Schlösser/Kisten (Skill {skill})! Schreib mir die Kiste ins Flüstern - Trinkgeld willkommen :)" then
         LP.db.ad.text = LP.defaults.ad.text
@@ -441,7 +444,7 @@ end)
 LP.On("PLAYER_LOGIN", function()
     LP.RefreshSkill()
     if LP.db.debug then
-        LP.Print("|cffff9d00" .. L["Test mode is ON: invites, whispers and announcements are only simulated. Turn it off in the Test tab or with /picky debug."] .. "|r")
+        LP.Print("|cffff9d00" .. L["Test mode is ON: invites, whispers and announcements are only simulated. Turn it off in the Test tab."] .. "|r")
     end
     local easy = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("EasyLockpick")) or (IsAddOnLoaded and IsAddOnLoaded("EasyLockpick"))
     if easy then
@@ -492,57 +495,35 @@ LP.On("PLAYER_LOGOUT", function()
     LP.db.savedFeed = feed
 end)
 -- Slash ---------------------------------------------------------------------------
+-- Skill diagnostics (Developer tab button)
+function LP.SkillDiagnostics()
+    LP.RefreshSkill()
+    if LP.RefreshUI then LP.RefreshUI() end
+    LP.Print(L["Skill list in client: %s | C_TradeSkillUI: %s"]:format(
+        tostring(GetNumSkillLines ~= nil), tostring(C_TradeSkillUI and C_TradeSkillUI.GetProfessionInfoBySkillLineID ~= nil)))
+    LP.Print(L["Source: %s | Base %d + bonus %d = |cffffd100%d|r"]:format(
+        tostring(LP.skillSource), LP.skillBase or 0, LP.skillBonus or 0, LP.skill or 0))
+    if LP.skillEstimated then
+        LP.Print(L["The value is only estimated."])
+    end
+end
+
+-- Slash commands: only /lp (window), /lp duty and /lp stats are meant for users. "dev" is a hidden switch for the Developer tab.
 SLASH_PICKY1, SLASH_PICKY2, SLASH_PICKY3 = "/picky", "/lp", "/schloss"
 SlashCmdList["PICKY"] = function(msg)
-    local cmd, arg = (msg or ""):match("^(%S*)%s*(.-)$")
-    cmd = cmd:lower()
+    local cmd = ((msg or ""):match("^(%S*)") or ""):lower()
     if cmd == "" or cmd == "show" then
         LP.ToggleUI()
-    elseif cmd == "skill" then
-        -- /picky skill          -> Diagnose
-        -- /picky skill <number>   -> set base value by hand (without equipment bonus, e.g. 150)
-        local num = tonumber(arg)
-        if num and num > 0 and num <= 300 then
-            LP.db.skillBase = num
-        end
-        LP.RefreshSkill()
-        if LP.RefreshUI then LP.RefreshUI() end
-        LP.Print(L["Skill list in client: %s | C_TradeSkillUI: %s"]:format(
-            tostring(GetNumSkillLines ~= nil), tostring(C_TradeSkillUI and C_TradeSkillUI.GetProfessionInfoBySkillLineID ~= nil)))
-        LP.Print(L["Source: %s | Base %d + bonus %d = |cffffd100%d|r"]:format(
-            tostring(LP.skillSource), LP.skillBase or 0, LP.skillBonus or 0, LP.skill or 0))
-        if LP.skillEstimated then
-            LP.Print(L["The value is only estimated. Set it with /picky skill <number> (base value without bonus), e.g. /picky skill 150."])
-        end
+    elseif cmd == "duty" or cmd == "dienst" then
+        LP.SetFinder(not LP.db.finder.enabled)
+    elseif cmd == "stats" then
+        local s = LP.db.stats
+        LP.Print(L["Picked: %d | Invites: %d | Total tips: %s | Thanks sent: %d"]:format(s.picked, s.invited, LP.Money(s.tips), s.thanked))
     elseif cmd == "dev" then
         LP.db.dev = not LP.db.dev
         LP.Print("Developer tab: " .. (LP.db.dev and "ON" or "OFF"))
         if LP.RefreshDevTab then LP.RefreshDevTab() end
-    elseif cmd == "debug" or cmd == "testmode" then
-        LP.SetTestMode(not LP.db.debug)
-    elseif cmd == "test" then
-        if LP.RunTests then LP.RunTests() end
-    elseif cmd == "hover" then
-        LP.Print(L["Inspecting what is under the mouse in 3 seconds ..."])
-        LP.After(3, function() if LP.InspectHover then LP.InspectHover() end end)
-    elseif cmd == "log" then
-        local log = LP.debugLog
-        if #log == 0 then LP.Print(L["The log is empty. Turn on the test mode with /picky debug."]) end
-        for i = math.max(1, #log - 19), #log do DEFAULT_CHAT_FRAME:AddMessage(log[i]) end
-    elseif cmd == "finder" or cmd == "duty" or cmd == "dienst" then
-        LP.SetFinder(not LP.db.finder.enabled)
-    elseif cmd == "ad" then
-        LP.PostAd(true)
-    elseif cmd == "stats" then
-        local s = LP.db.stats
-        LP.Print(L["Picked: %d | Invites: %d | Total tips: %s | Thanks sent: %d"]:format(s.picked, s.invited, LP.Money(s.tips), s.thanked))
-    elseif cmd == "ignore" and arg ~= "" then
-        LP.db.ignore[arg:lower()] = true
-        LP.Print(L["%s will be ignored."]:format(arg))
-    elseif cmd == "reset" then
-        PickyDB = nil
-        ReloadUI()
     else
-        LP.Print("/lp | /lp duty | /lp ad | /lp stats | /lp skill [number] | /lp ignore <name> | /lp debug | /lp dev | /lp test | /lp hover | /lp log | /lp reset")
+        LP.Print("/lp | /lp duty | /lp stats")
     end
 end

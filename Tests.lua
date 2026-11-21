@@ -1,4 +1,4 @@
--- Picky / Tests.lua : self tests, run in game with /picky test (or the button on the debug page).
+-- Picky / Tests.lua : self tests, run in game with the button in the Developer tab.
 -- The tests change nothing permanent: requests, statistics and settings are saved beforehand and
 -- restored afterwards; inviting/whispering/leaving run as dry run.
 local ADDON, LP = ...
@@ -935,7 +935,7 @@ end)
 
 -- 7) Live checks (hints only, do not abort) ------------------------------------------------------------------------
 T("live: skill is read from the game (not estimated)", function()
-    if LP.skillEstimated then return "warn: skill is only estimated, set it with /picky skill <number>" end
+    if LP.skillEstimated then return "warn: skill is only estimated, it is estimated from your level until you gain a lockpicking skill point" end
 end)
 T("live: Pick Lock spell name is known", function()
     local name = LP.PickName()

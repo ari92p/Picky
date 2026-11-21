@@ -44,7 +44,7 @@ local DE = {
     ["v%s loaded. /lp opens the window. Right-click a locked box to pick it."] = "v%s geladen. /lp öffnet das Fenster. Rechtsklick auf eine Schließkiste knackt sie.",
     ["Skill list in client: %s | C_TradeSkillUI: %s"] = "Skill-Liste im Client: %s | C_TradeSkillUI: %s",
     ["Source: %s | Base %d + bonus %d = |cffffd100%d|r"] = "Quelle: %s | Basis %d + Bonus %d = |cffffd100%d|r",
-    ["The value is only estimated. Set it with /picky skill <number> (base value without bonus), e.g. /picky skill 150."] = "Der Wert ist nur geschätzt. Setze ihn mit /picky skill <Zahl> (Basiswert ohne Bonus), z.B. /picky skill 150.",
+    ["The value is only estimated."] = "Der Wert ist nur geschätzt.",
     ["Picked: %d | Invites: %d | Total tips: %s | Thanks sent: %d"] = "Geknackt: %d | Einladungen: %d | Trinkgeld gesamt: %s | Danke gesendet: %d",
     ["%s will be ignored."] = "%s wird ignoriert.",
 
@@ -211,7 +211,6 @@ local DE = {
 
     -- Debug
     ["Inspecting what is under the mouse in 3 seconds ..."] = "Prüfe in 3 Sekunden, was unter der Maus liegt ...",
-    ["The log is empty. Turn on the test mode with /picky debug."] = "Das Protokoll ist leer. Schalte den Testmodus mit /picky debug ein.",
     ["Nothing under the mouse."] = "Nichts unter der Maus.",
     ["Clear log"] = "Protokoll leeren",
     ["Copy"] = "Kopieren",
@@ -231,10 +230,10 @@ local DE = {
     ["Log"] = "Protokoll",
     ["Test mode"] = "Testmodus",
     ["Test mode: "] = "Testmodus: ",
-    ["Test mode is on: a log is kept and invites, whispers and announcements are only simulated. The Test tab has the tools; /picky test runs the self tests."] = "Der Testmodus ist an: Es wird ein Protokoll geführt, Einladungen, Flüstern und Ankündigungen werden nur simuliert. Der Test-Tab hat die Werkzeuge.",
-    ["Test mode is ON: invites, whispers and announcements are only simulated. Turn it off in the Test tab or with /picky debug."] = "Testmodus ist AN: Einladungen, Flüstern und Ankündigungen werden nur simuliert. Im Test-Tab oder mit /picky debug ausschalten.",
+    ["Test mode is on: a log is kept and invites, whispers and announcements are only simulated. The Test tab has the tools."] = "Der Testmodus ist an: Es wird ein Protokoll geführt, Einladungen, Flüstern und Ankündigungen werden nur simuliert. Der Test-Tab hat die Werkzeuge.",
+    ["Test mode is ON: invites, whispers and announcements are only simulated. Turn it off in the Test tab."] = "Testmodus ist AN: Einladungen, Flüstern und Ankündigungen werden nur simuliert. Im Test-Tab ausschalten.",
     ["Test mode: announcement not sent"] = "Testmodus: Ankündigung nicht gesendet",
-    ["Test mode: would have announced in %d channel(s) - nothing was sent. Turn off the test mode in the Test tab (/picky debug)."] = "Testmodus: hätte in %d Kanal/Kanälen angekündigt - es wurde nichts gesendet. Testmodus im Test-Tab (/picky debug) ausschalten.",
+    ["Test mode: would have announced in %d channel(s) - nothing was sent. Turn off the test mode in the Test tab."] = "Testmodus: hätte in %d Kanal/Kanälen angekündigt - es wurde nichts gesendet. Testmodus im Test-Tab ausschalten.",
     ["Test mode is ON: everything is simulated, nothing real is sent. The log below records what Picky does."] = "Der Testmodus ist AN: Alles wird nur simuliert, es wird nichts Echtes gesendet. Das Protokoll unten zeigt, was Picky tut.",
     ["Live: Picky works normally. Turn the test mode on to use the tools below."] = "Live: Picky arbeitet normal. Schalte den Testmodus ein, um die Werkzeuge darunter zu nutzen.",
     ["Turn on the test mode to use the test area."] = "Schalte den Testmodus ein, um den Testbereich zu nutzen.",
@@ -254,6 +253,22 @@ local L = setmetatable({}, {
     end,
 })
 LP.L = L
+
+-- Language can be switched at runtime (Developer tab). Texts that are built once at load time register a builder with
+-- LP.OnLanguage(fn): it runs immediately and again whenever the language changes.
+-- code: "en", "de" or nil (= automatic, by client language)
+LP.langHooks = {}
+function LP.OnLanguage(fn)
+    LP.langHooks[#LP.langHooks + 1] = fn
+    fn()
+end
+function LP.SetLanguage(code)
+    if code == "de" then isGerman = true
+    elseif code == "en" then isGerman = false
+    else isGerman = (GetLocale() == "deDE") end
+    LP.isGerman = isGerman
+    for _, fn in ipairs(LP.langHooks) do pcall(fn) end
+end
 
 -- Both language versions of a text (to carry saved default texts along when the language changes)
 function LP.Both(key)

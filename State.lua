@@ -72,10 +72,12 @@ end
 
 -- Sounds to choose from for a new request (tried and picked in the Developer tab: click = play, Shift-click = use).
 -- { SOUNDKIT name, short label, fallback sound id }
-LP.ALERT_SOUNDS = {
-    { "TELL_MESSAGE", L["Whisper"], 3081 }, { "AUCTION_WINDOW_OPEN", L["Auction"], 5274 },
-    { "AUCTION_WINDOW_CLOSE", L["Auction 2"], 5275 }, { "RAID_WARNING", L["Raid"], 8959 },
-}
+LP.OnLanguage(function()
+    LP.ALERT_SOUNDS = {
+        { "TELL_MESSAGE", L["Whisper"], 3081 }, { "AUCTION_WINDOW_OPEN", L["Auction"], 5274 },
+        { "AUCTION_WINDOW_CLOSE", L["Auction 2"], 5275 }, { "RAID_WARNING", L["Raid"], 8959 },
+    }
+end)
 local DEFAULT_ALERT = "AUCTION_WINDOW_OPEN"
 function LP.PlayAlertSound(key)
     for _, s in ipairs(LP.ALERT_SOUNDS) do

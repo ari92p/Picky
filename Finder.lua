@@ -3,16 +3,18 @@ local ADDON, LP = ...
 local L = LP.L
 
 LP.requests = {}   -- newest first; after loading this is LP.db.orders (stored permanently), see LoadOrders
-LP.STATUS = {
-    new = { L["New"], "ffd100" },
-    queued = { L["Waiting"], "9aa0ad" },
-    invited = { L["Invited"], "00bdf2" },
-    grouped = { L["In group"], "4de88a" },
-    done = { L["Done"], "6c7280" },
-    toohigh = { L["Skill too low"], "ff5959" },
-    manual = { L["Manual"], "ffd100" },
-    timeout = { L["No answer"], "6c7280" },
-}
+LP.OnLanguage(function()
+    LP.STATUS = {
+        new = { L["New"], "ffd100" },
+        queued = { L["Waiting"], "9aa0ad" },
+        invited = { L["Invited"], "00bdf2" },
+        grouped = { L["In group"], "4de88a" },
+        done = { L["Done"], "6c7280" },
+        toohigh = { L["Skill too low"], "ff5959" },
+        manual = { L["Manual"], "ffd100" },
+        timeout = { L["No answer"], "6c7280" },
+    }
+end)
 
 -- Keywords (de + en) ---------------------------------------------------------
 local ROGUE = { "rogue", "rogues", "rouge", "rog", "schurke", "schurken", "schurkin" }
@@ -730,7 +732,7 @@ function LP.PostAd(manual)
             -- dry run: nothing was really sent, the message must say so too
             LP.Feed("warn", L["Test mode: announcement not sent"])
             if manual then
-                LP.Print(L["Test mode: would have announced in %d channel(s) - nothing was sent. Turn off the test mode in the Test tab (/picky debug)."]:format(sent))
+                LP.Print(L["Test mode: would have announced in %d channel(s) - nothing was sent. Turn off the test mode in the Test tab."]:format(sent))
             end
         else
             LP.lastAd = now
@@ -747,7 +749,7 @@ end
 -- Developer tab: post the announcement from a TIMER (3 s later) and report whether the game allowed it.
 -- (Timer posts are normally blocked; a click on "Announce" or Shift-click on the minimap button always works.)
 function LP.AdTest()
-    if LP.IsDry() then LP.Print("adtest: test mode is on, nothing would be sent. Turn it off first (/picky debug).") return end
+    if LP.IsDry() then LP.Print("adtest: test mode is on, nothing would be sent. Turn it off first (Test tab).") return end
     LP.Print("adtest: posting the announcement from a timer in 3 seconds ...")
     LP.After(3, function()
         LP.lastAd = nil   -- ignore the 60 s limit for this test

@@ -874,7 +874,7 @@ local function BuildDev(p)
     sub:SetPoint("TOPLEFT", 2, -24)
 
     local out = CreateFrame("ScrollingMessageFrame", nil, p)
-    out:SetPoint("TOPLEFT", 0, -214)
+    out:SetPoint("TOPLEFT", 0, -244)
     out:SetPoint("BOTTOMRIGHT", 0, 0)
     out:SetFontObject("GameFontHighlightSmall")
     out:SetJustifyH("LEFT")
@@ -928,7 +928,7 @@ local function BuildDev(p)
         out:AddMessage("inspecting what is under the mouse in 3 s ...")
         LP.After(3, function() Capture(function() LP.InspectHover() end) end)
     end)
-    Btn("Skill diagnostics", 120, 248, -46, function() Capture(function() SlashCmdList["PICKY"]("skill") end) end)
+    Btn("Skill diagnostics", 120, 248, -46, function() Capture(function() LP.SkillDiagnostics() end) end)
     Btn("Dump state", 110, 0, -74, function() Capture(DumpState) end)
     Btn("Client info", 110, 114, -74, function() Capture(ClientInfo) end)
     Btn("Clear output", 100, 248, -74, function() out:Clear() wipe(LP.devLog) end)
@@ -970,6 +970,25 @@ local function BuildDev(p)
         end)
         p.soundBtns[i] = b
     end
+
+    -- Language: switch between automatic (client language), English and German. The window texts are built once,
+    -- so the UI is reloaded (/reload) to apply it; the choice is saved.
+    local lg = FS(p, "GameFontHighlightSmall", "Language (reloads the UI):")
+    lg:SetPoint("TOPLEFT", 2, -212)
+    p.langBtns = {}
+    local LANGS = { { nil, "Auto" }, { "en", "English" }, { "de", "Deutsch" } }
+    p.langDefs = LANGS
+    for i, lang in ipairs(LANGS) do
+        local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        b:SetSize(80, 22)
+        b:SetPoint("TOPLEFT", 140 + (i - 1) * 84, -208)
+        b:SetText(lang[2])
+        b:SetScript("OnClick", function()
+            LP.db.lang = lang[1]
+            ReloadUI()
+        end)
+        p.langBtns[i] = b
+    end
     RefreshDev()
 end
 
@@ -979,6 +998,9 @@ function RefreshDev()
     if p and p.soundBtns then
         local cur = LP.db.ui.alertSound or "AUCTION_WINDOW_OPEN"
         for i, snd in ipairs(LP.ALERT_SOUNDS) do p.soundBtns[i]:SetText(snd[2] .. (snd[1] == cur and "*" or "")) end
+    end
+    if p and p.langBtns then
+        for i, lang in ipairs(p.langDefs) do p.langBtns[i]:SetText(lang[2] .. (lang[1] == LP.db.lang and "*" or "")) end
     end
 end-- Assemble the window ----------------------------------------------------------------------------------
 -- Window title: "Picky · <tab>", plus a red TEST MODE marker on every tab while test mode is on

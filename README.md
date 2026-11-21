@@ -18,19 +18,16 @@ Copy the `Picky` folder to:
 - While a customer is in the group, the Requests page shows a countdown to the automatic leave and a **Leave** button (thanks + leave immediately).
 
 ## Commands
-`/picky` window · `/picky duty` · `/picky ad` · `/picky stats` · `/picky skill [number]` · `/picky ignore <name>` · `/picky reset`
-(`/lp` and `/schloss` work too)
+`/lp` opens the window, `/lp duty` turns duty on or off, `/lp stats` prints your totals (`/picky` and `/schloss` work too).
 
 ## Test mode
 - The **Test** tab has one big switch. On: everything is only simulated (no real invites, whispers or announcements), a log is kept, and the tools below the switch work: simulate requests (chat / whisper), customer joins, tip, pick, leave, and a **right-click test area** (a simulated box plus your real locked boxes). Off: Picky works normally.
-- `/picky debug` toggles the test mode too.
 
 ## For developers
-- `/picky dev` shows a hidden **Developer** tab: self tests, hover inspector, skill diagnostics, state dump, client info. Internal log lines (skill scans, hover checks, roster polling) are only written to the log while this tab is on; the normal Test log shows just what Picky does and why.
-- `/picky test` runs the self tests (chat detection, skill/gear parsing, decisions, translations, full simulated flow; they restore your state afterwards). `/picky hover` explains what is under the mouse in 3 seconds. `/picky log` prints the last log lines.
+- A hidden **Developer** tab (switched on with a hidden command) has the self tests (chat detection, skill/gear parsing, decisions, translations, full simulated flow; they restore your state afterwards), a hover inspector, skill diagnostics, state dump, client info, an announcement test, sound buttons and a language switch.
+- Internal log lines (skill scans, hover checks, roster polling) are only written to the developer log while this tab is on; the normal Test log shows just what Picky does and why.
 
 ## Notes
-- The skill is read from the game; if that fails, set it with `/picky skill <number>`.
 - Chat detection understands English and German requests.
 - Box list, skill values and the guide are in `Data.lua`, all texts in `Locale.lua`.
 - Saved default messages follow the client language unless you changed them.

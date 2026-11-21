@@ -68,45 +68,47 @@ LP.On("GET_ITEM_INFO_RECEIVED", function(_, id)
     if id and LP.BOXES[id] then LearnName(id) end
 end)
 -- Words in chat (English + German) -> estimated skill (when ambiguous the higher value, better safe than sorry)
-LP.BOXKEYS = {
-    { "bronz", 50, L["Bronze box"] },        -- "bronze" / "bronze-kiste"
-    { "iron", 125, L["Iron box"] },
-    { "eisen", 125, L["Iron box"] },
-    { "steel", 225, L["Steel box"] },
-    { "stahl", 225, L["Steel box"] },
-    { "mithril", 225, L["Mithril box"] },
-    { "thorium", 250, L["Thorium box"] },
-    { "eternium", 300, L["Eternium box"] },
-    { "footlocker", 70, "Footlocker" },
-}
+LP.OnLanguage(function()
+    LP.BOXKEYS = {
+        { "bronz", 50, L["Bronze box"] },        -- "bronze" / "bronze-kiste"
+        { "iron", 125, L["Iron box"] },
+        { "eisen", 125, L["Iron box"] },
+        { "steel", 225, L["Steel box"] },
+        { "stahl", 225, L["Steel box"] },
+        { "mithril", 225, L["Mithril box"] },
+        { "thorium", 250, L["Thorium box"] },
+        { "eternium", 300, L["Eternium box"] },
+        { "footlocker", 70, "Footlocker" },
+    }
 
--- Guide ----------------------------------------------------------------------
-LP.GUIDE = {
-    {
-        from = 1, to = 100, title = "1 - 100",
-        boxes = { L["guide1.box1"], L["guide1.box2"] },
-        places = { L["guide1.place1"], L["guide1.place2"] },
-        tip = L["guide1.tip"],
-    },
-    {
-        from = 100, to = 150, title = "100 - 150",
-        boxes = { L["guide2.box1"] },
-        places = { L["guide2.place1"] },
-        tip = L["guide2.tip"],
-    },
-    {
-        from = 150, to = 225, title = "150 - 225",
-        boxes = { L["guide3.box1"], L["guide3.box2"] },
-        places = { L["guide3.place1"] },
-        tip = L["guide3.tip"],
-    },
-    {
-        from = 225, to = 300, title = "225 - 300",
-        boxes = { L["guide4.box1"], L["guide4.box2"] },
-        places = { L["guide4.place1"] },
-        tip = L["guide4.tip"],
-    },
-}
+    -- Guide ----------------------------------------------------------------------
+    LP.GUIDE = {
+        {
+            from = 1, to = 100, title = "1 - 100",
+            boxes = { L["guide1.box1"], L["guide1.box2"] },
+            places = { L["guide1.place1"], L["guide1.place2"] },
+            tip = L["guide1.tip"],
+        },
+        {
+            from = 100, to = 150, title = "100 - 150",
+            boxes = { L["guide2.box1"] },
+            places = { L["guide2.place1"] },
+            tip = L["guide2.tip"],
+        },
+        {
+            from = 150, to = 225, title = "150 - 225",
+            boxes = { L["guide3.box1"], L["guide3.box2"] },
+            places = { L["guide3.place1"] },
+            tip = L["guide3.tip"],
+        },
+        {
+            from = 225, to = 300, title = "225 - 300",
+            boxes = { L["guide4.box1"], L["guide4.box2"] },
+            places = { L["guide4.place1"] },
+            tip = L["guide4.tip"],
+        },
+    }
+end)
 function LP.StageForSkill(skill)
     for i, s in ipairs(LP.GUIDE) do
         if skill < s.to then return i end
