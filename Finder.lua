@@ -677,13 +677,9 @@ function LP.PostAd(manual)
         end
     end
     if sent == 0 and blocked then
-        -- The game only lets addons post to channels from a click (hardware event), not from a timer.
-        LP.Feed("warn", L["The game blocked the announcement (it needs a click)"])
-        -- no popup for this: a manual click prints the error, the timed one only once per session
-        if manual or not LP.adBlockedShown then
-            LP.adBlockedShown = true
-            LP.Print("|cffff5959" .. L["The game blocked the announcement (it needs a click)"] .. "|r")
-        end
+        -- The game only lets addons post to channels from a click (hardware event). Announcing is click-only (button, Shift-click on the minimap button, /picky ad).
+        LP.Feed("warn", L["The game blocked the announcement"])
+        LP.Print("|cffff5959" .. L["The game blocked the announcement"] .. "|r")
         return "blocked"
     end
     if sent > 0 then
@@ -703,44 +699,6 @@ function LP.PostAd(manual)
         LP.Print(L["No matching channel found (trade only works in cities). Pick channels with the Channels button."])
     end
     return "none"
-end
-
--- /picky adtest: posts the announcement from a TIMER (like the automatic one) and reports whether the game allowed it.
--- Compare with a click on "Announce" in the window (that one comes from a click and should always work).
-function LP.AdTest()
-    if LP.IsDry() then LP.Print("adtest: test mode is on, nothing would be sent. Turn it off first (/picky debug).") return end
-    LP.Print("adtest: posting the announcement from a timer in 3 seconds ...")
-    LP.After(3, function()
-        LP.lastAd = nil   -- ignore the 60 s limit for this test
-        local res = LP.PostAd(false)
-        if res == "sent" then LP.Print("adtest: |cff4de88aposted|r - check the channel. The game allows timer posts, so the automatic announcement should work.")
-        elseif res == "blocked" then LP.Print("adtest: |cffff5959BLOCKED|r by the game - timer posts are not allowed, the announcement needs a click.")
-        else LP.Print("adtest: nothing posted (no matching channel - tick channels with the Channels button).") end
-    end)
-end
-
-local adToken = 0
-function LP.StartAdLoop()
-    adToken = adToken + 1
-    local my = adToken
-    local function wait() return math.max(180, tonumber(LP.db.ad.interval) or 300) end
-    local function tick()
-        if my ~= adToken then return end
-        local ad = LP.db.ad
-        if ad.auto and LP.db.finder.enabled and not LP.InGroup() then LP.PostAd(false) end
-        LP.nextAdAt = GetTime() + wait()   -- for the countdown on the requests page
-        LP.After(wait(), tick)
-    end
-    LP.nextAdAt = GetTime() + wait()
-    LP.After(wait(), tick)
-end
-
--- Cancel the automatic announcement (the x on the requests page); re-enable: settings, announcement
-function LP.CancelAutoAd()
-    LP.db.ad.auto = false
-    LP.nextAdAt = nil
-    LP.Debug("chat", "automatic announcement cancelled")
-    if LP.RefreshAll then LP.RefreshAll() end
 end
 
 -- Simulations (debug page) ------------------------------------------------------------

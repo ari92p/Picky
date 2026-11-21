@@ -29,8 +29,6 @@ LP.defaults = {
         thanksText = L["default.thanks"],
     },
     ad = {
-        auto = false,
-        interval = 300,
         channelMatch = "handel,trade",
         text = L["default.ad"],
     },
@@ -299,9 +297,10 @@ function LP.ParseBonus(text)
     return 0
 end
 
+-- Returns the total bonus and a list of log lines (the caller logs them only when something changed)
 function LP.GearBonus()
-    if not (C_TooltipInfo and C_TooltipInfo.GetInventoryItem) then return 0 end
-    local total = 0
+    if not (C_TooltipInfo and C_TooltipInfo.GetInventoryItem) then return 0, {} end
+    local total, notes = 0, {}
     for slot = 1, 19 do
         local data = C_TooltipInfo.GetInventoryItem("player", slot)
         if data and data.lines then
@@ -309,12 +308,12 @@ function LP.GearBonus()
                 local b = LP.ParseBonus(line.leftText)
                 if b > 0 then
                     total = total + b
-                    LP.Debug("skill", "gear bonus +%d from slot %d: %s", b, slot, line.leftText)
+                    notes[#notes + 1] = ("gear bonus +%d from slot %d: %s"):format(b, slot, tostring(line.leftText))
                 end
             end
         end
     end
-    return total
+    return total, notes
 end
 
 function LP.RefreshSkill()
@@ -348,11 +347,19 @@ function LP.RefreshSkill()
         base, max, estimated, source = math.min(300, UnitLevel("player") * 5), 300, true, L["estimated"]
     end
     base = base or 0
-    local bonus = math.max(apiBonus or 0, LP.GearBonus())
+    local gear, notes = LP.GearBonus()
+    local bonus = math.max(apiBonus or 0, gear)
     LP.skillBase, LP.skillBonus, LP.skillMax = base, bonus, max or 0
     LP.skill = base + bonus
     LP.skillEstimated, LP.skillSource = estimated, source
-    LP.Debug("skill", "skill %d = base %d + bonus %d (source: %s%s)", LP.skill, base, bonus, tostring(source), estimated and ", ESTIMATED" or "")
+    -- This runs often (window opened, equipment/skill events): log only when the result changed
+    local summary = ("skill %d = base %d + bonus %d (source: %s%s)"):format(LP.skill, base, bonus, tostring(source), estimated and ", ESTIMATED" or "")
+    local key = summary .. "|" .. table.concat(notes, ";")
+    if key ~= LP.lastSkillLog then
+        LP.lastSkillLog = key
+        for _, n in ipairs(notes) do LP.Debug("skill", "%s", n) end
+        LP.Debug("skill", "%s", summary)
+    end
     return LP.skill
 end
 function LP.Skill() return LP.skill or LP.RefreshSkill() end
@@ -502,8 +509,6 @@ SlashCmdList["PICKY"] = function(msg)
         LP.SetFinder(not LP.db.finder.enabled)
     elseif cmd == "ad" then
         LP.PostAd(true)
-    elseif cmd == "adtest" then
-        LP.AdTest()
     elseif cmd == "stats" then
         local s = LP.db.stats
         LP.Print(L["Picked: %d | Invites: %d | Total tips: %s | Thanks sent: %d"]:format(s.picked, s.invited, LP.Money(s.tips), s.thanked))

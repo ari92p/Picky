@@ -587,21 +587,6 @@ T("orders: open requests expire after 15 minutes", function()
         eq(fresh.status, "new", "fresh one stays")
     end)
 end)
-T("announcement: the countdown is set and the x cancels the automatic repeat", function()
-    local ad = LP.db.ad
-    local saved = { auto = ad.auto, at = LP.nextAdAt }
-    local ok, err = pcall(function()
-        ad.auto = true
-        LP.StartAdLoop()
-        truthy(LP.nextAdAt and LP.nextAdAt > GetTime(), "next announcement time set")
-        LP.CancelAutoAd()
-        eq(ad.auto, false, "automatic repeat is off")
-        eq(LP.nextAdAt, nil, "countdown cleared")
-    end)
-    ad.auto, LP.nextAdAt = saved.auto, saved.at
-    if saved.auto then LP.StartAdLoop() end   -- restore its own state
-    if not ok then error(err, 0) end
-end)
 T("leave: the 'Leave' button thanks and leaves immediately", function()
     local got = 0
     local orig = LP.Whisper

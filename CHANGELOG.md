@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.7
+- Announcements are now click-only: Shift-click the minimap button (or use the Announce button or `/picky ad`). The game blocks addons from posting to a channel on a timer, so the automatic repeat, its countdown and its settings were removed.
+- The log no longer repeats the same skill and gear lines; they appear only when something changes.
+- Removed the `/picky adtest` diagnostic command.
+
 ## 1.0.6
 - Removed the "Announcement due" popup from 1.0.5. A blocked announcement now only shows a red chat line (once per session for the automatic one) and a history entry.
 - New `/picky adtest`: posts the announcement from a timer and reports whether the game allows that.

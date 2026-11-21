@@ -252,24 +252,7 @@ local function BuildRequests(p)
         RefreshRequests()
     end)
 
-    -- bottom: countdown to the next automatic announcement (with x to cancel), statistics, Delete finished
-    p.adText = FS(p, "GameFontHighlightSmall")
-    p.adText:SetPoint("BOTTOMLEFT", 0, 4)   -- same row as the "Delete finished" button
-    p.adText:SetWidth(170)                  -- fixed width: the x button stays in place no matter how long the time is
-    p.adText:SetJustifyH("LEFT")
-    p.adText:SetWordWrap(false)
-    p.adX = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    p.adX:SetSize(20, 18)
-    p.adX:SetPoint("LEFT", p.adText, "RIGHT", 8, 0)
-    p.adX:SetText("x")
-    p.adX:SetScript("OnClick", function() LP.CancelAutoAd() end)
-    p.adX:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["Stop the automatic announcement"])
-        GameTooltip:Show()
-    end)
-    p.adX:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
+    -- bottom: statistics, Delete finished
     p.clear = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.clear:SetSize(150, 20)
     p.clear:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -341,16 +324,6 @@ function RefreshRequests()
             r:Hide()
         end
     end
-
-    -- Countdown to the next automatic announcement
-    -- only visible while the automatic announcement is really running (on + Finder on + no group): a shortcut to cancel it
-    local ad, text = LP.db.ad, nil
-    if ad.auto and LP.db.finder.enabled and not LP.InGroup() and LP.nextAdAt then
-        text = L["Next announcement in %s"]:format(LP.Mmss(LP.nextAdAt - GetTime()))
-    end
-    p.adText:SetText(text or "")
-    p.adText:SetShown(text ~= nil)
-    p.adX:SetShown(text ~= nil)
 
     -- Delete only in the Done tab; a second click confirms
     p.clear:SetShown(view == "done" and #done > 0)
@@ -547,8 +520,6 @@ local function BuildSettings(p)
 
     Section(L["Announcement"])
     Edit(L["Text ({skill} = skill, {pick} = spell link, {city} = current city; links can be inserted with Shift-click)"], "ad", "text")
-    Check(L["Repeat automatically (only while on duty)"], "ad", "auto", function() LP.StartAdLoop() end)
-    Edit(L["Repeat interval in seconds (min. 180)"], "ad", "interval", true, 120)
 
     Section(L["Advanced"])
     Edit(L["Leave after the last trade, in seconds"], "finder", "leaveDelay", true, 120)
@@ -1117,6 +1088,7 @@ local function MinimapTooltip(self)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("|cffffd100" .. L["Click"] .. "|r " .. L["open window"], 1, 1, 1)
     GameTooltip:AddLine("|cffffd100" .. L["Right-click"] .. "|r " .. L["toggle duty"], 1, 1, 1)
+    GameTooltip:AddLine("|cffffd100" .. L["Shift-click"] .. "|r " .. L["announce"], 1, 1, 1)
     GameTooltip:Show()
 end
 
@@ -1150,6 +1122,8 @@ function LP.BuildMinimap()
     mm:SetScript("OnClick", function(_, b)
         if b == "RightButton" then
             LP.SetFinder(not LP.db.finder.enabled)
+        elseif IsShiftKeyDown() then
+            LP.PostAd(true)   -- a click is allowed to post to channels (a timer is not)
         else
             LP.ToggleUI()
         end

@@ -453,6 +453,5 @@ end)
 function LP.OnLogin()
     -- The client rebuilds bag frames constantly: a simple timer instead of fragile hooks
     C_Timer.NewTicker(0.5, function() pcall(LP.UpdateGlow) end)
-    if LP.StartAdLoop then LP.StartAdLoop() end
     if LP.BuildMinimap then LP.BuildMinimap() end
 end
