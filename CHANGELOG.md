@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.10
+- Fixed: on clients that only have the newer skill API, a fresh install did not find your lockpicking skill and fell back to the level estimate. Picky now reads the skill list through `C_SkillInfo` as well, including the bonus.
+- Fixed: the lockpicking bonus from equipment (for example gloves with +4) is now also read through a hidden tooltip when the normal tooltip data is empty.
+- The skill diagnostics (Developer tab) now show the raw skill line and the gear bonus lines.
+
 ## 1.0.9
 - Slash commands trimmed to what players need: `/lp` (window), `/lp duty` and `/lp stats`. The other commands were removed; the self tests, hover check, skill diagnostics and test mode are available in the Developer and Test tabs.
 - Developer tab: language switch (Auto / English / Deutsch).
