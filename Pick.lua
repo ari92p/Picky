@@ -154,6 +154,17 @@ local function TooltipItemMismatch(bag, slot)
     return have ~= nil and have ~= want
 end
 
+-- Windows where a right-click on a bag item already means something else (sell, deposit, attach, auction):
+-- there the click area must not cover the box, otherwise the item cannot be sold or stored.
+local BUSY_FRAMES = { "MerchantFrame", "BankFrame", "MailFrame", "AuctionHouseFrame", "AuctionFrame", "GuildBankFrame" }
+local function RightClickBusy()
+    for _, name in ipairs(BUSY_FRAMES) do
+        local f = _G[name]
+        if f and f.IsShown and f:IsShown() then return true end
+    end
+    return false
+end
+
 local function CheckOverlayRaw(focus)
     if InCombatLockdown() or not LP.db or not LP.IsRogue() then return end
     if not focus or not focus:IsVisible() then HideOverlay() return end
@@ -188,6 +199,8 @@ local function CheckOverlayRaw(focus)
             return
         end
     end
+
+    if RightClickBusy() then HideOverlay() return end   -- vendor, bank, mail, auction house: normal right-click
 
     -- Inventar
     local bag, slot, via = GetBagAndSlot(focus)
@@ -267,6 +280,10 @@ LP.On("MODIFIER_STATE_CHANGED", function()
     if IsShiftKeyDown() then HideOverlay() else CheckOverlay(GetMouseFocusCompat()) end
 end)
 LP.On("TRADE_CLOSED", HideOverlay)
+-- A vendor/bank/mail/auction window just opened: the click area must not stay on a box under the mouse
+for _, ev in ipairs({ "MERCHANT_SHOW", "BANKFRAME_OPENED", "MAIL_SHOW", "AUCTION_HOUSE_SHOW", "GUILDBANKFRAME_OPENED" }) do
+    LP.On(ev, HideOverlay)
+end
 
 -- After picking (or any change to bags/trade) re-check the state:
 -- click area gone, then decide again with the box's current state.
