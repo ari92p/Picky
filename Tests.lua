@@ -117,7 +117,7 @@ end
 
 -- 2) Helper functions -------------------------------------------------------------------------------------------
 T("Money formatting", function()
-    eq(LP.Money(0), "0k", "0")
+    eq(LP.Money(0), "0g", "0")
     eq(LP.Money(5), "5k", "5")
     eq(LP.Money(100), "1s", "100")
     eq(LP.Money(10000), "1g", "10000")

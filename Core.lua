@@ -203,7 +203,8 @@ function LP.Money(c)
     local t = {}
     if g > 0 then t[#t + 1] = g .. "g" end
     if s > 0 then t[#t + 1] = s .. "s" end
-    if k > 0 or #t == 0 then t[#t + 1] = k .. "k" end
+    if k > 0 then t[#t + 1] = k .. "k" end
+    if #t == 0 then t[1] = "0g" end   -- nothing at all: "0g" (gold is the unit players think in)
     return table.concat(t, " ")
 end
 
