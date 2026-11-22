@@ -24,6 +24,9 @@ local LOCKTOK = { "lockpick", "lockpicker", "lockpicking", "picklock", "lockbox"
 local VERB = { "open", "opening", "unlock", "unlocking" }
 local LOCKSUB = { "lockpick", "pick lock", "schlossknack", "schlösser", "knack", "aufschlie", "schließkass", "schliesskass", "öffnen", "aufmachen", "aufbrechen",
     "kiste", "truhe", "kassette", "plunder" }   -- German compounds: "Eisenkiste", "Holztruhe", "Stahlschließkassette", "Plunderkiste"
+-- Words that say "open / pick this": public chat without the word "rogue" needs one of them, so that
+-- "suche ... sitze auf den Kisten" (a box as furniture) is not taken for a request. Substrings, German umlauts included.
+local ACT_SUB = { "lockpick", "pick lock", "schlossknack", "öffn", "aufmach", "aufbrech", "knack", "aufschlie", "aufsperr" }
 local SEEK = { "lf", "lf1", "suche", "suchen", "sucht", "gesucht", "need", "needs", "brauche", "braucht", "wer", "jemand",
     "anyone", "anybody", "someone", "wtb", "pls", "plz", "bitte", "please", "help", "hilfe", "can", "could", "would" }
 local EXCL = { "lfm", "dps", "tank", "tanks", "healer", "heal", "wts", "wtt", "biete", "bietet", "bieten", "offering",
@@ -103,6 +106,7 @@ local function Analyze(msg, isWhisper)
     local verb = HasTok(s, VERB)
     local rogue = HasTok(s, ROGUE) or s:find("schurk", 1, true) ~= nil
     local seek = HasTok(s, SEEK)
+    local act = verb or HasSub(s, ACT_SUB)
     local excl = HasTok(s, EXCL)
 
     local ok
@@ -110,8 +114,9 @@ local function Analyze(msg, isWhisper)
         -- whispered directly: a box/lock is enough, or "open/unlock" + request
         ok = lock or (verb and (rogue or seek)) or (rogue and seek)
     else
-        -- public chat is stricter: box/lock (or open/unlock + rogue) AND a request, no sale/group search
-        ok = (lock or (verb and rogue)) and (rogue or seek) and not excl
+        -- public chat is stricter: box/lock (or open/unlock + rogue) AND a request (with "rogue", or a request plus an open/pick word), no sale/group search
+        -- without "rogue" a request alone is not enough: it must also say to open/pick something
+        ok = (lock or (verb and rogue)) and (rogue or (seek and act)) and not excl
     end
     return ok, req, label, { lock = lock, verb = verb, rogue = rogue, seek = seek, excl = excl }
 end

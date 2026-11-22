@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.11
+- Fixed a false positive in public chat: a message like "suche ... sitze auf den Kisten" was taken for a request. Without the word "rogue/Schurke", a public message now also needs an open/pick word (open, unlock, lockpick, öffnen, aufmachen, knacken ...). Whispers are unchanged.
+- Added self tests for this case.
+
 ## 1.0.10
 - Fixed: on clients that only have the newer skill API, a fresh install did not find your lockpicking skill and fell back to the level estimate. Picky now reads the skill list through `C_SkillInfo` as well, including the bonus.
 - Fixed: the lockpicking bonus from equipment (for example gloves with +4) is now also read through a hidden tooltip when the normal tooltip data is empty.

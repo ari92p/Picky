@@ -101,6 +101,11 @@ local CHAT_CASES = {
     { "Suche Schurke Schlossknacken 200", false, true, 200 },
     { "need rogue to open 3 chests", false, true },
     { "LF ROGUE [Thoriumschließkassette]", false, true, 250 },
+    -- a box as furniture is not a request (false positive from real chat)
+    { "suche Unterschriften für Gilde wäre super gibt auch einen Buff :D  sitze auf den Kisten in sw", false, false },
+    { "wer hat Kisten zu viel, suche welche", false, false },
+    { "suche jemand der meine Kisten öffnen kann", false, true },
+    { "lf lockpicker", false, true },
 }
 for i, c in ipairs(CHAT_CASES) do
     T(("chat detection #%d: %s%s"):format(i, c[2] and "[whisper] " or "", c[1]:sub(1, 48)), function()

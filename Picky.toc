@@ -3,7 +3,7 @@
 ## Notes: Rogue lockpicking helper: right-click lockpicking, customer duty with auto-invite, auto-leave, tip thanks and skill guide.
 ## Notes-deDE: Schurken-Schlossknacker: Rechtsklick-Knacken, Kunden-Dienst mit Auto-Einladung, Auto-Verlassen, Danke-Nachricht und Skill-Guide.
 ## Author: ari92p
-## Version: 1.0.10
+## Version: 1.0.11
 ## Category: Professions
 ## SavedVariables: PickyDB
 ## IconTexture: Interface\Icons\Spell_Nature_MoonKey
