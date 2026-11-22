@@ -311,6 +311,59 @@ local function IsLockWord(l)
     return l:find("lockpick", 1, true) or l:find("schloss", 1, true) or l:find("schlö", 1, true)
 end
 
+-- Reads the lockpicking line from the client's skill list. Two API generations:
+--  * C_SkillInfo.GetNumSkillLines / GetSkillLineInfo(index) -> table (newer clients, WoW Forever)
+--  * GetNumSkillLines / GetSkillLineInfo(index) -> multiple values (classic clients)
+-- Returns rank, max, bonus, sourceText or nil. Field names are tried in several spellings on purpose.
+local function IsLockSkillName(name)
+    if type(name) ~= "string" then return false end
+    local l = name:lower()
+    for _, w in ipairs(SKILL_NAMES) do
+        if l:find(w, 1, true) then return true end
+    end
+    return false
+end
+
+function LP.ReadSkillList()
+    local CS = C_SkillInfo
+    if CS and CS.GetNumSkillLines and CS.GetSkillLineInfo then
+        if CS.ExpandSkillHeader then
+            local okn, n = pcall(CS.GetNumSkillLines)
+            if okn and type(n) == "number" then
+                for i = n, 1, -1 do
+                    local okl, t = pcall(CS.GetSkillLineInfo, i)
+                    if okl and type(t) == "table" and t.isHeader and t.isCollapsed then pcall(CS.ExpandSkillHeader, i) end
+                end
+            end
+        end
+        local okn, n = pcall(CS.GetNumSkillLines)
+        if okn and type(n) == "number" then
+            for i = 1, n do
+                local okl, t = pcall(CS.GetSkillLineInfo, i)
+                if okl and type(t) == "table" and not t.isHeader then
+                    local id = t.skillLineID or t.skillID or t.skillLine
+                    if id == LOCKPICKING_SKILL_LINE or IsLockSkillName(t.skillName or t.name) then
+                        local r = t.skillRank or t.rank or t.skillLevel or 0
+                        local m = t.maxRank or t.skillMaxRank or t.maxSkillLevel or 300
+                        local mod = (t.skillModifier or t.modifier or t.skillBonus or 0) + (t.numTempPoints or t.tempPoints or 0)
+                        if r > 0 then return r, m, mod, L["Skill list"] end
+                    end
+                end
+            end
+        end
+    end
+    if GetNumSkillLines and GetSkillLineInfo then
+        if ExpandSkillHeader then pcall(ExpandSkillHeader, 0) end
+        for i = 1, GetNumSkillLines() do
+            local name, header, _, r, temp, mod, m = GetSkillLineInfo(i)
+            if name and not header and IsLockSkillName(name) and (r or 0) > 0 then
+                return r, m, (mod or 0) + (temp or 0), L["Skill list"]
+            end
+        end
+    end
+    return nil
+end
+
 -- Bonus from ONE tooltip line: "Equip: Lockpicking +4." / "Anlegen: Schlossknacken +4." -> 4, otherwise 0
 function LP.ParseBonus(text)
     if type(text) ~= "string" then return 0 end
@@ -322,20 +375,48 @@ function LP.ParseBonus(text)
     return 0
 end
 
+-- Fallback for clients without C_TooltipInfo (or when it returns nothing): read the equipped item through a hidden tooltip
+local scanTip
+local function ScanSlotLines(slot)
+    if not (CreateFrame and UIParent) then return {} end
+    if not scanTip then
+        scanTip = CreateFrame("GameTooltip", "PickyScanTip", UIParent, "GameTooltipTemplate")
+    end
+    scanTip:SetOwner(UIParent, "ANCHOR_NONE")
+    scanTip:ClearLines()
+    local ok = pcall(scanTip.SetInventoryItem, scanTip, "player", slot)
+    local lines = {}
+    if ok then
+        for i = 1, scanTip:NumLines() do
+            local fs = _G["PickyScanTipTextLeft" .. i]
+            local t = fs and fs:GetText()
+            if t then lines[#lines + 1] = t end
+        end
+    end
+    return lines
+end
+
 -- Returns the total bonus and a list of log lines (the caller logs them only when something changed)
 function LP.GearBonus()
-    if not (C_TooltipInfo and C_TooltipInfo.GetInventoryItem) then return 0, {} end
     local total, notes = 0, {}
-    for slot = 1, 19 do
-        local data = C_TooltipInfo.GetInventoryItem("player", slot)
-        if data and data.lines then
-            for _, line in ipairs(data.lines) do
-                local b = LP.ParseBonus(line.leftText)
-                if b > 0 then
-                    total = total + b
-                    notes[#notes + 1] = ("gear bonus +%d from slot %d: %s"):format(b, slot, tostring(line.leftText))
-                end
+    local function Add(slot, text)
+        local b = LP.ParseBonus(text)
+        if b > 0 then
+            total = total + b
+            notes[#notes + 1] = ("gear bonus +%d from slot %d: %s"):format(b, slot, tostring(text))
+        end
+    end
+    if C_TooltipInfo and C_TooltipInfo.GetInventoryItem then
+        for slot = 1, 19 do
+            local ok, data = pcall(C_TooltipInfo.GetInventoryItem, "player", slot)
+            if ok and type(data) == "table" and data.lines then
+                for _, line in ipairs(data.lines) do Add(slot, line.leftText) end
             end
+        end
+    end
+    if total == 0 then
+        for slot = 1, 19 do
+            for _, text in ipairs(ScanSlotLines(slot)) do Add(slot, text) end
         end
     end
     return total, notes
@@ -343,22 +424,7 @@ end
 
 function LP.RefreshSkill()
     local base, max, apiBonus, source, estimated
-    if GetNumSkillLines and GetSkillLineInfo then
-        if ExpandSkillHeader then pcall(ExpandSkillHeader, 0) end
-        for i = 1, GetNumSkillLines() do
-            local name, header, _, r, temp, mod, m = GetSkillLineInfo(i)
-            if name and not header then
-                local l = name:lower()
-                for _, w in ipairs(SKILL_NAMES) do
-                    if l:find(w, 1, true) then
-                        base, max, apiBonus, source = r, m, (mod or 0) + (temp or 0), L["Skill list"]
-                        break
-                    end
-                end
-            end
-            if base then break end
-        end
-    end
+    base, max, apiBonus, source = LP.ReadSkillList()
     if not base and C_TradeSkillUI and C_TradeSkillUI.GetProfessionInfoBySkillLineID then
         local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, LOCKPICKING_SKILL_LINE)
         if ok and type(info) == "table" and (info.skillLevel or 0) > 0 then
@@ -506,6 +572,24 @@ function LP.SkillDiagnostics()
     if LP.skillEstimated then
         LP.Print(L["The value is only estimated."])
     end
+    -- raw view for debugging: what the client's skill API really returns
+    local CS = C_SkillInfo
+    LP.Print("C_SkillInfo: " .. tostring(CS ~= nil and CS.GetSkillLineInfo ~= nil) .. ", C_TooltipInfo: " .. tostring(C_TooltipInfo ~= nil))
+    if CS and CS.GetNumSkillLines and CS.GetSkillLineInfo then
+        local ok, n = pcall(CS.GetNumSkillLines)
+        for i = 1, (ok and tonumber(n)) or 0 do
+            local okl, t = pcall(CS.GetSkillLineInfo, i)
+            if okl and type(t) == "table" and not t.isHeader then
+                local parts = {}
+                for k, v in pairs(t) do parts[#parts + 1] = tostring(k) .. "=" .. tostring(v) end
+                table.sort(parts)
+                LP.Print(("skill %d: %s"):format(i, table.concat(parts, ", ")))
+            end
+        end
+    end
+    local _, notes = LP.GearBonus()
+    for _, line in ipairs(notes) do LP.Print(line) end
+    if #notes == 0 then LP.Print("gear bonus: no equipped item with a lockpicking line found") end
 end
 
 -- Slash commands: only /lp (window), /lp duty and /lp stats are meant for users. "dev" is a hidden switch for the Developer tab.
