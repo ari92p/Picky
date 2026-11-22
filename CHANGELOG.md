@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.12
+- Fixed: at a vendor you could not sell a locked box, because Picky's right-click area covered it. While a vendor, bank, mail, auction house or guild bank window is open, the click area is no longer placed on boxes, so the normal right-click works there.
+- An empty amount (for example the tips at the start) now shows "0g" instead of "0k".
+
 ## 1.0.11
 - Fixed a false positive in public chat: a message like "suche ... sitze auf den Kisten" was taken for a request. Without the word "rogue/Schurke", a public message now also needs an open/pick word (open, unlock, lockpick, öffnen, aufmachen, knacken ...). Whispers are unchanged.
 - Added self tests for this case.
