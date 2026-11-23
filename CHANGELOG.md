@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.14
+- Box skill values checked against the item tooltips in WoW Forever and corrected: Ornate Bronze Lockbox 1 (was 25), Heavy Bronze Lockbox 25 (was 50), Eternium Lockbox 225 (was 300) and Reinforced Locked Chest 250 (was 225). The word guesses "bronze" and "eternium" in chat follow these values.
+
 ## 1.0.13
 - Fixed: the Thorium Lockbox needs lockpicking 225 (not 250), so requests for it are no longer refused at skill 225 to 249.
 - Fixed: the word "iron" in chat is only taken as a box hint when it stands alone, so "ironforge" no longer gives a skill estimate of 125.

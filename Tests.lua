@@ -74,7 +74,7 @@ local CHAT_CASES = {
     { "hi can u open some low level chersts for me?", true, true },
     { "LF rogue to open lockbox pls", false, true },
     { "Suche Schurke zum Schlösser knacken", false, true },
-    { "need rogue for bronze chest", false, true, 50 },
+    { "need rogue for bronze chest", false, true, 25 },
     { "anyone have a rogue? mithril lockbox", false, true, 225 },
     { "can you open this thorium lockbox", true, true, 225 },
     { "Brauche einen Schurken für meine Eisenkiste", false, true, 125 },

@@ -1,5 +1,7 @@
 -- Picky / Data.lua : boxes, keywords, skill guide
--- All values are from memory (WoW Forever data) and easy to adjust.
+-- Box skill values (checked 2026-11-23): read from the item tooltips in the WoW Forever client by the author, except 6356
+-- (Battered Chest: only from pickpocketing, its tooltip shows no skill, 70 is kept as a guess). Also matches a Thorium
+-- report from a player on CurseForge. Wowhead's WoW Forever item pages do not show the requirement.
 -- If WoW Forever changes something, edit here. Texts use an English key in Locale.lua.
 local ADDON, LP = ...
 local L = LP.L
@@ -9,8 +11,8 @@ LP.BOXES = {
     [6712]  = { 1,   "Practice Lock" },
     [6354]  = { 1,   "Small Locked Chest" },
     [16882] = { 1,   "Battered Junkbox" },
-    [4632]  = { 25,  "Ornate Bronze Lockbox" },
-    [4633]  = { 50,  "Heavy Bronze Lockbox" },
+    [4632]  = { 1,   "Ornate Bronze Lockbox" },
+    [4633]  = { 25,  "Heavy Bronze Lockbox" },
     [4634]  = { 70,  "Iron Lockbox" },
     [6355]  = { 70,  "Sturdy Locked Chest" },
     [6356]  = { 70,  "Battered Chest" },
@@ -21,10 +23,10 @@ LP.BOXES = {
     [16884] = { 175, "Sturdy Junkbox" },
     [4638]  = { 225, "Reinforced Steel Lockbox" },
     [5758]  = { 225, "Mithril Lockbox" },
-    [13918] = { 225, "Reinforced Locked Chest" },
+    [13918] = { 250, "Reinforced Locked Chest" },
     [5759]  = { 225, "Thorium Lockbox" },
     [16885] = { 250, "Heavy Junkbox" },
-    [5760]  = { 300, "Eternium Lockbox" },
+    [5760]  = { 225, "Eternium Lockbox" },
 }
 
 -- German names (fallback). The name the game itself returns (GetItemInfo) always wins: LP.BoxName.
@@ -71,14 +73,14 @@ end)
 -- Fourth field true = the first field is a Lua pattern (whole word), otherwise a plain substring
 LP.OnLanguage(function()
     LP.BOXKEYS = {
-        { "bronz", 50, L["Bronze box"] },        -- "bronze" / "bronze-kiste"
+        { "bronz", 25, L["Bronze box"] },        -- "bronze" / "bronze-kiste"
         { "%f[%a]iron%f[%A]", 125, L["Iron box"], true },   -- whole word only: "ironforge" is a city, not a box
         { "eisen", 125, L["Iron box"] },
         { "steel", 225, L["Steel box"] },
         { "stahl", 225, L["Steel box"] },
         { "mithril", 225, L["Mithril box"] },
         { "thorium", 225, L["Thorium box"] },
-        { "eternium", 300, L["Eternium box"] },
+        { "eternium", 225, L["Eternium box"] },
         { "footlocker", 70, "Footlocker" },
     }
 
