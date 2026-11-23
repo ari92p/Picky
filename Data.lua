@@ -1,7 +1,7 @@
 -- Picky / Data.lua : boxes, keywords, skill guide
--- Box skill values (checked 2026-11-23): read from the item tooltips in the WoW Forever client by the author, except 6356
--- (Battered Chest: only from pickpocketing, its tooltip shows no skill, 70 is kept as a guess). Also matches a Thorium
--- report from a player on CurseForge. Wowhead's WoW Forever item pages do not show the requirement.
+-- Box skill values (checked 2026-11-23): read from the item tooltips in the WoW Forever client by the author.
+-- 6356 (Battered Chest, only from pickpocketing) shows no skill in its tooltip, so it is 1 (no requirement).
+-- Also matches a Thorium report from a player on CurseForge. Wowhead's WoW Forever item pages do not show the requirement.
 -- If WoW Forever changes something, edit here. Texts use an English key in Locale.lua.
 local ADDON, LP = ...
 local L = LP.L
@@ -15,7 +15,7 @@ LP.BOXES = {
     [4633]  = { 25,  "Heavy Bronze Lockbox" },
     [4634]  = { 70,  "Iron Lockbox" },
     [6355]  = { 70,  "Sturdy Locked Chest" },
-    [6356]  = { 70,  "Battered Chest" },
+    [6356]  = { 1,   "Battered Chest" },   -- pickpocket only, no skill shown in the tooltip: 1 = any rogue
     [16883] = { 70,  "Worn Junkbox" },
     [4636]  = { 125, "Strong Iron Lockbox" },
     [4637]  = { 175, "Steel Lockbox" },
