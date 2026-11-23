@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.15
+- The Battered Chest (only from pickpocketing) has no lockpicking requirement, so it is never refused for a too low skill.
+
 ## 1.0.14
 - Box skill values checked against the item tooltips in WoW Forever and corrected: Ornate Bronze Lockbox 1 (was 25), Heavy Bronze Lockbox 25 (was 50), Eternium Lockbox 225 (was 300) and Reinforced Locked Chest 250 (was 225). The word guesses "bronze" and "eternium" in chat follow these values.
 
