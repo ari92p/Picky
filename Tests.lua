@@ -76,7 +76,7 @@ local CHAT_CASES = {
     { "Suche Schurke zum Schlösser knacken", false, true },
     { "need rogue for bronze chest", false, true, 50 },
     { "anyone have a rogue? mithril lockbox", false, true, 225 },
-    { "can you open this thorium lockbox", true, true, 250 },
+    { "can you open this thorium lockbox", true, true, 225 },
     { "Brauche einen Schurken für meine Eisenkiste", false, true, 125 },
     { "can someone unlock my chest", false, true },
     { "LF rogue pls open this " .. ITEM_IRON, false, true, 70 },
@@ -100,7 +100,7 @@ local CHAT_CASES = {
     { "need rogue with skill 225+ for lockbox", false, true, 225 },
     { "Suche Schurke Schlossknacken 200", false, true, 200 },
     { "need rogue to open 3 chests", false, true },
-    { "LF ROGUE [Thoriumschließkassette]", false, true, 250 },
+    { "LF ROGUE [Thoriumschließkassette]", false, true, 225 },
     -- a box as furniture is not a request (false positive from real chat)
     { "suche Unterschriften für Gilde wäre super gibt auch einen Buff :D  sitze auf den Kisten in sw", false, false },
     { "wer hat Kisten zu viel, suche welche", false, false },
@@ -369,7 +369,7 @@ T("flow: whisper that needs a higher skill gets the editable reply (once, never 
             local w = LP.SimulateChat("hey can you open my thorium lockbox?", true)
             eq(w.status, "toohigh", "whisper too high")
             eq(#sent, 1, "one reply")
-            eq(sent[1], "need 250 have 160", "placeholders filled")
+            eq(sent[1], "need 225 have 160", "placeholders filled")
             LP.ReplyTooHigh(w, true)
             eq(#sent, 1, "only once per request")
             db.finder.tooHighReply = false

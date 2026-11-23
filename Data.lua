@@ -22,7 +22,7 @@ LP.BOXES = {
     [4638]  = { 225, "Reinforced Steel Lockbox" },
     [5758]  = { 225, "Mithril Lockbox" },
     [13918] = { 225, "Reinforced Locked Chest" },
-    [5759]  = { 250, "Thorium Lockbox" },
+    [5759]  = { 225, "Thorium Lockbox" },
     [16885] = { 250, "Heavy Junkbox" },
     [5760]  = { 300, "Eternium Lockbox" },
 }
@@ -76,7 +76,7 @@ LP.OnLanguage(function()
         { "steel", 225, L["Steel box"] },
         { "stahl", 225, L["Steel box"] },
         { "mithril", 225, L["Mithril box"] },
-        { "thorium", 250, L["Thorium box"] },
+        { "thorium", 225, L["Thorium box"] },
         { "eternium", 300, L["Eternium box"] },
         { "footlocker", 70, "Footlocker" },
     }
