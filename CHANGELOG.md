@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.13
+- Fixed: the Thorium Lockbox needs lockpicking 225 (not 250), so requests for it are no longer refused at skill 225 to 249.
+- Fixed: the word "iron" in chat is only taken as a box hint when it stands alone, so "ironforge" no longer gives a skill estimate of 125.
+
 ## 1.0.12
 - Fixed: at a vendor you could not sell a locked box, because Picky's right-click area covered it. While a vendor, bank, mail, auction house or guild bank window is open, the click area is no longer placed on boxes, so the normal right-click works there.
 - An empty amount (for example the tips at the start) now shows "0g" instead of "0k".
