@@ -68,10 +68,11 @@ LP.On("GET_ITEM_INFO_RECEIVED", function(_, id)
     if id and LP.BOXES[id] then LearnName(id) end
 end)
 -- Words in chat (English + German) -> estimated skill (when ambiguous the higher value, better safe than sorry)
+-- Fourth field true = the first field is a Lua pattern (whole word), otherwise a plain substring
 LP.OnLanguage(function()
     LP.BOXKEYS = {
         { "bronz", 50, L["Bronze box"] },        -- "bronze" / "bronze-kiste"
-        { "iron", 125, L["Iron box"] },
+        { "%f[%a]iron%f[%A]", 125, L["Iron box"], true },   -- whole word only: "ironforge" is a city, not a box
         { "eisen", 125, L["Iron box"] },
         { "steel", 225, L["Steel box"] },
         { "stahl", 225, L["Steel box"] },

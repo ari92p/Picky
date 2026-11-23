@@ -115,6 +115,16 @@ for i, c in ipairs(CHAT_CASES) do
     end)
 end
 
+T("box keyword: whole word only ('iron' is a box, 'ironforge' is a city)", function()
+    local ok1, req1 = LP.Analyze("LF rogue open chest in ironforge", false)
+    eq(ok1 and true or false, true, "still a request")
+    eq(req1, nil, "ironforge gives no skill estimate")
+    local _, req2 = LP.Analyze("need rogue for iron chest", false)
+    eq(req2, 125, "iron chest")
+    local _, req3 = LP.Analyze("Brauche einen Schurken für meine Eisenkiste", false)
+    eq(req3, 125, "Eisenkiste")
+end)
+
 -- 2) Helper functions -------------------------------------------------------------------------------------------
 T("Money formatting", function()
     eq(LP.Money(0), "0g", "0")

@@ -92,7 +92,7 @@ local function Analyze(msg, isWhisper)
     local hint = HasTok(s, LOCKTOK) or HasSub(s, LOCKSUB) or ChestLike(s)
     if not req and hint then
         for _, k in ipairs(LP.BOXKEYS) do
-            if s:find(k[1], 1, true) and (not req or k[2] > req) then req, label = k[2], k[3] end
+            if s:find(k[1], 1, not k[4]) and (not req or k[2] > req) then req, label = k[2], k[3] end
         end
     end
 
