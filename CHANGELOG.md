@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.16
+- New "Channels" section in the settings: "Listen in" chooses which chats Picky reads for requests (say, yell and your channels; whispers are always read), "Advertise in" chooses where the Announce button posts. Both lists update when you join or leave a channel. The channel button moved out of the main window.
+- By default Picky advertises in the normal trade channel, not in the local one (TradeLocal / Handel Lokal).
+- Advertisements of other rogues ("Rogue 300 lockpicking, PM me", "offering ... tips welcome", "free lockbox opening", "Schurke öffnet Kisten für Trinkgeld") are no longer taken as requests, so Picky does not invite other rogues. Such messages are noted in the log.
+- New installs start with "Invite players automatically" and "Also invite when no box is mentioned" switched off.
+- Developer tab: Copy and Clear output sit above the output field.
 ## 1.0.15
 - The Battered Chest (only from pickpocketing) has no lockpicking requirement, so it is never refused for a too low skill.
 
