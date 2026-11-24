@@ -305,6 +305,23 @@ function LP.SendChannel(text, id)
     return ok
 end
 
+-- Guild chat: only available when the character is in a guild
+function LP.InGuild()
+    return (IsInGuild and IsInGuild()) and true or false
+end
+function LP.SendGuild(text)
+    if LP.IsDry() then LP.Debug("chat", "[dry run] would post to guild chat: %s", text) return true end
+    local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+    local before = LP.blockCount or 0
+    local ok, err = pcall(send, text, "GUILD")
+    if not ok then LP.Debug("chat", "guild post failed: %s", err) end
+    if (LP.blockCount or 0) ~= before then
+        LP.Debug("chat", "guild post was BLOCKED by the game (needs a click)")
+        return false, "blocked"
+    end
+    return ok
+end
+
 -- Skill --------------------------------------------------------------------
 -- WoW Forever has no skill list (GetNumSkillLines/GetSkillLineInfo are missing). Sources in order:
 --  1. skill list (if the client has one)

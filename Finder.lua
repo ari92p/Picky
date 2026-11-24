@@ -257,6 +257,7 @@ end
 function LP.ChatSourceKey(event, chanString, baseName)
     if event == "CHAT_MSG_SAY" then return "say" end
     if event == "CHAT_MSG_YELL" then return "yell" end
+    if event == "CHAT_MSG_GUILD" then return "guild" end
     if event == "CHAT_MSG_CHANNEL" then
         local n = (type(baseName) == "string" and baseName ~= "" and baseName) or (type(chanString) == "string" and chanString:gsub("^%d+%.%s*", "")) or nil
         return n and LP.ChannelKey(n) or nil
@@ -371,7 +372,7 @@ function LP.OnChat(event, msg, sender, sim, chanString, baseName)
     Touch()
     return r
 end
-for _, ev in ipairs({ "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_WHISPER" }) do
+for _, ev in ipairs({ "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_GUILD", "CHAT_MSG_WHISPER" }) do
     LP.On(ev, function(event, msg, sender, _, chanString, _, _, _, _, baseName) LP.OnChat(event, msg, sender, nil, chanString, baseName) end)
 end
 
@@ -767,6 +768,32 @@ function LP.AdChannelOn(ch)
     end
     return false
 end
+-- Guild chat as an advertising target: only by own choice (never part of the default) and only when you are in a guild
+function LP.AdGuildOn()
+    local ad = LP.db.ad
+    return type(ad.channels) == "table" and ad.channels.guild == true
+end
+-- Is this entry of the "Advertise in" list ticked? (channels by their key, "guild" for the guild)
+function LP.AdSourceOn(key)
+    if key == "guild" then return LP.AdGuildOn() end
+    for _, ch in ipairs(LP.ChannelList()) do
+        if ch.key == key then return LP.AdChannelOn(ch) end
+    end
+    return false
+end
+-- What the two menus list: only what the character really has (the channels it joined, the guild only inside a guild)
+function LP.ListenSources()
+    local list = { { key = "say", label = L["Say"] }, { key = "yell", label = L["Yell"] } }
+    if LP.InGuild() then list[#list + 1] = { key = "guild", label = L["Guild"] } end
+    for _, ch in ipairs(LP.ChannelList()) do list[#list + 1] = { key = ch.key, label = ch.id .. ". " .. ch.name } end
+    return list
+end
+function LP.AdvertiseSources()
+    local list = {}
+    for _, ch in ipairs(LP.ChannelList()) do list[#list + 1] = { key = ch.key, label = ch.id .. ". " .. ch.name } end
+    if LP.InGuild() then list[#list + 1] = { key = "guild", label = L["Guild"] } end
+    return list
+end
 function LP.SetAdChannel(key, on)
     local ad = LP.db.ad
     if type(ad.channels) ~= "table" then   -- first choice: start with the previous filter
@@ -798,6 +825,10 @@ function LP.PostAd(manual)
             local ok, why = LP.SendChannel(text, ch.id)
             if ok then sent = sent + 1 elseif why == "blocked" then blocked = true end   -- only successful sends count
         end
+    end
+    if LP.AdGuildOn() and LP.InGuild() then
+        local ok, why = LP.SendGuild(text)
+        if ok then sent = sent + 1 elseif why == "blocked" then blocked = true end
     end
     if sent == 0 and blocked then
         -- The game only lets addons post to channels from a click (hardware event). Announcing is click-only (button, Shift-click on the minimap button, /picky ad).

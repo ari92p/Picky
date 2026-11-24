@@ -286,7 +286,8 @@ T("channels: chat source keys", function()
     eq(LP.ChatSourceKey("CHAT_MSG_CHANNEL", nil, nil), nil, "no name at all")
     eq(LP.ChatSourceKey("CHAT_MSG_SAY"), "say", "say")
     eq(LP.ChatSourceKey("CHAT_MSG_YELL"), "yell", "yell")
-    eq(LP.ChatSourceKey("CHAT_MSG_GUILD"), nil, "an event Picky does not read")
+    eq(LP.ChatSourceKey("CHAT_MSG_OFFICER"), nil, "an event Picky does not read (officer chat)")
+    eq(LP.ChatSourceKey("CHAT_MSG_GUILD"), "guild", "guild chat")
 end)
 T("channels: nothing is filtered when nothing is switched off", function()
     local f = LP.db.finder
@@ -297,7 +298,8 @@ T("channels: nothing is filtered when nothing is switched off", function()
     truthy(LP.ChatAllowed("CHAT_MSG_SAY"), "say")
     truthy(LP.ChatAllowed("CHAT_MSG_YELL"), "yell")
     truthy(LP.ChatAllowed("CHAT_MSG_WHISPER"), "whisper")
-    truthy(LP.ChatAllowed("CHAT_MSG_GUILD"), "unknown source")
+    truthy(LP.ChatAllowed("CHAT_MSG_GUILD"), "guild")
+    truthy(LP.ChatAllowed("CHAT_MSG_OFFICER"), "an unknown source is never filtered")
     f.readOff = was
 end)
 
@@ -623,5 +625,121 @@ T("real chat: an advertisement of another rogue creates no request and is logged
         truthy(found, "the ignored advertisement is in the log")
     end)
     db.debug = wasDebug
+    if not ok then error(err, 0) end
+end)
+
+-- 8) Guild chat can be read (listed in the "Listen in" menu, on by default like every other source) ---------------------------------------------
+T("guild chat: it is a source with its own key and is read by default", function()
+    eq(LP.ChatSourceKey("CHAT_MSG_GUILD"), "guild", "key")
+    local f = LP.db.finder
+    local was = f.readOff
+    f.readOff = nil
+    truthy(LP.ReadChannelOn("guild"), "on by default")
+    truthy(LP.ChatAllowed("CHAT_MSG_GUILD"), "allowed by default")
+    f.readOff = was
+end)
+T("guild chat: it can be switched off and on without touching the other sources", function()
+    local f = LP.db.finder
+    local was = f.readOff
+    f.readOff = nil
+    LP.SetReadChannel("guild", false)
+    falsy(LP.ChatAllowed("CHAT_MSG_GUILD"), "guild switched off")
+    truthy(LP.ChatAllowed("CHAT_MSG_SAY"), "say still on")
+    truthy(LP.ChatAllowed("CHAT_MSG_YELL"), "yell still on")
+    truthy(LP.ChatAllowed("CHAT_MSG_CHANNEL", "2. Trade - City"), "channels still on")
+    truthy(LP.ChatAllowed("CHAT_MSG_WHISPER"), "whispers still on")
+    LP.SetReadChannel("guild", true)
+    truthy(LP.ChatAllowed("CHAT_MSG_GUILD"), "guild on again")
+    eq(f.readOff.guild, nil, "no leftover entry")
+    f.readOff = was
+end)
+T("guild chat: a request from a guild member becomes a request, an advertisement does not", function()
+    local was = LP.recentSeek
+    LP.recentSeek = {}
+    Sandbox(nil, function()
+        LP.OnChat("CHAT_MSG_GUILD", "LF rogue to open my lockbox", "Gildenfreund", true)
+        truthy(LP.FindRequest("Gildenfreund"), "request from the guild")
+        LP.OnChat("CHAT_MSG_GUILD", "Rogue here, lockpicking 300, tips welcome", "Gildenwerber", true)
+        falsy(LP.FindRequest("Gildenwerber"), "advertisement in guild chat")
+    end)
+    LP.recentSeek = was
+end)
+T("guild chat: the menu lists it next to say and yell", function()
+    local en, de = LP.Both("Guild")
+    truthy(de == "Gilde", "German name")
+    truthy(en == "Guild", "English name")
+end)
+
+-- 9) The menus only list what the character really has; announcing in guild chat ----------------------------------------------------
+local function WithGame(mocks, fn)   -- replace global functions for one call (guild, channel list); always restore them
+    local saved = {}
+    for name, v in pairs(mocks) do saved[name] = _G[name] _G[name] = v end
+    local ok, err = pcall(fn)
+    for name in pairs(mocks) do _G[name] = saved[name] end
+    if not ok then error(err, 0) end
+end
+local function keys(list) local t = {} for _, e in ipairs(list) do t[#t + 1] = e.key end return table.concat(t, ",") end
+T("menus: the guild is only listed inside a guild", function()
+    WithGame({ IsInGuild = function() return false end, GetChannelList = function() return 1, "General - City", false, 2, "Trade - City", false end }, function()
+        eq(keys(LP.ListenSources()), "say,yell,general,trade", "listen list without a guild")
+        eq(keys(LP.AdvertiseSources()), "general,trade", "advertise list without a guild")
+    end)
+    WithGame({ IsInGuild = function() return true end, GetChannelList = function() return 1, "General - City", false, 2, "Trade - City", false end }, function()
+        eq(keys(LP.ListenSources()), "say,yell,guild,general,trade", "listen list in a guild")
+        eq(keys(LP.AdvertiseSources()), "general,trade,guild", "advertise list in a guild")
+    end)
+end)
+T("menus: only the channels that are really joined are listed", function()
+    WithGame({ IsInGuild = function() return false end, GetChannelList = function() return end }, function()
+        eq(keys(LP.ListenSources()), "say,yell", "no channel joined: only say and yell")
+        eq(keys(LP.AdvertiseSources()), "", "no channel joined: nothing to advertise in")
+    end)
+    WithGame({ IsInGuild = function() return false end, GetChannelList = function() return 2, "Trade - City", false, 5, "Services", false end }, function()
+        eq(keys(LP.AdvertiseSources()), "trade,services", "exactly the joined channels")
+    end)
+end)
+T("announce in guild chat: only by own choice, never by default", function()
+    local ad = LP.db.ad
+    local was = ad.channels
+    ad.channels = nil
+    falsy(LP.AdGuildOn(), "not part of the default")
+    ad.channels = { trade = true }
+    falsy(LP.AdGuildOn(), "not ticked")
+    LP.SetAdChannel("guild", true)
+    truthy(LP.AdGuildOn(), "ticked")
+    truthy(LP.AdSourceOn("guild"), "the menu shows it ticked")
+    LP.SetAdChannel("guild", false)
+    falsy(LP.AdGuildOn(), "unticked")
+    ad.channels = was
+end)
+T("announce in guild chat: Announce posts into the guild (simulated) only inside a guild", function()
+    local db = LP.db
+    local ad = db.ad
+    local keep = { ch = ad.channels, last = LP.lastAd, debug = db.debug, dry = LP.forceDry }
+    local function posted()
+        local before = #LP.debugLog
+        LP.lastAd = nil
+        LP.lastDebugKey = nil
+        LP.PostAd(false)
+        for i = before + 1, #LP.debugLog do
+            if tostring(LP.debugLog[i]):find("would post to guild chat", 1, true) then return true end
+        end
+        return false
+    end
+    local ok, err = pcall(function()
+        db.debug, LP.forceDry = true, true   -- nothing is sent, the log shows what would happen
+        ad.channels = { guild = true }
+        WithGame({ IsInGuild = function() return true end, GetChannelList = function() return end }, function()
+            truthy(posted(), "in a guild: would post to guild chat")
+        end)
+        WithGame({ IsInGuild = function() return false end, GetChannelList = function() return end }, function()
+            falsy(posted(), "without a guild: nothing is posted")
+        end)
+        ad.channels = { trade = true }
+        WithGame({ IsInGuild = function() return true end, GetChannelList = function() return end }, function()
+            falsy(posted(), "guild not ticked: nothing is posted to the guild")
+        end)
+    end)
+    ad.channels, LP.lastAd, db.debug, LP.forceDry = keep.ch, keep.last, keep.debug, keep.dry
     if not ok then error(err, 0) end
 end)

@@ -540,22 +540,11 @@ local function BuildSettings(p)
 
         -- 1) Where Picky LISTENS for requests (everything by default, whispers are always read)
         ChannelMenu(10,
-            function()
-                local list = { { key = "say", label = L["Say"] }, { key = "yell", label = L["Yell"] } }
-                for _, ch in ipairs(LP.ChannelList()) do list[#list + 1] = { key = ch.key, label = ch.id .. ". " .. ch.name } end
-                return list
-            end,
-            LP.ReadChannelOn, LP.SetReadChannel, L["Listen in (%d/%d)"])
+            LP.ListenSources, LP.ReadChannelOn, LP.SetReadChannel, L["Listen in (%d/%d)"])
 
         -- 2) Where Picky ADVERTISES (the Announce button, only ticked channels)
         ChannelMenu(196,
-            function()
-                local list = {}
-                for _, ch in ipairs(LP.ChannelList()) do list[#list + 1] = { key = ch.key, label = ch.id .. ". " .. ch.name } end
-                return list
-            end,
-            function(key) for _, ch in ipairs(LP.ChannelList()) do if ch.key == key then return LP.AdChannelOn(ch) end end return false end,
-            LP.SetAdChannel, L["Advertise in (%d/%d)"])
+            LP.AdvertiseSources, LP.AdSourceOn, LP.SetAdChannel, L["Advertise in (%d/%d)"])
         y = y - 34
     end
 

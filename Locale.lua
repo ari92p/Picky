@@ -151,6 +151,7 @@ local DE = {
     ["Advertise in (%d/%d)"] = "Werben in (%d/%d)",
     ["Say"] = "Sagen",
     ["Yell"] = "Schreien",
+    ["Guild"] = "Gilde",
     ["You have not joined any channels yet."] = "Du bist noch keinem Kanal beigetreten.",
     ["guide1.box1"] = "Piratenkisten (Buccaneer's Strongboxes)",
     ["guide1.box2"] = "Übungsschlosskisten (Practice Lockboxes)",

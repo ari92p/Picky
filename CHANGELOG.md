@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.19
+- Guild chat can be read: "Guild" is in the "Listen in" menu (on by default, like every other source).
+- "Advertise in" can include the guild: the Announce button then also posts into guild chat. It is never part of the default.
+- The two menus only list what your character really has: the channels it joined, and the guild only when it is in a guild.
+- More self tests (guild chat, the menus, announcing in the guild).
+
 ## 1.0.18
 - Statistics, orders and the stored skill are shared by the whole account again, as before 1.0.16. The per-character storage of the withdrawn 1.0.17 was taken back. If your saved data still has per-character entries, they are merged into the account data once.
 - A rogue who has not learned Pick Lock yet now shows "Lockpicking: not learned yet" with skill 0 instead of a guess from the level. The stored skill is no longer used for a character without Pick Lock, so an alt does not inherit the skill of your main. It switches to the real value as soon as you learn the spell.
