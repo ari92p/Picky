@@ -160,63 +160,7 @@ local function BuildRequests(p)
     p.ad:SetText(L["Announce"])
     p.ad:SetScript("OnClick", function() LP.PostAd(true) end)
 
-    -- Channel selection: small menu with a checkmark for each joined channel
-    p.ad:SetSize(100, 24)
-    p.chan = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    p.chan:SetSize(95, 24)
-    p.chan:SetPoint("RIGHT", p.ad, "LEFT", -4, 0)
-    p.chan:SetText(L["Channels (%d)"]:format(0))
-    local menu = CreateFrame("Frame", nil, p, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    menu:SetFrameStrata("FULLSCREEN_DIALOG")
-    -- invisible area behind the menu: a click anywhere else closes it (the choice is already saved)
-    -- (no click area: a fresh mouse press outside menu and button closes it)
-    menu:SetScript("OnUpdate", function(self)
-        local down = IsMouseButtonDown("LeftButton") or IsMouseButtonDown("RightButton")
-        if down and not self.wasDown and not self:IsMouseOver() and not p.chan:IsMouseOver() then self:Hide() end
-        self.wasDown = down
-    end)
-    menu:SetScript("OnShow", function(self) self.wasDown = true end)   -- the click that opens the menu does not count
-    menu:SetPoint("TOPRIGHT", p.chan, "BOTTOMRIGHT", 0, -2)
-    menu:SetSize(220, 40)
-    menu:EnableMouse(true)
-    menu:Hide()
-    if menu.SetBackdrop then
-        menu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-        menu:SetBackdropColor(0.05, 0.05, 0.08, 0.97)
-        menu:SetBackdropBorderColor(0.4, 0.4, 0.45, 1)
-    end
-    menu.title = menu:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    menu.title:SetPoint("TOPLEFT", 8, -7)
-    menu.title:SetText(L["Announce in these channels"])
-    menu.rows = {}
-    local function Fill()
-        local list = LP.ChannelList()
-        for i, ch in ipairs(list) do
-            local row = menu.rows[i]
-            if not row then
-                row = CreateFrame("CheckButton", nil, menu, "UICheckButtonTemplate")
-                row:SetSize(22, 22)
-                row:SetHitRectInsets(0, -170, 0, 0)   -- a click on the name toggles too
-                row:SetPoint("TOPLEFT", 6, -22 - (i - 1) * 22)
-                row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                row.text:SetPoint("LEFT", row, "RIGHT", 2, 0)
-                row:SetScript("OnClick", function(self) LP.SetAdChannel(self.key, self:GetChecked()) end)
-                menu.rows[i] = row
-            end
-            row.key = ch.key
-            row.text:SetText(ch.id .. ". " .. ch.name)
-            row:SetChecked(LP.AdChannelOn(ch))
-            row:Show()
-        end
-        for i = #list + 1, #menu.rows do menu.rows[i]:Hide() end
-        menu:SetHeight(30 + math.max(1, #list) * 22)
-        menu.title:SetText(#list > 0 and L["Announce in these channels"] or L["You have not joined any channels yet."])
-    end
-    p.chan:SetScript("OnClick", function()
-        if menu:IsShown() then menu:Hide() else Fill() menu:Show() end
-    end)
-    p:HookScript("OnHide", function() menu:Hide() end)
-    -- Label: how many of the current channels are ticked
+    p.ad:SetSize(110, 24)   -- the channel choices are in the settings (Channels)
     p.leave = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.leave:SetSize(70, 20)
     p.leave:SetPoint("TOPRIGHT", 0, -28)
@@ -324,11 +268,6 @@ function RefreshRequests()
         p.now:SetText(L["Free - waiting for requests"])
     else
         p.now:SetText("")   -- "Finder is off" is already shown at the switch in the header
-    end
-    do   -- Channels button: number of ticked channels you are currently in
-        local n = 0
-        for _, ch in ipairs(LP.ChannelList()) do if LP.AdChannelOn(ch) then n = n + 1 end end
-        p.chan:SetText(L["Channels (%d)"]:format(n))
     end
     p.leave:SetShown(st.phase == "grouped")
     p.queue:SetText(st.waiting > 0 and (L["Queue"] .. ": " .. table.concat(st.waitingNames, ", ")) or "")
@@ -513,6 +452,112 @@ local function BuildSettings(p)
     Check(L["Also invite when no box is mentioned"], "finder", "inviteUnknown")
     Check(L["Accept invites automatically"], "finder", "autoAccept")
     Check(L["Reply to whispers that need a higher skill"], "finder", "tooHighReply")
+
+    Section(L["Channels"])
+    do
+        -- Generic channel menu: one button, a list with a tick per source. get/set decide what a tick means.
+        local rowY = y   -- both buttons sit on the same line (below the explanation)
+        local function ChannelMenu(x, sources, isOn, setOn, btnText)
+            local btn = CreateFrame("Button", nil, child, "UIPanelButtonTemplate")
+            btn:SetSize(178, 24)
+            btn:SetPoint("TOPLEFT", x, rowY)
+            local menu = CreateFrame("Frame", nil, child, BackdropTemplateMixin and "BackdropTemplate" or nil)
+            menu:SetFrameStrata("FULLSCREEN_DIALOG")
+            menu:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
+            menu:SetSize(230, 40)
+            menu:EnableMouse(true)
+            menu:Hide()
+            if menu.SetBackdrop then
+                menu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+                menu:SetBackdropColor(0.05, 0.05, 0.08, 0.97)
+                menu:SetBackdropBorderColor(0.4, 0.4, 0.45, 1)
+            end
+            menu:SetScript("OnUpdate", function(self)   -- a fresh click elsewhere closes it (the choice is saved already)
+                local down = IsMouseButtonDown("LeftButton") or IsMouseButtonDown("RightButton")
+                if down and not self.wasDown and not self:IsMouseOver() and not btn:IsMouseOver() then self:Hide() end
+                self.wasDown = down
+            end)
+            menu:SetScript("OnShow", function(self) self.wasDown = true end)
+            menu.rows = {}
+            menu.empty = menu:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+            menu.empty:SetPoint("TOPLEFT", 8, -8)
+            menu.empty:SetText(L["You have not joined any channels yet."])
+            local function Fill()
+                local list = sources()
+                for i, src in ipairs(list) do
+                    local row = menu.rows[i]
+                    if not row then
+                        row = CreateFrame("CheckButton", nil, menu, "UICheckButtonTemplate")
+                        row:SetSize(22, 22)
+                        row:SetHitRectInsets(0, -180, 0, 0)
+                        row:SetPoint("TOPLEFT", 6, -6 - (i - 1) * 22)
+                        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                        row.text:SetPoint("LEFT", row, "RIGHT", 2, 0)
+                        row:SetScript("OnClick", function(self) setOn(self.key, self:GetChecked() and true or false) LP.RefreshAll() end)
+                        menu.rows[i] = row
+                    end
+                    row.key = src.key
+                    row.text:SetText(src.label)
+                    row:SetChecked(isOn(src.key))
+                    row:Show()
+                end
+                for i = #list + 1, #menu.rows do menu.rows[i]:Hide() end
+                menu.empty:SetShown(#list == 0)
+                menu:SetHeight(12 + math.max(1, #list) * 22)
+            end
+            btn:SetScript("OnClick", function() if menu:IsShown() then menu:Hide() else Fill() menu:Show() end end)
+            p:HookScript("OnHide", function() menu:Hide() end)
+            -- Always current: button text and (if open) the list are rebuilt on every refresh, on every channel event and once a second while the menu is open
+            local function Update()
+                if not LP.db then return end
+                local n, total = 0, 0
+                for _, src in ipairs(sources()) do
+                    total = total + 1
+                    if isOn(src.key) then n = n + 1 end
+                end
+                btn:SetText(btnText:format(n, total))
+                if menu:IsShown() then Fill() end
+            end
+            refreshers[#refreshers + 1] = Update
+            local ev = CreateFrame("Frame")
+            for _, e in ipairs({ "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE", "CHAT_MSG_CHANNEL_NOTICE_USER", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }) do
+                pcall(ev.RegisterEvent, ev, e)
+            end
+            ev:SetScript("OnEvent", function() C_Timer.After(0.5, Update) end)   -- the game updates its channel list a moment after the event
+            local acc = 0
+            menu:HookScript("OnUpdate", function(_, dt)
+                acc = acc + dt
+                if acc >= 1 then acc = 0 Update() end
+            end)
+        end
+
+        local hint = FS(child, "GameFontNormalSmall", L["Listen in: Picky only reacts to the ticked chats (whispers are always read). Advertise in: the Announce button posts only into the ticked channels."])
+        hint:SetPoint("TOPLEFT", 4, y)
+        hint:SetWidth(360)
+        hint:SetJustifyH("LEFT")
+        y = y - 44
+        rowY = y
+
+        -- 1) Where Picky LISTENS for requests (everything by default, whispers are always read)
+        ChannelMenu(10,
+            function()
+                local list = { { key = "say", label = L["Say"] }, { key = "yell", label = L["Yell"] } }
+                for _, ch in ipairs(LP.ChannelList()) do list[#list + 1] = { key = ch.key, label = ch.id .. ". " .. ch.name } end
+                return list
+            end,
+            LP.ReadChannelOn, LP.SetReadChannel, L["Listen in (%d/%d)"])
+
+        -- 2) Where Picky ADVERTISES (the Announce button, only ticked channels)
+        ChannelMenu(196,
+            function()
+                local list = {}
+                for _, ch in ipairs(LP.ChannelList()) do list[#list + 1] = { key = ch.key, label = ch.id .. ". " .. ch.name } end
+                return list
+            end,
+            function(key) for _, ch in ipairs(LP.ChannelList()) do if ch.key == key then return LP.AdChannelOn(ch) end end return false end,
+            LP.SetAdChannel, L["Advertise in (%d/%d)"])
+        y = y - 34
+    end
 
     Section(L["Group"])
     Check(L["Whisper a greeting after joining"], "finder", "welcome")
@@ -874,7 +919,7 @@ local function BuildDev(p)
     sub:SetPoint("TOPLEFT", 2, -24)
 
     local out = CreateFrame("ScrollingMessageFrame", nil, p)
-    out:SetPoint("TOPLEFT", 0, -244)
+    out:SetPoint("TOPLEFT", 0, -264)
     out:SetPoint("BOTTOMRIGHT", 0, 0)
     out:SetFontObject("GameFontHighlightSmall")
     out:SetJustifyH("LEFT")
@@ -931,8 +976,11 @@ local function BuildDev(p)
     Btn("Skill diagnostics", 120, 248, -46, function() Capture(function() LP.SkillDiagnostics() end) end)
     Btn("Dump state", 110, 0, -74, function() Capture(DumpState) end)
     Btn("Client info", 110, 114, -74, function() Capture(ClientInfo) end)
-    Btn("Clear output", 100, 248, -74, function() out:Clear() wipe(LP.devLog) end)
-    Btn("Copy", 56, 352, -74, function()
+    -- Output header row directly above the field (same place and size as in the Test tab): title, Copy, Clear
+    local oh = FS(p, "GameFontNormalSmall", "Output")
+    oh:SetPoint("TOPLEFT", 2, -244)
+    Btn("Clear output", 110, 298, -238, function() out:Clear() wipe(LP.devLog) end)
+    Btn("Copy", 90, 204, -238, function()
         local lines = {}
         for i, line in ipairs(LP.devLog) do
             lines[i] = (tostring(line):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))

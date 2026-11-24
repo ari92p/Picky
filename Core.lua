@@ -20,9 +20,9 @@ LP.defaults = {
     pick = { hint = true },
     finder = {
         enabled = false,
-        autoInvite = true,
+        autoInvite = false,
         onlyWhenFree = true,
-        inviteUnknown = true,
+        inviteUnknown = false,
         autoAccept = true,
         welcome = true,
         thanks = true,

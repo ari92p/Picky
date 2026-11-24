@@ -106,6 +106,45 @@ local CHAT_CASES = {
     { "wer hat Kisten zu viel, suche welche", false, false },
     { "suche jemand der meine Kisten öffnen kann", false, true },
     { "lf lockpicker", false, true },
+    -- advertisements of other rogues are not requests
+    { "Rogue here, lockpicking 300, tips welcome, invite me", false, false },
+    { "Rogue offering lockbox opening, whisper me", false, false },
+    { "Schurke öffnet eure Kisten, einfach einladen", false, false },
+    { "Rogue |cff71d5ff|Hspell:1804|h[Pick Lock]|h|r tips appreciated", false, false },
+    { "LF rogue to open my lockbox, will tip", false, true },
+    { "rogue free unlocking boxes", false, false },
+    { "Rogue 300 lockpicking, PM me for lockboxes", false, false },
+    { "LF lockboxes! Rogue here, tips appreciated", false, false },
+    { "Lockpicker available / in Org, whisper me", false, false },
+    { "LF rogue to open my lockbox, whisper me", false, true },
+    { "Rogue 150 lockpicking needed for chests", false, true, 150 },
+    { "Rogue 300 lockpicking, PM me for lockboxes", true, true, 300 },   -- whispered: handled as a direct message
+    -- more advertisements of other rogues (EN)
+    { "Rogue here, will open your lockboxes for tips", false, false },
+    { "Rogue lockpicking 225, whisper me for lockboxes", false, false },
+    { "[Lockpicking] Rogue opening boxes, tip if you like", false, false },
+    { "Free lockbox opening, rogue in Org", false, false },
+    { "Rogue available for lockboxes at the AH", false, false },
+    { "Open your lockboxes! Rogue 250 lockpicking here, /w me", false, false },
+    { "Rogue opening lockboxes in trade, inv me", false, false },
+    { "Lockpicking service - pm me", false, false },
+    -- more advertisements of other rogues (DE)
+    { "Schurke öffnet Kisten für Trinkgeld", false, false },
+    { "Schurke 300 Schlossknacken, flüstern für Kisten", false, false },
+    { "Kostenloses Schlossknacken in Orgrimmar", false, false },
+    { "Schurke mit 300 Schlossknacken, Kisten öffnen gegen Trinkgeld", false, false },
+    { "Biete Schlossknacken an, einfach anflüstern", false, false },
+    -- more customer requests (EN)
+    { "need a rogue for my chest pls", false, true },
+    { "any rogue here that can open boxes?", false, true },
+    { "rogue pls open junkbox, will tip", false, true },
+    { "Looking for a rogue to pick a lock", false, true },
+    -- more customer requests (DE)
+    { "Suche Schurke zum Kisten öffnen", false, true },
+    { "Kann ein Schurke bitte meine Truhe aufmachen?", false, true },
+    { "brauche Schlossknacker für Kiste", false, true },
+    { "wer kann mir meine Eisenkiste aufmachen? gebe Trinkgeld", false, true },
+    { "Schurke, bitte meine Kiste öffnen, Trinkgeld gibt es", false, true },
 }
 for i, c in ipairs(CHAT_CASES) do
     T(("chat detection #%d: %s%s"):format(i, c[2] and "[whisper] " or "", c[1]:sub(1, 48)), function()
@@ -115,6 +154,18 @@ for i, c in ipairs(CHAT_CASES) do
     end)
 end
 
+T("chat samples: report (every sample with the verdict, to copy from the log)", function()
+    local wrong = 0
+    for _, c in ipairs(CHAT_CASES) do
+        local ok, req, _, why = LP.Analyze(c[1], c[2])
+        ok = ok and true or false
+        local good = (ok == c[3])
+        if not good then wrong = wrong + 1 end
+        LP.Debug("test", "%s %s%s -> %s%s | %s", good and "OK  " or "WRONG", c[2] and "[whisper] " or "", ok and "REQUEST" or (why and why.ad and "ad (ignored)" or "ignored"), req and ("skill " .. req) or "no skill", good and "" or ("  (expected " .. (c[3] and "request" or "ignored") .. ")"), c[1])
+    end
+    LP.Debug("test", "chat samples: %d total, %d wrong", #CHAT_CASES, wrong)
+    eq(wrong, 0, "samples with a wrong verdict")
+end)
 T("box keyword: whole word only ('iron' is a box, 'ironforge' is a city)", function()
     local ok1, req1 = LP.Analyze("LF rogue open chest in ironforge", false)
     eq(ok1 and true or false, true, "still a request")
@@ -196,6 +247,48 @@ T("feed: a chat request writes request + invite lines", function()
     LP.feed = saved
     if LP.RefreshFeed then LP.RefreshFeed() end
     if not ok then error(err, 0) end
+end)
+T("read channels: switched-off sources are skipped, new ones are read, whispers never filtered", function()
+    local f = LP.db.finder
+    local was = f.readOff
+    f.readOff = nil
+    truthy(LP.ReadChannelOn("trade"), "default: on")
+    LP.SetReadChannel("lookingforgroup", false)
+    falsy(LP.ReadChannelOn("lookingforgroup"), "switched off")
+    truthy(LP.ReadChannelOn("trade"), "others stay on")
+    LP.SetReadChannel("lookingforgroup", true)
+    truthy(LP.ReadChannelOn("lookingforgroup"), "switched on again")
+    eq(LP.ChatSourceKey("CHAT_MSG_CHANNEL", "5. Trade - Stormwind", nil), "trade", "from channel string")
+    eq(LP.ChatSourceKey("CHAT_MSG_CHANNEL", "5. Trade - Stormwind", "Trade"), "trade", "from base name")
+    eq(LP.ChatSourceKey("CHAT_MSG_SAY"), "say", "say")
+    eq(LP.ChatSourceKey("CHAT_MSG_WHISPER"), nil, "whisper has no source")
+    f.readOff = was
+end)
+T("advertise channels: default is the normal trade channel, never the local one", function()
+    local ad = LP.db.ad
+    local was = ad.channels
+    ad.channels = nil   -- no own choice: the default rule applies
+    local function on(name) return LP.AdChannelOn({ name = name, key = LP.ChannelKey(name) }) end
+    truthy(on("Trade"), "Trade")
+    falsy(on("TradeLocal"), "TradeLocal")
+    truthy(on("Trade - City"), "Trade - City")
+    truthy(on("Handel - Deutsch 33"), "Handel - Deutsch 33")
+    falsy(on("Handel Lokal"), "Handel Lokal")
+    falsy(on("General"), "General")
+    falsy(on("LookingForGroup"), "LookingForGroup")
+    ad.channels = was
+end)
+T("advertise channels: what the game reports right now (read-only report)", function()
+    local ad = LP.db.ad
+    LP.Debug("test", "own choice saved: %s", type(ad.channels) == "table" and "YES (default rule is not used)" or "no (default rule)")
+    if type(ad.channels) == "table" then
+        for k, v in pairs(ad.channels) do LP.Debug("test", "  saved: %s = %s", tostring(k), tostring(v)) end
+    end
+    local list = LP.ChannelList()
+    for _, ch in ipairs(list) do
+        LP.Debug("test", "channel %d: '%s' key='%s' advertise=%s listen=%s", ch.id, ch.name, ch.key, tostring(LP.AdChannelOn(ch)), tostring(LP.ReadChannelOn(ch.key)))
+    end
+    if #list == 0 then return "warn: no channels joined" end
 end)
 T("guide stage by skill", function()
     eq(LP.StageForSkill(1), 1, "1")

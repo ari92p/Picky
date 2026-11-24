@@ -28,9 +28,23 @@ local LOCKSUB = { "lockpick", "pick lock", "schlossknack", "schlösser", "knack"
 -- "suche ... sitze auf den Kisten" (a box as furniture) is not taken for a request. Substrings, German umlauts included.
 local ACT_SUB = { "lockpick", "pick lock", "schlossknack", "öffn", "aufmach", "aufbrech", "knack", "aufschlie", "aufsperr" }
 local SEEK = { "lf", "lf1", "suche", "suchen", "sucht", "gesucht", "need", "needs", "brauche", "braucht", "wer", "jemand",
-    "anyone", "anybody", "someone", "wtb", "pls", "plz", "bitte", "please", "help", "hilfe", "can", "could", "would" }
+    "anyone", "anybody", "someone", "wtb", "pls", "plz", "bitte", "please", "help", "hilfe", "can", "could", "would",
+    "looking", "needed", "wanted" }
 local EXCL = { "lfm", "dps", "tank", "tanks", "healer", "heal", "wts", "wtt", "biete", "bietet", "bieten", "offering",
     "offers", "boost", "raid", "sell", "verkaufe", "where", "wo", "how", "wie", "quest", "quests" }
+
+-- Advertisements of OTHER rogues ("Rogue offering lockpicking, tips welcome, invite me"): never a request.
+-- A Pick Lock spell link in public chat is an ad as well (customers do not link the spell).
+local AD_TOK = { "offer", "offers", "offering", "service", "services", "available", "hire", "free", "gratis", "kostenlos", "anbieten" }
+local AD_SUB = { "tips welcome", "tip welcome", "tips appreciated", "tips are welcome", "invite me", "inv me", "just invite", "trinkgeld willkommen",
+    "einfach einladen", "lade mich ein", "ich öffne", "ich knacke", "i open", "i unlock", "kostenlos", "gratis" }
+
+-- Ad phrases that only count when nobody is being SEARCHED ("rogue here, will open your boxes for tips" is an ad, "lf rogue ... for tips" is a customer)
+local AD_NOSEEK = { "for tips", "for a tip", "for tip", "tip if", "tips if", "tip appreciated", "tips are appreciated", "tips greatly", "rogue here", "rogue in ",
+    "schurke hier", "schurke in ", "für trinkgeld", "gegen trinkgeld", "trinkgeld erwünscht", "trinkgeld gern", "trinkgeld willkommen",
+    "öffnet", "knackt", "öffne alle", "öffne eure", "knacke alle", "knacke eure", "flüster mir", "flüstert mir", "anflüstern", "pn an mich" }
+-- "pm me / whisper me": contact phrases. They only mark an ad when nobody is being SEARCHED ("lf rogue ..., whisper me" is a customer).
+local CONTACT_SUB = { "pm me", "pm for", "pm if", "pm to", "whisper me", "whisper for", "whisper if", "pst me", "dm me", "msg me", "message me", "/w me", "w/ me" }
 
 local function HasTok(s, list)
     for _, w in ipairs(list) do
@@ -108,6 +122,9 @@ local function Analyze(msg, isWhisper)
     local seek = HasTok(s, SEEK)
     local act = verb or HasSub(s, ACT_SUB)
     local excl = HasTok(s, EXCL)
+    local isAd = msg:find("|Hspell:" .. tostring(LP.PICK_SPELL_ID), 1, true) ~= nil or HasTok(s, AD_TOK) or HasSub(s, AD_SUB)
+        or (not seek and (HasSub(s, CONTACT_SUB) or HasSub(s, AD_NOSEEK)))                    -- "Rogue 300 lockpicking, PM me for lockboxes"
+        or (not seek and rogue and ExplicitSkill(s) ~= nil)         -- a rogue stating HIS skill ("Rogue 300 lockpicking"), not asking for one
 
     local ok
     if isWhisper then
@@ -116,9 +133,9 @@ local function Analyze(msg, isWhisper)
     else
         -- public chat is stricter: box/lock (or open/unlock + rogue) AND a request (with "rogue", or a request plus an open/pick word), no sale/group search
         -- without "rogue" a request alone is not enough: it must also say to open/pick something
-        ok = (lock or (verb and rogue)) and (rogue or (seek and act)) and not excl
+        ok = (lock or (verb and rogue)) and (rogue or (seek and act)) and not excl and not isAd
     end
-    return ok, req, label, { lock = lock, verb = verb, rogue = rogue, seek = seek, excl = excl }
+    return ok, req, label, { lock = lock, verb = verb, rogue = rogue, seek = seek, excl = excl, ad = isAd }
 end
 LP.Analyze = Analyze
 
@@ -225,9 +242,30 @@ function LP.Decide(req)
     LP.TryInvite(req)
 end
 
+-- Reading channels: everything is read by default; channels you switch off are noted in finder.readOff (key = channel name without
+-- suffix, plus "say" / "yell"). New channels are therefore read automatically. Whispers are always read.
+function LP.ReadChannelOn(key)
+    local off = LP.db and LP.db.finder and LP.db.finder.readOff
+    return not (off and off[key])
+end
+function LP.SetReadChannel(key, on)
+    local f = LP.db.finder
+    f.readOff = f.readOff or {}
+    f.readOff[key] = (not on) and true or nil
+end
+-- Chat event + channel name from the event -> key of the source (nil for whispers)
+function LP.ChatSourceKey(event, chanString, baseName)
+    if event == "CHAT_MSG_SAY" then return "say" end
+    if event == "CHAT_MSG_YELL" then return "yell" end
+    if event == "CHAT_MSG_CHANNEL" then
+        local n = (type(baseName) == "string" and baseName ~= "" and baseName) or (type(chanString) == "string" and chanString:gsub("^%d+%.%s*", "")) or nil
+        return n and LP.ChannelKey(n) or nil
+    end
+end
+
 local simCount = 0
 -- Process a chat message. sim = true: simulation (bypasses "Finder on" and "Rogue", name is not checked against you)
-function LP.OnChat(event, msg, sender, sim)
+function LP.OnChat(event, msg, sender, sim, chanString, baseName)
     local db = LP.db
     if not db or not msg or not sender then return end
     if not sim and (not db.finder.enabled or not LP.IsRogue()) then return end
@@ -244,10 +282,16 @@ function LP.OnChat(event, msg, sender, sim)
     end
 
     local isWhisper = event == "CHAT_MSG_WHISPER"
+    if not sim and not isWhisper then
+        local key = LP.ChatSourceKey(event, chanString, baseName)
+        if key and not LP.ReadChannelOn(key) then return end   -- this channel is switched off
+    end
     local ok, req, label, why = Analyze(msg, isWhisper)
     if not ok then
         -- only log "near misses", otherwise every trade-chat sentence would end up in the log
-        if why and (why.lock or why.verb or why.rogue) then
+        if why and why.ad and (why.lock or why.verb or why.rogue) then
+            LP.Debug("chat", "ignored as an advertisement of another rogue (%s): %s", name, msg)   -- visible in the normal log, so wrong calls can be reported
+        elseif why and (why.lock or why.verb or why.rogue) then
             LP.DevDebug("chat", "no request from %s (lock=%s verb=%s rogue=%s seek=%s excl=%s): %s",
                 name, why.lock, why.verb, why.rogue, why.seek, why.excl, msg)
         end
@@ -300,7 +344,7 @@ function LP.OnChat(event, msg, sender, sim)
     return r
 end
 for _, ev in ipairs({ "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_WHISPER" }) do
-    LP.On(ev, function(event, msg, sender) LP.OnChat(event, msg, sender) end)
+    LP.On(ev, function(event, msg, sender, _, chanString, _, _, _, _, baseName) LP.OnChat(event, msg, sender, nil, chanString, baseName) end)
 end
 
 -- Accepting invites ------------------------------------------------------------------
@@ -689,6 +733,7 @@ function LP.AdChannelOn(ch)
     local ad = LP.db.ad
     if type(ad.channels) == "table" then return ad.channels[ch.key] == true end
     local l = ch.name:lower()
+    if l:find("lokal", 1, true) or l:find("local", 1, true) then return false end   -- default: the normal trade channel ("Handel - Deutsch 33"), not "Handel Lokal"
     for m in (ad.channelMatch or ""):gmatch("[^,%s]+") do
         if l:find(m:lower(), 1, true) then return true end
     end
