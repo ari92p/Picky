@@ -35,9 +35,9 @@ local EXCL = { "lfm", "dps", "tank", "tanks", "healer", "heal", "wts", "wtt", "b
 
 -- Advertisements of OTHER rogues ("Rogue offering lockpicking, tips welcome, invite me"): never a request.
 -- A Pick Lock spell link in public chat is an ad as well (customers do not link the spell).
-local AD_TOK = { "offer", "offers", "offering", "service", "services", "available", "hire", "free", "gratis", "kostenlos", "anbieten" }
+local AD_TOK = { "offer", "offers", "offering", "service", "services", "available", "hire", "free", "gratis", "kostenlos", "umsonst", "anbieten", "lfw" }
 local AD_SUB = { "tips welcome", "tip welcome", "tips appreciated", "tips are welcome", "invite me", "inv me", "just invite", "trinkgeld willkommen",
-    "einfach einladen", "lade mich ein", "ich öffne", "ich knacke", "i open", "i unlock", "kostenlos", "gratis" }
+    "einfach einladen", "lade mich ein", "ich öffne", "ich knacke", "i open", "i unlock", "kostenlos", "gratis", "looking for work", "for hire" }
 
 -- Ad phrases that only count when nobody is being SEARCHED ("rogue here, will open your boxes for tips" is an ad, "lf rogue ... for tips" is a customer)
 local AD_NOSEEK = { "for tips", "for a tip", "for tip", "tip if", "tips if", "tip appreciated", "tips are appreciated", "tips greatly", "rogue here", "rogue in ",

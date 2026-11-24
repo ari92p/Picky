@@ -180,6 +180,20 @@ local CHAT2 = {
     { "Rogue in Orgrimmar opening boxes", false, false },
     { "Rogue available, lockboxes, /w me", false, false },
     { "rogue lockpicking 300 whisper for chests", false, false },
+    -- "LFW" = looking for work: a rogue offering himself (reported on CurseForge: "Rogue LFW Locking!" got invited)
+    { "Rogue LFW Locking!", false, false },
+    { "Rogue LFW lockpicking", false, false },
+    { "LFW rogue lockpicking 300", false, false },
+    { "rogue looking for work, lockboxes", false, false },
+    { "Rogue for hire: lockpicking", false, false },
+    { "Rogue LFW lockboxes, whisper me", true, true },
+    -- "for free" / "umsonst": the word "free" marks an offer
+    { "Rogue lockpicking for free", false, false },
+    { "Opening lockboxes for free, rogue here", false, false },
+    { "Rogue opens lockboxes 4 free", false, false },
+    { "Schurke öffnet Kisten umsonst", false, false },
+    { "Schurke knackt Kisten gratis", false, false },
+    { "LF rogue to open my lockbox, I will tip", false, true },   -- whispers are a direct message: still a request
     -- whispers (a box or an open request is enough)
     { "can you open my box", true, true },
     { "Hi, do you open lockboxes?", true, true },

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.20
+- Advertisements of other rogues that say they are looking for work ("Rogue LFW Locking!", "looking for work", "for hire") are no longer taken as requests, so Picky does not invite them. "umsonst" (German for "for free") counts as an offer word too, like "free", "gratis" and "kostenlos".
+- More self tests for these messages.
+
 ## 1.0.19
 - Guild chat can be read: "Guild" is in the "Listen in" menu (on by default, like every other source).
 - "Advertise in" can include the guild: the Announce button then also posts into guild chat. It is never part of the default.
