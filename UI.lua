@@ -287,7 +287,7 @@ function RefreshRequests()
     local list = (view == "open") and open or done
     offset = math.max(0, math.min(offset, #list - ROWS))
     p.range:SetText(#list > ROWS and ("%d-%d / %d"):format(offset + 1, math.min(#list, offset + ROWS), #list) or "")
-    p.empty:SetText(view == "open" and L["empty.requests"] or L["Nothing finished yet."])
+    p.empty:SetText(view == "open" and (LP.IsRogue() and L["empty.requests"] or LP.NonRogueQuote()) or L["Nothing finished yet."])
     p.empty:SetShown(#list == 0)
 
     for i = 1, ROWS do
@@ -357,7 +357,7 @@ local function RefreshGuide()
     local cur = LP.StageForSkill(skill)
     guideStage = guideStage or cur
     local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
-    p.head:SetText(L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, max))
+    p.head:SetText(LP.skillNotLearned and L["Lockpicking: not learned yet"] or L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, max))
     p.sub:SetText(L["Current stage %s  ·  %d points to the next"]:format(LP.GUIDE[cur].title, math.max(0, LP.GUIDE[cur].to - skill)))
     p.bar:SetMinMaxValues(0, 300)
     p.bar:SetValue(math.min(300, skill))
@@ -851,7 +851,7 @@ local function BuildDebug(p)
     log:SetPoint("BOTTOMRIGHT", 0, 0)
     log:SetFontObject("GameFontHighlightSmall")
     log:SetJustifyH("LEFT")
-    log:SetMaxLines(300)
+    log:SetMaxLines(3000)
     log:SetFading(false)
     log:EnableMouseWheel(true)
     log:SetScript("OnMouseWheel", function(self, d) if d > 0 then self:ScrollUp() else self:ScrollDown() end end)
@@ -923,7 +923,7 @@ local function BuildDev(p)
     out:SetPoint("BOTTOMRIGHT", 0, 0)
     out:SetFontObject("GameFontHighlightSmall")
     out:SetJustifyH("LEFT")
-    out:SetMaxLines(400)
+    out:SetMaxLines(3000)
     out:SetFading(false)
     out:EnableMouseWheel(true)
     out:SetScript("OnMouseWheel", function(self, d) if d > 0 then self:ScrollUp() else self:ScrollDown() end end)
@@ -934,14 +934,22 @@ local function BuildDev(p)
     -- developer log lines (internals) are shown here, never in the Test tab
     for _, line in ipairs(LP.devLog) do out:AddMessage(line) end
     LP.OnDevLine = function(line) out:AddMessage(line) end
+    -- Everything printed into the output field (self test result, diagnostics, errors) is also kept in LP.devLog with a time,
+    -- so that Copy / Copy all contain exactly what you see.
+    local function Out(line)
+        out:AddMessage(line)
+        local log = LP.devLog
+        log[#log + 1] = date("%H:%M:%S") .. " " .. line
+        if #log > 3000 then table.remove(log, 1) end
+    end
 
     -- also write LP.Print output into this field
     local function Capture(fn)
         local old = LP.Print
-        LP.Print = function(m) old(m) out:AddMessage(tostring(m)) end
+        LP.Print = function(m) old(m) Out(tostring(m)) end
         local ok, err = pcall(fn)
         LP.Print = old
-        if not ok then out:AddMessage("|cffff5959error:|r " .. tostring(err)) end
+        if not ok then Out("|cffff5959error:|r " .. tostring(err)) end
     end
     local function P(fmt, ...) LP.Print(string.format(fmt, ...)) end
 
@@ -956,7 +964,7 @@ local function BuildDev(p)
             tostring(LP.skillSource), tostring(LP.skillEstimated))
         P("requests %d | feed %d | log %d lines", #LP.requests, #LP.feed, #LP.debugLog)
         P("pending %s | partner %s", tostring(LP.pending and LP.pending.name), tostring(LP.partner))
-        P("stats picked %d | tips %s | invited %d | thanked %d", db.stats.picked, LP.Money(db.stats.tips), db.stats.invited, db.stats.thanked)
+        P("stats picked %d | tips %s | invited %d | thanked %d", LP.cdb.stats.picked, LP.Money(LP.cdb.stats.tips), LP.cdb.stats.invited, LP.cdb.stats.thanked)
     end
     local function ClientInfo()
         local version, build, bdate, toc = GetBuildInfo()
@@ -970,7 +978,7 @@ local function BuildDev(p)
 
     Btn("Run self tests", 110, 0, -46, function() Capture(function() LP.RunTests() end) end)
     Btn("Inspect hover (3 s)", 130, 114, -46, function()
-        out:AddMessage("inspecting what is under the mouse in 3 s ...")
+        Out("inspecting what is under the mouse in 3 s ...")
         LP.After(3, function() Capture(function() LP.InspectHover() end) end)
     end)
     Btn("Skill diagnostics", 120, 248, -46, function() Capture(function() LP.SkillDiagnostics() end) end)
@@ -980,6 +988,17 @@ local function BuildDev(p)
     local oh = FS(p, "GameFontNormalSmall", "Output")
     oh:SetPoint("TOPLEFT", 2, -244)
     Btn("Clear output", 110, 298, -238, function() out:Clear() wipe(LP.devLog) end)
+    Btn("Copy all", 94, 108, -238, function()   -- Test-tab log + developer output in one list, sorted by time
+        local function Clean(l) return (tostring(l):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+        local a, b, lines = LP.debugLog, LP.devLog, {}
+        local i, j = 1, 1
+        while i <= #a or j <= #b do
+            local ta, tb = a[i] and Clean(a[i]):match("^%d%d:%d%d:%d%d"), b[j] and Clean(b[j]):match("^%d%d:%d%d:%d%d")
+            if a[i] and (not b[j] or (ta or "") <= (tb or "")) then lines[#lines + 1] = Clean(a[i]) i = i + 1
+            else lines[#lines + 1] = Clean(b[j]) j = j + 1 end
+        end
+        ShowCopyBox(#lines > 0 and table.concat(lines, "\n") or "(both logs are empty)")
+    end)
     Btn("Copy", 90, 204, -238, function()
         local lines = {}
         for i, line in ipairs(LP.devLog) do
@@ -996,7 +1015,16 @@ local function BuildDev(p)
     p.liveCb = live
 
     -- Announcement tests
-    Btn("Announce (click)", 130, 0, -128, function() Capture(function() LP.lastAd = nil LP.PostAd(true) end) end)
+    Btn("Announce (test only)", 130, 0, -128, function()
+        Capture(function()
+            local old = LP.forceDry
+            LP.forceDry = true   -- walks through the whole announcement path but sends NOTHING to any channel
+            local ok, err = pcall(function() LP.lastAd = nil LP.PostAd(true) end)
+            LP.forceDry = old
+            LP.lastAd = nil
+            if not ok then error(err, 0) end
+        end)
+    end)
     Btn("Announce from timer (3 s)", 160, 134, -128, function() Capture(function() LP.AdTest() end) end)
 
     -- Sound for a new request: click = play, Shift-click = use it (marked with *)
@@ -1011,7 +1039,7 @@ local function BuildDev(p)
         b:SetScript("OnClick", function()
             if IsShiftKeyDown() then
                 LP.db.ui.alertSound = snd[1]
-                out:AddMessage("request sound: " .. snd[2])
+                Out("request sound: " .. snd[2])
                 RefreshDev()
             end
             LP.PlayAlertSound(snd[1])
@@ -1171,7 +1199,11 @@ function LP.RefreshUI()
     local max = (LP.skillMax and LP.skillMax > 0) and LP.skillMax or 300
     local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
     local est = LP.skillEstimated and "  |cffffd100" .. L["estimated"] .. "|r" or ""
-    win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, max, est))
+    if LP.skillNotLearned then
+        win.skillText:SetText(L["Lockpicking: not learned yet"])
+    else
+        win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, max, est))
+    end
     win.bar:SetValue(math.min(300, skill))
     win.finder:SetText(LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"])
     if currentTab == 1 then RefreshRequests()

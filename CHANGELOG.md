@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.17
+- Everything is now stored per character: statistics, orders and the stored lockpicking skill. Settings, the ignore list and the channel choices stay shared. The first rogue that logs in after this update takes over the existing statistics, orders and skill; other characters start empty. Characters that are not rogues get no stored profile at all.
+- A rogue who has not learned Pick Lock yet now shows "Lockpicking: not learned yet" with skill 0 instead of a guess from the level. It switches to the real value as soon as you learn the spell.
+- A request that is split into two messages ("LF rogue for", then only the item link a few seconds later) is now taken as one request. The second message has to come from the same player within 5 seconds.
+- The wait before leaving the group after the last trade is now 5 seconds by default (was 10). If you still had the old default of 10, it moves to 5.
+- Characters that are not rogues see a small saying in the empty requests list.
+- Developer tab: Copy all (both logs in one list), logs keep up to 3000 lines, and "Announce (test only)" no longer posts to any channel. The self test can be run twice in a row.
+- About 120 new self tests (box values, chat detection, channels, per-character data and the upgrade from older versions).
+
 ## 1.0.16
 - New "Channels" section in the settings: "Listen in" chooses which chats Picky reads for requests (say, yell and your channels; whispers are always read), "Advertise in" chooses where the Announce button posts. Both lists update when you join or leave a channel. The channel button moved out of the main window.
 - By default Picky advertises in the normal trade channel, not in the local one (TradeLocal / Handel Lokal).

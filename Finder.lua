@@ -2,7 +2,7 @@
 local ADDON, LP = ...
 local L = LP.L
 
-LP.requests = {}   -- newest first; after loading this is LP.db.orders (stored permanently), see LoadOrders
+LP.requests = {}   -- newest first; after loading this is LP.cdb.orders (stored permanently), see LoadOrders
 LP.OnLanguage(function()
     LP.STATUS = {
         new = { L["New"], "ffd100" },
@@ -170,7 +170,7 @@ function LP.TryInvite(req)
     local myInvite = GetTime()
     req.invitedAt = myInvite   -- a repeated invite starts a new 60 s window; the old timer must not fire for it
     LP.pending = req
-    if not LP.IsDry() then LP.db.stats.invited = LP.db.stats.invited + 1 end
+    if not LP.IsDry() then LP.cdb.stats.invited = LP.cdb.stats.invited + 1 end
     Touch()
     if LP.IsDry() then return end   -- dry run: never a real join, so no "not joined" timeout either
     LP.After(60, function()
@@ -263,6 +263,17 @@ function LP.ChatSourceKey(event, chanString, baseName)
     end
 end
 
+-- May a message from this source be read? Whispers always; say / yell / channels unless switched off in the settings.
+function LP.ChatAllowed(event, chanString, baseName)
+    if event == "CHAT_MSG_WHISPER" then return true end
+    local key = LP.ChatSourceKey(event, chanString, baseName)
+    return (not key) or LP.ReadChannelOn(key)
+end
+
+-- Who asked for a rogue without naming a box yet (short name, lowercase -> time), and how many seconds a follow-up message still counts
+LP.recentSeek = LP.recentSeek or {}
+local SEEK_FOLLOW = 5
+
 local simCount = 0
 -- Process a chat message. sim = true: simulation (bypasses "Finder on" and "Rogue", name is not checked against you)
 function LP.OnChat(event, msg, sender, sim, chanString, baseName)
@@ -282,11 +293,28 @@ function LP.OnChat(event, msg, sender, sim, chanString, baseName)
     end
 
     local isWhisper = event == "CHAT_MSG_WHISPER"
-    if not sim and not isWhisper then
-        local key = LP.ChatSourceKey(event, chanString, baseName)
-        if key and not LP.ReadChannelOn(key) then return end   -- this channel is switched off
-    end
+    if not sim and not LP.ChatAllowed(event, chanString, baseName) then return end   -- this channel is switched off
     local ok, req, label, why = Analyze(msg, isWhisper)
+    if not ok and not isWhisper and why then
+        -- Players often split the request into two messages: "LF rogue for" and then, a few seconds later, only the item link.
+        -- A message that only names a box counts as a request when the same player asked for a rogue just before.
+        local k = (LP.Short(name) or name):lower()
+        local t0 = GetTime()
+        if why.lock and not why.excl and not why.ad then
+            local t = LP.recentSeek[k]
+            if t and t0 - t <= SEEK_FOLLOW then
+                ok = true
+                LP.recentSeek[k] = nil
+                LP.Debug("chat", "%s named a box %d s after asking for a rogue -> counts as one request", name, math.floor(t0 - t))
+            end
+        elseif why.rogue and (why.seek or why.verb) and not why.lock and not why.excl and not why.ad then
+            LP.recentSeek[k] = t0
+            local n = 0
+            for key, tt in pairs(LP.recentSeek) do
+                if t0 - tt > SEEK_FOLLOW then LP.recentSeek[key] = nil else n = n + 1 end
+            end
+        end
+    end
     if not ok then
         -- only log "near misses", otherwise every trade-chat sentence would end up in the log
         if why and why.ad and (why.lock or why.verb or why.rogue) then
@@ -444,7 +472,7 @@ function LP.SendThanks(r)
     r.thanked = true
     LP.Debug("trade", "sending the thank-you to %s (total tip %s)", r.name, LP.Money(r.tipTotal))
     LP.Whisper(r.sender or r.name, f.thanksText)
-    if not LP.IsDry() then LP.db.stats.thanked = LP.db.stats.thanked + 1 end
+    if not LP.IsDry() then LP.cdb.stats.thanked = LP.cdb.stats.thanked + 1 end
 end
 
 -- Leave after a wait; a new trade by the customer cancels it (several boxes in a row)
@@ -538,7 +566,7 @@ end)
 -- Pick succeeded -> leave the group if applicable -----------------------------------------------------
 function LP.OnPickSuccess(simulated)
     local f = LP.db.finder
-    if not simulated then LP.db.stats.picked = LP.db.stats.picked + 1 end
+    if not simulated then LP.cdb.stats.picked = LP.cdb.stats.picked + 1 end
     LP.Debug("pick", "pick success%s (customer: %s)", simulated and " (simulated)" or "", LP.partner)
     LP.Feed("pick", L["Box picked"])
     if not LP.partner and LP.tradePartner then
@@ -555,7 +583,7 @@ function LP.OnPickSuccess(simulated)
                 LP.waitTradeClose = true   -- finish the trade first (tip/thanks)
                 LP.Debug("group", "trade window open: leaving after it closes")
             else
-                LP.ScheduleLeave(f.leaveDelay or 10)
+                LP.ScheduleLeave(f.leaveDelay or 5)
             end
         end
     end
@@ -642,7 +670,7 @@ function LP.HandleTradeComplete(name)
     LP.Notice("trade", LP.Short(name), 0)
     if f.autoLeave and not (LP.leaveAt and LP.leaveAt > GetTime()) then   -- no live countdown yet
         LP.Debug("group", "trade with %s complete: leaving soon", name)
-        LP.ScheduleLeave(f.leaveDelay or 10)
+        LP.ScheduleLeave(f.leaveDelay or 5)
     end
 end
 
@@ -651,7 +679,7 @@ function LP.HandleTip(name, tip, simulated)
     local f = LP.db.finder
     LP.Debug("trade", "tip %s from %s%s", LP.Money(tip), name, simulated and " (simulated)" or "")
     LP.Feed("tip", L["Tip from %s: |cffffd100%s|r"]:format(name, LP.Money(tip)))
-    if not simulated then LP.db.stats.tips = LP.db.stats.tips + tip end
+    if not simulated then LP.cdb.stats.tips = LP.cdb.stats.tips + tip end
     local req = LP.FindRequest(name)
     local how   -- for the hint in the toast: "later" = thanks follows on leaving, "sent" = sent immediately
     if f.thanks then
@@ -663,7 +691,7 @@ function LP.HandleTip(name, tip, simulated)
             LP.Debug("trade", "thank-you for %s deferred until the group ends (total tip %s)", name, LP.Money(req.tipTotal))
         else
             LP.Whisper((req and req.sender) or name, f.thanksText)   -- full name (realm), if known
-            if not LP.IsDry() then LP.db.stats.thanked = LP.db.stats.thanked + 1 end
+            if not LP.IsDry() then LP.cdb.stats.thanked = LP.cdb.stats.thanked + 1 end
             if req then req.tipTotal = (req.tipTotal or 0) + tip req.thanked = true end   -- also count it on the order here
             how = "sent"
         end
@@ -693,7 +721,7 @@ LP.On("TRADE_CLOSED", function()
     if LP.partner and f.autoLeave and (LP.waitTradeClose or LP.pickedForPartner) then
         LP.waitTradeClose = false
         LP.DevDebug("group", "trade closed, leaving soon")
-        LP.ScheduleLeave(f.leaveDelay or 10)
+        LP.ScheduleLeave(f.leaveDelay or 5)
     end
 end)
 -- The customer puts a box in the trade window: if it is too high for you, say so immediately (otherwise you click into the void)
@@ -868,12 +896,12 @@ end
 
 
 -- Orders: store permanently, load, expire, delete -----------------------------------------------
--- LP.requests is LP.db.orders after loading: everything survives /reload and restart until YOU delete it.
+-- LP.requests is LP.cdb.orders after loading: everything survives /reload and restart until YOU delete it.
 -- r.time is a GetTime() time and only valid in this session: recompute from the stored timestamp (epoch).
 local OPEN_EXPIRE = 900   -- open requests older than 15 minutes become "no reply"
 function LP.LoadOrders()
-    local orders = LP.db.orders
-    if type(orders) ~= "table" then orders = {} LP.db.orders = orders end
+    local orders = LP.cdb.orders
+    if type(orders) ~= "table" then orders = {} LP.cdb.orders = orders end
     local nowE, nowT = time(), GetTime()
     for i = #orders, 1, -1 do
         local r = orders[i]

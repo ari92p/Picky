@@ -40,7 +40,7 @@ function LP.GetState()
     elseif LP.pending and LP.pending.status == "invited" then
         st.phase, st.current = "invited", LP.pending
     end
-    if db then st.picked, st.tips = db.stats.picked, db.stats.tips end
+    if db and LP.cdb then st.picked, st.tips = LP.cdb.stats.picked, LP.cdb.stats.tips end
     return st
 end
 
