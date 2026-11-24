@@ -1,6 +1,16 @@
 # Changelog
 
-## 1.0.17
+## 1.0.18
+- Statistics, orders and the stored skill are shared by the whole account again, as before 1.0.16. The per-character storage of the withdrawn 1.0.17 was taken back. If your saved data still has per-character entries, they are merged into the account data once.
+- A rogue who has not learned Pick Lock yet now shows "Lockpicking: not learned yet" with skill 0 instead of a guess from the level. The stored skill is no longer used for a character without Pick Lock, so an alt does not inherit the skill of your main. It switches to the real value as soon as you learn the spell.
+- A request that is split into two messages ("LF rogue for", then only the item link a few seconds later) is now taken as one request. The second message has to come from the same player within 5 seconds.
+- The wait before leaving the group after the last trade is now 5 seconds by default (was 10). If you still had the old default of 10, it moves to 5.
+- Characters that are not rogues see a small saying in the empty requests list.
+- Developer tab: Copy all (both logs in one list), logs keep up to 3000 lines, and "Announce (test only)" no longer posts to any channel. The self test can be run twice in a row.
+- The slash command is now only `/picky` (`/lp` and `/schloss` were removed).
+- About 120 new self tests (box values, chat detection, channels, skill and the merge of older data).
+
+## 1.0.17 (withdrawn)
 - Everything is now stored per character: statistics, orders and the stored lockpicking skill. Settings, the ignore list and the channel choices stay shared. The first rogue that logs in after this update takes over the existing statistics, orders and skill; other characters start empty. Characters that are not rogues get no stored profile at all.
 - A rogue who has not learned Pick Lock yet now shows "Lockpicking: not learned yet" with skill 0 instead of a guess from the level. It switches to the real value as soon as you learn the spell.
 - A request that is split into two messages ("LF rogue for", then only the item link a few seconds later) is now taken as one request. The second message has to come from the same player within 5 seconds.

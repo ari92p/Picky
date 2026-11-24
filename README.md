@@ -18,7 +18,7 @@ Copy the `Picky` folder to:
 - While a customer is in the group, the Requests page shows a countdown to the automatic leave and a **Leave** button (thanks + leave immediately).
 
 ## Commands
-`/lp` opens the window, `/lp duty` turns duty on or off, `/lp stats` prints your totals (`/picky` and `/schloss` work too).
+`/picky` opens the window, `/picky duty` turns duty on or off, `/picky stats` prints your totals.
 
 ## Test mode
 - The **Test** tab has one big switch. On: everything is only simulated (no real invites, whispers or announcements), a log is kept, and the tools below the switch work: simulate requests (chat / whisper), customer joins, tip, pick, leave, and a **right-click test area** (a simulated box plus your real locked boxes). Off: Picky works normally.

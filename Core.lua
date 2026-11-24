@@ -48,30 +48,14 @@ LP.defaults = {
         flash = true,        -- flash the taskbar
         scale = 100,         -- window size in percent
     },
-    ignore = {},         -- shared by all characters
+    stats = { picked = 0, tips = 0, invited = 0, thanked = 0 },
+    ignore = {},
+    orders = {},         -- all orders/requests, stored permanently (newest first); only you delete them
     debug = false,       -- TEST MODE: log runs, inviting/whispering/leaving/announcing are only simulated
     debugChat = false,   -- also write log lines to chat
     dev = false,         -- Developer tab (only visible via /picky dev)
     logLive = false,     -- keep the log in normal operation too (Developer tab)
 }
-
--- Per character (PickyDB.chars["Name-Realm"]): statistics, orders (stored permanently, newest first; only you delete them) and the
--- stored lockpicking skill. Settings, the ignore list and item names are shared by all characters.
-local CHAR_DEFAULTS = { stats = { picked = 0, tips = 0, invited = 0, thanked = 0 }, orders = {} }
--- Key of the current character: "Name-<realm id>". The realm id comes from the player GUID ("Player-<realm id>-<hex>"), which is
--- always there and never changes; GetRealmName() is empty in some clients/at load time and would give a different key on different days.
--- final = true (PLAYER_LOGIN): never return nil, so the addon always has a place to store its data.
-function LP.CharKey(final)
-    local name = UnitName and UnitName("player")
-    if not name or name == "" or name == UNKNOWNOBJECT then return nil end
-    local guid = UnitGUID and UnitGUID("player")
-    local id = type(guid) == "string" and guid:match("^Player%-(%d+)%-")
-    if not id then
-        if not final then return nil end
-        id = "?"
-    end
-    return name .. "-" .. id
-end
 
 local function Merge(dst, src)
     for k, v in pairs(src) do
@@ -464,8 +448,9 @@ function LP.RefreshSkill()
             base, max, apiBonus, source = info.skillLevel, info.maxSkillLevel, info.skillModifier or 0, "C_TradeSkillUI"
         end
     end
-    if not base and LP.cdb and (LP.cdb.skillBase or 0) > 0 then
-        base, max, source = LP.cdb.skillBase, 300, L["stored"]
+    -- The stored value belongs to the account, not to this character: it is only used when Pick Lock is not known to be missing
+    if not base and LP.db and (LP.db.skillBase or 0) > 0 and LP.PickLockKnown() ~= false then
+        base, max, source = LP.db.skillBase, 300, L["stored"]
     end
     local notLearned
     if not base and LP.IsRogue() then
@@ -505,48 +490,49 @@ local function FollowLocale(tbl, key, id)
 end
 LP.FollowLocale = FollowLocale
 
--- Select (and create) the data of the current character. The first ROGUE that logs in after the update takes over the old
--- account-wide statistics, orders and stored skill (they were collected by a rogue); other characters start empty.
-function LP.SelectChar(final)
-    local key = LP.CharKey(final)
-    if not key or not PickyDB then return false end
-    if LP.cdbKey == key then return true end
-    PickyDB.chars = PickyDB.chars or {}
-    local c = PickyDB.chars[key]
-    if not c then
-        -- version 1.0.16 stored a key without realm ("Name-"): take that entry over under the full key
-        local short = key:match("^(.-)%-")
-        for _, old in ipairs({ short .. "-", short .. "-?" }) do
-            if PickyDB.chars[old] then
-                c = PickyDB.chars[old]
-                PickyDB.chars[old] = nil
-                PickyDB.chars[key] = c
-                break
+-- Version 1.0.17 stored statistics, orders and the stored skill per character (PickyDB.chars). That was taken back: everything lives
+-- directly in PickyDB again, for the whole account. What the characters collected is merged back here (the characters in a fixed
+-- order, orders newest first); PickyDB.chars is removed afterwards, so this runs only once.
+function LP.MergeChars()
+    local db = PickyDB
+    if not db then return end
+    local chars = db.chars
+    if type(chars) == "table" then
+        if type(db.stats) ~= "table" then db.stats = {} end
+        if type(db.orders) ~= "table" then db.orders = {} end
+        local keys = {}
+        for k in pairs(chars) do keys[#keys + 1] = k end
+        table.sort(keys, function(x, y) return tostring(x) < tostring(y) end)
+        for _, k in ipairs(keys) do
+            local c = chars[k]
+            if type(c) == "table" then
+                if type(c.stats) == "table" then
+                    for _, name in ipairs({ "picked", "tips", "invited", "thanked" }) do
+                        db.stats[name] = (tonumber(db.stats[name]) or 0) + (tonumber(c.stats[name]) or 0)
+                    end
+                end
+                if type(c.orders) == "table" then
+                    for _, o in ipairs(c.orders) do
+                        if type(o) == "table" then db.orders[#db.orders + 1] = o end
+                    end
+                end
+                if (tonumber(c.skillBase) or 0) > (tonumber(db.skillBase) or 0) then db.skillBase = c.skillBase end
             end
         end
+        -- newest first again (stable: orders with the same time keep their order)
+        local list = {}
+        for i, o in ipairs(db.orders) do list[i] = { o = o, i = i } end
+        table.sort(list, function(x, y)
+            local sx, sy = tonumber(x.o.stamp) or 0, tonumber(y.o.stamp) or 0
+            if sx ~= sy then return sx > sy end
+            return x.i < y.i
+        end)
+        local sorted = {}
+        for i, e in ipairs(list) do sorted[i] = e.o end
+        db.orders = sorted
+        db.chars = nil
     end
-    if not c then
-        local _, class = UnitClass("player")
-        if not class and not final then return false end   -- class not known yet at load time: try again at PLAYER_LOGIN
-        if not LP.IsRogue() then
-            -- Picky is a rogue addon: other classes get no stored profile. They work with an empty temporary one that is not saved,
-            -- and the old data keeps waiting for the first rogue.
-            c = {}
-            Merge(c, CHAR_DEFAULTS)
-            LP.cdb, LP.cdbKey = c, key
-            return true
-        end
-        c = {}
-        PickyDB.chars[key] = c
-        if not PickyDB.legacyClaimed and LP.IsRogue() and (PickyDB.stats or PickyDB.orders or PickyDB.skillBase) then
-            c.stats, c.orders, c.skillBase = PickyDB.stats, PickyDB.orders, PickyDB.skillBase
-            PickyDB.stats, PickyDB.orders, PickyDB.skillBase = nil, nil, nil
-            PickyDB.legacyClaimed = key
-        end
-    end
-    Merge(c, CHAR_DEFAULTS)
-    LP.cdb, LP.cdbKey = c, key
-    return true
+    db.legacyClaimed, db.legacyDeclined = nil, nil
 end
 
 LP.On("ADDON_LOADED", function(_, name)
@@ -593,13 +579,10 @@ LP.On("ADDON_LOADED", function(_, name)
         if PickyDB.finder.leaveDelay == 10 then PickyDB.finder.leaveDelay = 5 end
     end
     LP.db = PickyDB
-    if LP.SelectChar() and LP.LoadOrders then LP.LoadOrders() end   -- load this character's saved orders (Finder.lua)
+    LP.MergeChars()   -- 1.0.17 stored data per character: merge it back
+    if LP.LoadOrders then LP.LoadOrders() end   -- load the saved orders (Finder.lua)
 end)
 LP.On("PLAYER_LOGIN", function()
-    if not LP.cdb and LP.SelectChar(true) then   -- the character was not known yet at ADDON_LOADED
-        if LP.LoadOrders then LP.LoadOrders() end
-        if LP.RefreshAll then LP.RefreshAll() end
-    end
     LP.RefreshSkill()
     if LP.db.debug then
         LP.Print("|cffff9d00" .. L["Test mode is ON: invites, whispers and announcements are only simulated. Turn it off in the Test tab."] .. "|r")
@@ -611,7 +594,7 @@ LP.On("PLAYER_LOGIN", function()
     if not LP.IsRogue() then
         LP.Print(L["You are not a rogue - most features are inactive."])
     else
-        LP.Print(L["v%s loaded. /lp opens the window. Right-click a locked box to pick it."]:format(LP.version))
+        LP.Print(L["v%s loaded. /picky opens the window. Right-click a locked box to pick it."]:format(LP.version))
     end
     if LP.OnLogin then LP.OnLogin() end
 end)
@@ -627,7 +610,7 @@ end)
 LP.On("CHAT_MSG_SKILL", function(_, msg)
     if type(msg) == "string" and LP.db and IsLockWord(msg:lower()) then
         local n = tonumber(msg:match("(%d+)%D*$"))
-        if n and n > 0 and n <= 300 and LP.cdb then LP.cdb.skillBase = n end
+        if n and n > 0 and n <= 300 then LP.db.skillBase = n end
     end
     LP.RefreshSkill()
     if LP.RefreshUI then LP.RefreshUI() end
@@ -648,7 +631,7 @@ LP.On("PLAYER_LOGOUT", function()
     for i, line in ipairs(LP.debugLog) do log[i] = Clean(line) end
     LP.db.savedLog = log
     -- do not save simulated orders
-    local orders = LP.cdb and LP.cdb.orders
+    local orders = LP.db.orders
     if type(orders) == "table" then
         for i = #orders, 1, -1 do if orders[i].sim then table.remove(orders, i) end end
     end
@@ -688,8 +671,8 @@ function LP.SkillDiagnostics()
     if #notes == 0 then LP.Print("gear bonus: no equipped item with a lockpicking line found") end
 end
 
--- Slash commands: only /lp (window), /lp duty and /lp stats are meant for users. "dev" is a hidden switch for the Developer tab.
-SLASH_PICKY1, SLASH_PICKY2, SLASH_PICKY3 = "/picky", "/lp", "/schloss"
+-- Slash commands: only /picky (window), /picky duty and /picky stats are meant for users. "dev" is a hidden switch for the Developer tab.
+SLASH_PICKY1 = "/picky"
 SlashCmdList["PICKY"] = function(msg)
     local cmd = ((msg or ""):match("^(%S*)") or ""):lower()
     if cmd == "" or cmd == "show" then
@@ -697,13 +680,13 @@ SlashCmdList["PICKY"] = function(msg)
     elseif cmd == "duty" or cmd == "dienst" then
         LP.SetFinder(not LP.db.finder.enabled)
     elseif cmd == "stats" then
-        local s = LP.cdb.stats
+        local s = LP.db.stats
         LP.Print(L["Picked: %d | Invites: %d | Total tips: %s | Thanks sent: %d"]:format(s.picked, s.invited, LP.Money(s.tips), s.thanked))
     elseif cmd == "dev" then
         LP.db.dev = not LP.db.dev
         LP.Print("Developer tab: " .. (LP.db.dev and "ON" or "OFF"))
         if LP.RefreshDevTab then LP.RefreshDevTab() end
     else
-        LP.Print("/lp | /lp duty | /lp stats")
+        LP.Print("/picky | /picky duty | /picky stats")
     end
 end

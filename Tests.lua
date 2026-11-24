@@ -33,7 +33,7 @@ local function Sandbox(setup, fn)
     }
     for _, k in ipairs(FINDER_KEYS) do saved.finder[k] = db.finder[k] end
     for _, k in ipairs(UI_KEYS) do saved.ui[k] = db.ui[k] end
-    for _, k in ipairs(STAT_KEYS) do saved.stats[k] = LP.cdb.stats[k] end
+    for _, k in ipairs(STAT_KEYS) do saved.stats[k] = LP.db.stats[k] end
 
     -- Starting point: empty, dry run, no notifications/sounds
     LP.requests, LP.pending, LP.partner, LP.partnerSim, LP.pickedForPartner, LP.waitTradeClose = {}, nil, nil, nil, false, false
@@ -57,7 +57,7 @@ local function Sandbox(setup, fn)
     LP.feed, LP.lastInviter = saved.feed, saved.lastInviter
     for k, v in pairs(saved.finder) do db.finder[k] = v end
     for k, v in pairs(saved.ui) do db.ui[k] = v end
-    for k, v in pairs(saved.stats) do LP.cdb.stats[k] = v end
+    for k, v in pairs(saved.stats) do LP.db.stats[k] = v end
     if LP.RefreshAll then LP.RefreshAll() end
     if not ok then error(err, 0) end
 end
@@ -297,104 +297,6 @@ T("advertise channels: what the game reports right now (read-only report)", func
     end
     if #list == 0 then return "warn: no channels joined" end
 end)
-T("per character: stats and orders are separate; the first rogue takes over the old account-wide data", function()
-    local db = LP.db
-    local keep = { key = LP.CharKey, rogue = LP.IsRogue, cdb = LP.cdb, cdbKey = LP.cdbKey, chars = db.chars, claimed = db.legacyClaimed,
-        stats = db.stats, orders = db.orders, base = db.skillBase, reqs = LP.requests }
-    local ok, err = pcall(function()
-        db.chars, db.legacyClaimed = {}, nil
-        db.stats, db.orders, db.skillBase = { picked = 5, tips = 100, invited = 2, thanked = 1 }, { { name = "Old" } }, 150
-        -- 1) a non-rogue alt logs in first: starts empty, the old data stays untouched
-        LP.CharKey, LP.IsRogue, LP.cdbKey = function() return "Alt-Realm" end, function() return false end, nil
-        truthy(LP.SelectChar(), "select alt")
-        eq(LP.cdb.stats.picked, 0, "alt starts with 0 picked")
-        eq(#LP.cdb.orders, 0, "alt has no orders")
-        truthy(db.stats ~= nil and db.legacyClaimed == nil, "old data still waiting")
-        -- 2) the rogue logs in: takes over the old data
-        LP.CharKey, LP.IsRogue, LP.cdbKey = function() return "Main-Realm" end, function() return true end, nil
-        LP.SelectChar()
-        eq(LP.cdb.stats.picked, 5, "rogue got the old stats")
-        eq(LP.cdb.orders[1].name, "Old", "rogue got the old orders")
-        eq(LP.cdb.skillBase, 150, "rogue got the stored skill")
-        eq(db.stats, nil, "old account-wide stats removed")
-        eq(db.legacyClaimed, "Main-Realm", "claimed by")
-        -- 3) back to the alt: its own data, not the rogue's
-        LP.CharKey, LP.cdbKey = function() return "Alt-Realm" end, nil
-        LP.SelectChar()
-        eq(LP.cdb.stats.picked, 0, "alt still has 0")
-        LP.cdb.stats.picked = 3
-        LP.CharKey, LP.cdbKey = function() return "Main-Realm" end, nil
-        LP.SelectChar()
-        eq(LP.cdb.stats.picked, 5, "rogue unchanged by the alt")
-    end)
-    LP.CharKey, LP.IsRogue, LP.cdb, LP.cdbKey, db.chars, db.legacyClaimed = keep.key, keep.rogue, keep.cdb, keep.cdbKey, keep.chars, keep.claimed
-    db.stats, db.orders, db.skillBase, LP.requests = keep.stats, keep.orders, keep.base, keep.reqs
-    if not ok then error(err, 0) end
-end)
-T("per character: an entry without realm (version 1.0.16) moves to the full key, nothing is lost", function()
-    local db = LP.db
-    local keep = { key = LP.CharKey, cdb = LP.cdb, cdbKey = LP.cdbKey, chars = db.chars, reqs = LP.requests }
-    local ok, err = pcall(function()
-        db.chars = { ["Asda-"] = { stats = { picked = 7, tips = 1, invited = 2, thanked = 3 }, orders = { { name = "Keep" } } } }
-        LP.CharKey, LP.cdbKey = function() return "Asda-4440" end, nil
-        truthy(LP.SelectChar(), "select")
-        eq(LP.cdb.stats.picked, 7, "stats kept")
-        eq(LP.cdb.orders[1].name, "Keep", "orders kept")
-        eq(db.chars["Asda-"], nil, "old key removed")
-        truthy(db.chars["Asda-4440"] ~= nil, "new key exists")
-        -- another character with the same name on another realm (other realm id) is separate
-        LP.CharKey, LP.cdbKey = function() return "Asda-4441" end, nil
-        LP.SelectChar()
-        eq(LP.cdb.stats.picked, 0, "same name on another realm starts empty")
-    end)
-    LP.CharKey, LP.cdb, LP.cdbKey, db.chars, LP.requests = keep.key, keep.cdb, keep.cdbKey, keep.chars, keep.reqs
-    if not ok then error(err, 0) end
-end)
-T("per character: the key comes from the GUID realm id and the addon always has a character table", function()
-    truthy(LP.cdb ~= nil, "LP.cdb exists")
-    truthy(type(LP.cdbKey) == "string" and LP.cdbKey:find("^.+%-.+$") ~= nil, "key looks like Name-<id>: " .. tostring(LP.cdbKey))
-    truthy(LP.cdb.stats ~= nil and LP.cdb.orders ~= nil, "stats and orders exist")
-    LP.Debug("test", "character key: %s (GUID %s, realm name '%s')", tostring(LP.cdbKey), tostring(UnitGUID("player")), tostring(GetRealmName and GetRealmName()))
-end)
-T("real chat: a switched-off channel is ignored (names as the game sends them), whispers never", function()
-    local f = LP.db.finder
-    local was = f.readOff
-    f.readOff = nil
-    local TRADE, GENERAL, SERVICES = "2. Trade - German 33", "1. General - Stormwind City", "4. Services"
-    truthy(LP.ChatAllowed("CHAT_MSG_CHANNEL", TRADE), "trade on by default")
-    LP.SetReadChannel("trade", false)
-    falsy(LP.ChatAllowed("CHAT_MSG_CHANNEL", TRADE), "trade switched off (channel string)")
-    falsy(LP.ChatAllowed("CHAT_MSG_CHANNEL", TRADE, "Trade"), "trade switched off (base name)")
-    truthy(LP.ChatAllowed("CHAT_MSG_CHANNEL", GENERAL), "general still on")
-    truthy(LP.ChatAllowed("CHAT_MSG_CHANNEL", SERVICES), "services still on")
-    truthy(LP.ChatAllowed("CHAT_MSG_WHISPER"), "whispers are always read")
-    LP.SetReadChannel("general", false)
-    LP.SetReadChannel("say", false)
-    LP.SetReadChannel("yell", false)
-    falsy(LP.ChatAllowed("CHAT_MSG_CHANNEL", GENERAL), "general switched off")
-    falsy(LP.ChatAllowed("CHAT_MSG_SAY"), "say switched off")
-    falsy(LP.ChatAllowed("CHAT_MSG_YELL"), "yell switched off")
-    truthy(LP.ChatAllowed("CHAT_MSG_WHISPER"), "whispers still read with everything off")
-    f.readOff = was
-end)
-T("real chat: an advertisement of another rogue creates no request and is logged", function()
-    local db = LP.db
-    local wasDebug, n = db.debug, #LP.requests
-    db.debug = true   -- the log is only written in test mode
-    local ok, err = pcall(function()
-        local before = #LP.debugLog
-        LP.lastDebugKey = nil
-        LP.OnChat("CHAT_MSG_CHANNEL", "Rogue 300 lockpicking, PM me for lockboxes", "Adrogue-Realm", true)
-        eq(#LP.requests, n, "no request created")
-        local found = false
-        for i = before + 1, #LP.debugLog do
-            if tostring(LP.debugLog[i]):find("ignored as an advertisement of another rogue", 1, true) then found = true end
-        end
-        truthy(found, "the ignored advertisement is in the log")
-    end)
-    db.debug = wasDebug
-    if not ok then error(err, 0) end
-end)
 T("guide stage by skill", function()
     eq(LP.StageForSkill(1), 1, "1")
     eq(LP.StageForSkill(99), 1, "99")
@@ -537,7 +439,7 @@ end)
 -- 6) Whole flow with simulation ---------------------------------------------------------------------------------------
 T("flow: request -> invite -> join -> tip -> pick -> leave (simulated, nothing real is sent)", function()
     Sandbox(nil, function(db)
-        local before = { picked = LP.cdb.stats.picked, tips = LP.cdb.stats.tips, invited = LP.cdb.stats.invited }
+        local before = { picked = LP.db.stats.picked, tips = LP.db.stats.tips, invited = LP.db.stats.invited }
         local r = LP.SimulateChat("LF rogue to open a bronze lockbox pls", false)
         truthy(r, "request created")
         eq(r.status, "invited", "after request")
@@ -551,9 +453,9 @@ T("flow: request -> invite -> join -> tip -> pick -> leave (simulated, nothing r
         LP.SimulateLeave()
         eq(LP.partner, nil, "customer gone")
         eq(r.status, "done", "status done")
-        eq(LP.cdb.stats.picked, before.picked, "stats.picked unchanged")
-        eq(LP.cdb.stats.tips, before.tips, "stats.tips unchanged")
-        eq(LP.cdb.stats.invited, before.invited, "stats.invited unchanged")
+        eq(LP.db.stats.picked, before.picked, "stats.picked unchanged")
+        eq(LP.db.stats.tips, before.tips, "stats.tips unchanged")
+        eq(LP.db.stats.invited, before.invited, "stats.invited unchanged")
     end)
 end)
 T("flow: skill too low request is not invited", function()
@@ -833,10 +735,10 @@ T("trade complete: customer in group -> leave is scheduled; others are ignored",
 end)
 T("orders: saved orders are restored (times, expiry, stale invite, simulated dropped)", function()
     local db = LP.db
-    local savedOrders, savedReq = LP.cdb.orders, LP.requests
+    local savedOrders, savedReq = LP.db.orders, LP.requests
     local ok, err = pcall(function()
         local nowE = time()
-        LP.cdb.orders = {
+        LP.db.orders = {
             { name = "Fresh", status = "new", stamp = nowE - 30, msg = "x" },
             { name = "Old", status = "new", stamp = nowE - 5000, msg = "x" },
             { name = "Invited", status = "invited", stamp = nowE - 10, msg = "x" },
@@ -845,7 +747,7 @@ T("orders: saved orders are restored (times, expiry, stale invite, simulated dro
         }
         LP.LoadOrders()
         eq(#LP.requests, 4, "simulated order dropped")
-        truthy(LP.requests == LP.cdb.orders, "requests is the saved table")
+        truthy(LP.requests == LP.db.orders, "requests is the saved table")
         local by = {}
         for _, r in ipairs(LP.requests) do by[r.name] = r end
         eq(by.Fresh.status, "new", "fresh request stays open")
@@ -856,7 +758,7 @@ T("orders: saved orders are restored (times, expiry, stale invite, simulated dro
         eq(by.Done.tipTotal, 20000, "tip kept")
         truthy(math.abs((GetTime() - by.Fresh.time) - 30) < 3, "session time recomputed from the saved stamp")
     end)
-    LP.cdb.orders, LP.requests = savedOrders, savedReq
+    LP.db.orders, LP.requests = savedOrders, savedReq
     if not ok then error(err, 0) end
 end)
 T("orders: boxes are counted per customer", function()

@@ -2,7 +2,7 @@
 local ADDON, LP = ...
 local L = LP.L
 
-LP.requests = {}   -- newest first; after loading this is LP.cdb.orders (stored permanently), see LoadOrders
+LP.requests = {}   -- newest first; after loading this is LP.db.orders (stored permanently), see LoadOrders
 LP.OnLanguage(function()
     LP.STATUS = {
         new = { L["New"], "ffd100" },
@@ -170,7 +170,7 @@ function LP.TryInvite(req)
     local myInvite = GetTime()
     req.invitedAt = myInvite   -- a repeated invite starts a new 60 s window; the old timer must not fire for it
     LP.pending = req
-    if not LP.IsDry() then LP.cdb.stats.invited = LP.cdb.stats.invited + 1 end
+    if not LP.IsDry() then LP.db.stats.invited = LP.db.stats.invited + 1 end
     Touch()
     if LP.IsDry() then return end   -- dry run: never a real join, so no "not joined" timeout either
     LP.After(60, function()
@@ -472,7 +472,7 @@ function LP.SendThanks(r)
     r.thanked = true
     LP.Debug("trade", "sending the thank-you to %s (total tip %s)", r.name, LP.Money(r.tipTotal))
     LP.Whisper(r.sender or r.name, f.thanksText)
-    if not LP.IsDry() then LP.cdb.stats.thanked = LP.cdb.stats.thanked + 1 end
+    if not LP.IsDry() then LP.db.stats.thanked = LP.db.stats.thanked + 1 end
 end
 
 -- Leave after a wait; a new trade by the customer cancels it (several boxes in a row)
@@ -566,7 +566,7 @@ end)
 -- Pick succeeded -> leave the group if applicable -----------------------------------------------------
 function LP.OnPickSuccess(simulated)
     local f = LP.db.finder
-    if not simulated then LP.cdb.stats.picked = LP.cdb.stats.picked + 1 end
+    if not simulated then LP.db.stats.picked = LP.db.stats.picked + 1 end
     LP.Debug("pick", "pick success%s (customer: %s)", simulated and " (simulated)" or "", LP.partner)
     LP.Feed("pick", L["Box picked"])
     if not LP.partner and LP.tradePartner then
@@ -679,7 +679,7 @@ function LP.HandleTip(name, tip, simulated)
     local f = LP.db.finder
     LP.Debug("trade", "tip %s from %s%s", LP.Money(tip), name, simulated and " (simulated)" or "")
     LP.Feed("tip", L["Tip from %s: |cffffd100%s|r"]:format(name, LP.Money(tip)))
-    if not simulated then LP.cdb.stats.tips = LP.cdb.stats.tips + tip end
+    if not simulated then LP.db.stats.tips = LP.db.stats.tips + tip end
     local req = LP.FindRequest(name)
     local how   -- for the hint in the toast: "later" = thanks follows on leaving, "sent" = sent immediately
     if f.thanks then
@@ -691,7 +691,7 @@ function LP.HandleTip(name, tip, simulated)
             LP.Debug("trade", "thank-you for %s deferred until the group ends (total tip %s)", name, LP.Money(req.tipTotal))
         else
             LP.Whisper((req and req.sender) or name, f.thanksText)   -- full name (realm), if known
-            if not LP.IsDry() then LP.cdb.stats.thanked = LP.cdb.stats.thanked + 1 end
+            if not LP.IsDry() then LP.db.stats.thanked = LP.db.stats.thanked + 1 end
             if req then req.tipTotal = (req.tipTotal or 0) + tip req.thanked = true end   -- also count it on the order here
             how = "sent"
         end
@@ -896,12 +896,12 @@ end
 
 
 -- Orders: store permanently, load, expire, delete -----------------------------------------------
--- LP.requests is LP.cdb.orders after loading: everything survives /reload and restart until YOU delete it.
+-- LP.requests is LP.db.orders after loading: everything survives /reload and restart until YOU delete it.
 -- r.time is a GetTime() time and only valid in this session: recompute from the stored timestamp (epoch).
 local OPEN_EXPIRE = 900   -- open requests older than 15 minutes become "no reply"
 function LP.LoadOrders()
-    local orders = LP.cdb.orders
-    if type(orders) ~= "table" then orders = {} LP.cdb.orders = orders end
+    local orders = LP.db.orders
+    if type(orders) ~= "table" then orders = {} LP.db.orders = orders end
     local nowE, nowT = time(), GetTime()
     for i = #orders, 1, -1 do
         local r = orders[i]

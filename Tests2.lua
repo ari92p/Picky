@@ -301,145 +301,143 @@ T("channels: nothing is filtered when nothing is switched off", function()
     f.readOff = was
 end)
 
--- 5) Per character: key and upgrade from older versions ---------------------------------------------------------------
-local function WithMocks(mocks, fn)   -- replace global functions for one call; always restore them
-    local saved = {}
-    for name, v in pairs(mocks) do saved[name] = _G[name] _G[name] = v end
-    local ok, err = pcall(fn)
-    for name in pairs(mocks) do _G[name] = saved[name] end
-    if not ok then error(err, 0) end
-end
-T("character key: Name-<realm id> from the GUID, nil while unknown, '?' only as the last resort", function()
-    WithMocks({ UnitName = function() return "Asda" end, UnitGUID = function() return "Player-4440-0123ABCD" end }, function()
-        eq(LP.CharKey(), "Asda-4440", "normal")
-        eq(LP.CharKey(true), "Asda-4440", "final")
-    end)
-    WithMocks({ UnitName = function() return "Asda" end, UnitGUID = function() return nil end }, function()
-        eq(LP.CharKey(), nil, "no GUID yet")
-        eq(LP.CharKey(true), "Asda-?", "no GUID, last resort")
-    end)
-    WithMocks({ UnitName = function() return "Asda" end, UnitGUID = function() return "Creature-0-1-2-3-4-5" end }, function()
-        eq(LP.CharKey(), nil, "not a player GUID")
-    end)
-    WithMocks({ UnitName = function() return nil end, UnitGUID = function() return "Player-4440-0123ABCD" end }, function()
-        eq(LP.CharKey(true), nil, "no name: no key, not even as the last resort")
-    end)
-    WithMocks({ UnitName = function() return "Bob" end, UnitGUID = function() return "Player-1-AAAA" end }, function()
-        local k1 = LP.CharKey()
-        WithMocks({ UnitGUID = function() return "Player-2-AAAA" end }, function()
-            truthy(k1 ~= LP.CharKey(), "same name on another realm gives another key")
-        end)
-    end)
-end)
-
--- Run SelectChar against a prepared database in the shape of an older version, then restore everything
-local function Upgrade(legacy, steps)
+-- 5) Data lives in PickyDB for the whole account (1.0.17 stored it per character; that was taken back and is merged on load) ---------------
+local function WithData(setup, fn)   -- prepare the account data, run, restore everything
     local db = LP.db
-    local keep = { key = LP.CharKey, rogue = LP.IsRogue, cdb = LP.cdb, cdbKey = LP.cdbKey, chars = db.chars, claimed = db.legacyClaimed,
-        stats = db.stats, orders = db.orders, base = db.skillBase, reqs = LP.requests }
+    local keep = { stats = db.stats, orders = db.orders, base = db.skillBase, chars = db.chars, claimed = db.legacyClaimed, declined = db.legacyDeclined, reqs = LP.requests }
     local ok, err = pcall(function()
-        db.chars, db.legacyClaimed = nil, nil
-        db.stats, db.orders, db.skillBase = legacy.stats, legacy.orders, legacy.skillBase
-        LP.cdb, LP.cdbKey = nil, nil
-        steps(db, function(name, rogue)   -- login(name, isRogue)
-            LP.CharKey = function() return name end
-            LP.IsRogue = function() return rogue end
-            LP.cdbKey = nil
-            truthy(LP.SelectChar(), "select " .. name)
-        end)
+        db.stats, db.orders, db.skillBase, db.chars, db.legacyClaimed, db.legacyDeclined = nil, nil, nil, nil, nil, nil
+        setup(db)
+        LP.MergeChars()
+        fn(db)
     end)
-    LP.CharKey, LP.IsRogue, LP.cdb, LP.cdbKey, db.chars, db.legacyClaimed = keep.key, keep.rogue, keep.cdb, keep.cdbKey, keep.chars, keep.claimed
-    db.stats, db.orders, db.skillBase, LP.requests = keep.stats, keep.orders, keep.base, keep.reqs
+    db.stats, db.orders, db.skillBase, db.chars, db.legacyClaimed, db.legacyDeclined = keep.stats, keep.orders, keep.base, keep.chars, keep.claimed, keep.declined
+    LP.requests = keep.reqs
     if not ok then error(err, 0) end
 end
-T("upgrade from 1.0.15: stats, orders and skill move to the first rogue, nothing is lost", function()
-    Upgrade({ stats = { picked = 3, tips = 123456 }, orders = { { name = "A", status = "done", boxes = 1 }, { name = "B", status = "timeout" } }, skillBase = 212 },
-        function(db, login)
-            login("Rogue-1", true)
-            eq(LP.cdb.stats.picked, 3, "picked")
-            eq(LP.cdb.stats.tips, 123456, "tips")
-            eq(LP.cdb.stats.invited, 0, "missing stat keys are filled in")
-            eq(LP.cdb.stats.thanked, 0, "missing stat keys are filled in")
-            eq(#LP.cdb.orders, 2, "orders")
-            eq(LP.cdb.orders[1].name, "A", "first order")
-            eq(LP.cdb.skillBase, 212, "stored skill")
-            eq(db.stats, nil, "old stats removed")
-            eq(db.orders, nil, "old orders removed")
-            eq(db.skillBase, nil, "old skill removed")
-            eq(db.legacyClaimed, "Rogue-1", "claimed by")
-        end)
-end)
-T("upgrade from 1.0.15: a second rogue and later logins do not take the data again", function()
-    Upgrade({ stats = { picked = 3 }, orders = { { name = "A" } }, skillBase = 100 }, function(db, login)
-        login("Rogue-1", true)
-        login("Rogue-2", true)
-        eq(LP.cdb.stats.picked, 0, "second rogue starts empty")
-        eq(#LP.cdb.orders, 0, "second rogue has no orders")
-        eq(LP.cdb.skillBase, nil, "second rogue has no stored skill")
-        login("Rogue-1", true)
-        eq(LP.cdb.stats.picked, 3, "first rogue keeps the data")
-        eq(#LP.cdb.orders, 1, "first rogue keeps the orders")
-        login("Rogue-1", true)
-        eq(LP.cdb.stats.picked, 3, "logging in again changes nothing")
+T("merge back from 1.0.17: the data of all characters is added up on the account, nothing is lost", function()
+    WithData(function(db)
+        db.stats = { picked = 1, tips = 10, invited = 0, thanked = 0 }
+        db.orders = {}
+        db.chars = {
+            ["Asda-6939"] = { stats = { picked = 3, tips = 5000, invited = 2, thanked = 1 }, orders = { { name = "A", stamp = 100 } }, skillBase = 90 },
+            ["Velina-6939"] = { stats = { picked = 59, tips = 5065, invited = 1, thanked = 4 }, orders = { { name = "B", stamp = 300 }, { name = "C", stamp = 200 } }, skillBase = 156 },
+        }
+    end, function(db)
+        eq(db.stats.picked, 63, "picked is summed (1 + 3 + 59)")
+        eq(db.stats.tips, 10075, "tips are summed")
+        eq(db.stats.invited, 3, "invited")
+        eq(db.stats.thanked, 5, "thanked")
+        eq(#db.orders, 3, "all orders")
+        eq(db.orders[1].name, "B", "newest first")
+        eq(db.orders[2].name, "C", "then")
+        eq(db.orders[3].name, "A", "oldest last")
+        eq(db.skillBase, 156, "the highest stored skill")
+        eq(db.chars, nil, "the per-character table is gone")
     end)
 end)
-T("upgrade from 1.0.15: a character that is not a rogue never takes the data", function()
-    Upgrade({ stats = { picked = 5 }, orders = { { name = "A" } }, skillBase = 150 }, function(db, login)
-        login("Mage-1", false)
-        eq(LP.cdb.stats.picked, 0, "mage starts empty")
-        truthy(db.stats ~= nil and db.orders ~= nil, "the old data waits for a rogue")
-        eq(db.legacyClaimed, nil, "nobody claimed yet")
-        eq(db.chars["Mage-1"], nil, "no stored profile for a character that is not a rogue")
-        LP.cdb.stats.picked = 99   -- the temporary profile works, but is gone at the next login
-        login("Mage-1", false)
-        eq(LP.cdb.stats.picked, 0, "temporary profile is not kept")
-        login("Rogue-1", true)
-        eq(LP.cdb.stats.picked, 5, "the rogue gets it later")
-        eq(db.stats, nil, "now moved")
+T("merge back: running it again changes nothing", function()
+    WithData(function(db)
+        db.stats = { picked = 0, tips = 0, invited = 0, thanked = 0 }
+        db.orders = {}
+        db.chars = { ["X-1"] = { stats = { picked = 4, tips = 7, invited = 0, thanked = 0 }, orders = { { name = "Once", stamp = 5 } } } }
+    end, function(db)
+        LP.MergeChars()
+        LP.MergeChars()
+        eq(db.stats.picked, 4, "picked is not doubled")
+        eq(db.stats.tips, 7, "tips are not doubled")
+        eq(#db.orders, 1, "orders are not doubled")
     end)
 end)
-T("upgrade: only the stored skill existed (new install of 1.0.15) -> the rogue gets it", function()
-    Upgrade({ skillBase = 77 }, function(db, login)
-        login("Rogue-1", true)
-        eq(LP.cdb.skillBase, 77, "skill")
-        eq(#LP.cdb.orders, 0, "empty orders list exists")
-        eq(LP.cdb.stats.picked, 0, "stats exist")
+T("merge back: orders with the same time keep their order, orders without a time go last", function()
+    WithData(function(db)
+        db.stats = { picked = 0, tips = 0, invited = 0, thanked = 0 }
+        db.orders = {}
+        db.chars = {
+            ["A-1"] = { orders = { { name = "a1", stamp = 50 }, { name = "a2", stamp = 50 }, { name = "none" } } },
+            ["B-1"] = { orders = { { name = "b1", stamp = 50 }, { name = "newer", stamp = 90 } } },
+        }
+    end, function(db)
+        eq(#db.orders, 5, "all orders")
+        eq(db.orders[1].name, "newer", "newest first")
+        eq(db.orders[2].name, "a1", "same time: first character first")
+        eq(db.orders[3].name, "a2", "same time: order kept")
+        eq(db.orders[4].name, "b1", "same time: second character after the first")
+        eq(db.orders[5].name, "none", "no time: last")
     end)
 end)
-T("upgrade: a fresh install has nothing to claim and no data of other characters", function()
-    Upgrade({}, function(db, login)
-        login("Rogue-1", true)
-        eq(db.legacyClaimed, nil, "nothing was claimed")
-        eq(LP.cdb.stats.tips, 0, "empty stats")
-        eq(#LP.cdb.orders, 0, "no orders")
-        login("Rogue-2", true)
-        eq(#LP.cdb.orders, 0, "other character has its own list")
-        LP.cdb.stats.picked = 9
-        login("Rogue-1", true)
-        eq(LP.cdb.stats.picked, 0, "the first rogue is not affected by the second")
+T("merge back: damaged entries are skipped, the rest is kept", function()
+    WithData(function(db)
+        db.stats = { picked = 2, tips = 0, invited = 0, thanked = 0 }
+        db.orders = {}
+        db.chars = {
+            ["Bad-1"] = "not a table",
+            ["Half-1"] = { stats = { picked = "5", tips = "x" }, orders = { "junk", { name = "ok", stamp = 1 } } },
+            ["Empty-1"] = {},
+        }
+    end, function(db)
+        eq(db.stats.picked, 7, "a number written as text still counts (2 + 5)")
+        eq(db.stats.tips, 0, "text that is no number counts as 0")
+        eq(#db.orders, 1, "only the real order is kept")
+        eq(db.orders[1].name, "ok", "the order")
     end)
 end)
-T("upgrade: an entry from the test build without realm id moves to the full key", function()
-    Upgrade({}, function(db, login)
-        db.chars = { ["Asda-"] = { stats = { picked = 4, tips = 1, invited = 1, thanked = 1 }, orders = { { name = "Keep" } }, skillBase = 90 } }
-        login("Asda-4440", true)
-        eq(LP.cdb.stats.picked, 4, "stats")
-        eq(LP.cdb.orders[1].name, "Keep", "orders")
-        eq(LP.cdb.skillBase, 90, "skill")
-        eq(db.chars["Asda-"], nil, "old key removed")
+T("merge back: without per-character data nothing changes (accounts that never had 1.0.17)", function()
+    WithData(function(db)
+        db.stats = { picked = 8, tips = 123, invited = 1, thanked = 1 }
+        db.orders = { { name = "Mine", stamp = 7 } }
+        db.skillBase = 120
+    end, function(db)
+        eq(db.stats.picked, 8, "picked")
+        eq(db.stats.tips, 123, "tips")
+        eq(#db.orders, 1, "orders")
+        eq(db.skillBase, 120, "skill")
+        eq(db.chars, nil, "no per-character table is created")
     end)
 end)
-T("non-rogue classes: no profile is stored, the temporary one is complete", function()
-    Upgrade({}, function(db, login)
-        login("Priest-1", false)
-        eq(db.chars["Priest-1"], nil, "nothing stored")
-        truthy(LP.cdb.stats ~= nil and LP.cdb.orders ~= nil, "stats and orders exist")
-        eq(LP.cdb.stats.tips, 0, "tips")
-        eq(#LP.cdb.orders, 0, "orders")
-        local n = 0
-        for _ in pairs(db.chars or {}) do n = n + 1 end
-        eq(n, 0, "the database has no character entries at all")
+T("merge back: old claim markers are removed", function()
+    WithData(function(db)
+        db.stats = { picked = 0, tips = 0, invited = 0, thanked = 0 }
+        db.orders = {}
+        db.legacyClaimed, db.legacyDeclined = "Asda-6939", { ["X-1"] = true }
+    end, function(db)
+        eq(db.legacyClaimed, nil, "legacyClaimed")
+        eq(db.legacyDeclined, nil, "legacyDeclined")
     end)
+end)
+T("data: statistics and orders are part of the defaults (new installs)", function()
+    truthy(type(LP.defaults.stats) == "table", "stats default")
+    eq(LP.defaults.stats.picked, 0, "picked starts at 0")
+    eq(LP.defaults.stats.tips, 0, "tips start at 0")
+    truthy(type(LP.defaults.orders) == "table", "orders default")
+    eq(LP.defaults.chars, nil, "there is no per-character default any more")
+end)
+T("skill: the stored skill belongs to the account and is not used on a character without Pick Lock", function()
+    local db = LP.db
+    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = db.skillBase, ts = C_TradeSkillUI }
+    local ok, err = pcall(function()
+        C_TradeSkillUI = false
+        LP.IsRogue = function() return true end
+        LP.ReadSkillList = function() return nil end
+        db.skillBase = 160   -- stored by another character (the main)
+        LP.PickLockKnown = function() return false end
+        LP.RefreshSkill()
+        eq(LP.skillBase, 0, "an alt without Pick Lock does not inherit the 160")
+        truthy(LP.skillNotLearned, "not learned")
+        LP.PickLockKnown = function() return true end
+        LP.RefreshSkill()
+        eq(LP.skillBase, 160, "with Pick Lock known the stored value is used as a fallback")
+        LP.PickLockKnown = function() return nil end
+        LP.RefreshSkill()
+        eq(LP.skillBase, 160, "when the client cannot tell, the stored value is used too")
+    end)
+    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, db.skillBase, C_TradeSkillUI = keep.known, keep.rogue, keep.list, keep.base, keep.ts
+    LP.RefreshSkill()
+    if not ok then error(err, 0) end
+end)
+T("non-rogue classes: nothing is stored for them and the statistics stay shared", function()
+    truthy(LP.db.stats ~= nil, "account statistics exist")
+    eq(LP.db.chars, nil, "no per-character table")
 end)
 T("settings: default wait before leaving is 5 seconds", function()
     eq(LP.defaults.finder.leaveDelay, 5, "default")
@@ -471,12 +469,12 @@ T("non-rogue sayings: every saying can be shown (with the class name) and the pi
     LP.quoteIndex = was
 end)
 T("skill: a rogue without Pick Lock has skill 0 (not learned), not a guess from the level", function()
-    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, cdb = LP.cdb, ts = C_TradeSkillUI }
+    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = LP.db.skillBase, ts = C_TradeSkillUI }
     local ok, err = pcall(function()
         C_TradeSkillUI = false   -- the second source of the skill must not answer for the real character
         LP.IsRogue = function() return true end
         LP.ReadSkillList = function() return nil end     -- no Lockpicking line in the skill list
-        LP.cdb = { stats = { picked = 0, tips = 0, invited = 0, thanked = 0 }, orders = {} }   -- nothing stored
+        LP.db.skillBase = nil   -- nothing stored
         LP.PickLockKnown = function() return false end
         LP.RefreshSkill()
         eq(LP.Skill(), LP.skillBonus or 0, "skill is only the gear bonus")
@@ -499,15 +497,15 @@ T("skill: a rogue without Pick Lock has skill 0 (not learned), not a guess from 
         falsy(LP.skillEstimated, "not estimated")
         falsy(LP.skillNotLearned, "learned")
     end)
-    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, LP.cdb, C_TradeSkillUI = keep.known, keep.rogue, keep.list, keep.cdb, keep.ts
+    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, LP.db.skillBase, C_TradeSkillUI = keep.known, keep.rogue, keep.list, keep.base, keep.ts
     LP.RefreshSkill()
     if not ok then error(err, 0) end
 end)
 T("skill: a character that is not a rogue is never marked as not learned", function()
-    local keep = { rogue = LP.IsRogue, list = LP.ReadSkillList, known = LP.PickLockKnown, ts = C_TradeSkillUI, cdb = LP.cdb }
+    local keep = { rogue = LP.IsRogue, list = LP.ReadSkillList, known = LP.PickLockKnown, ts = C_TradeSkillUI, base = LP.db.skillBase }
     local ok, err = pcall(function()
         C_TradeSkillUI = false
-        LP.cdb = { stats = { picked = 0, tips = 0, invited = 0, thanked = 0 }, orders = {} }
+        LP.db.skillBase = nil
         LP.IsRogue = function() return false end
         LP.ReadSkillList = function() return nil end
         LP.PickLockKnown = function() return false end
@@ -515,7 +513,7 @@ T("skill: a character that is not a rogue is never marked as not learned", funct
         eq(LP.skillBase, 0, "base 0")
         falsy(LP.skillNotLearned, "no 'not learned' flag for other classes")
     end)
-    LP.IsRogue, LP.ReadSkillList, LP.PickLockKnown, C_TradeSkillUI, LP.cdb = keep.rogue, keep.list, keep.known, keep.ts, keep.cdb
+    LP.IsRogue, LP.ReadSkillList, LP.PickLockKnown, C_TradeSkillUI, LP.db.skillBase = keep.rogue, keep.list, keep.known, keep.ts, keep.base
     LP.RefreshSkill()
     if not ok then error(err, 0) end
 end)
@@ -585,4 +583,45 @@ T("chat detection: an advertisement before a box link does not open the follow-u
         falsy(LP.FindRequest("Adder"), "no request from an advertiser")
     end)
     LP.recentSeek = was
+end)
+
+-- 7) Real chat: switched-off channels and advertisements (moved here from Tests.lua) --------------------------------------------------------
+T("real chat: a switched-off channel is ignored (names as the game sends them), whispers never", function()
+    local f = LP.db.finder
+    local was = f.readOff
+    f.readOff = nil
+    local TRADE, GENERAL, SERVICES = "2. Trade - German 33", "1. General - Stormwind City", "4. Services"
+    truthy(LP.ChatAllowed("CHAT_MSG_CHANNEL", TRADE), "trade on by default")
+    LP.SetReadChannel("trade", false)
+    falsy(LP.ChatAllowed("CHAT_MSG_CHANNEL", TRADE), "trade switched off (channel string)")
+    falsy(LP.ChatAllowed("CHAT_MSG_CHANNEL", TRADE, "Trade"), "trade switched off (base name)")
+    truthy(LP.ChatAllowed("CHAT_MSG_CHANNEL", GENERAL), "general still on")
+    truthy(LP.ChatAllowed("CHAT_MSG_CHANNEL", SERVICES), "services still on")
+    truthy(LP.ChatAllowed("CHAT_MSG_WHISPER"), "whispers are always read")
+    LP.SetReadChannel("general", false)
+    LP.SetReadChannel("say", false)
+    LP.SetReadChannel("yell", false)
+    falsy(LP.ChatAllowed("CHAT_MSG_CHANNEL", GENERAL), "general switched off")
+    falsy(LP.ChatAllowed("CHAT_MSG_SAY"), "say switched off")
+    falsy(LP.ChatAllowed("CHAT_MSG_YELL"), "yell switched off")
+    truthy(LP.ChatAllowed("CHAT_MSG_WHISPER"), "whispers still read with everything off")
+    f.readOff = was
+end)
+T("real chat: an advertisement of another rogue creates no request and is logged", function()
+    local db = LP.db
+    local wasDebug, n = db.debug, #LP.requests
+    db.debug = true   -- the log is only written in test mode
+    local ok, err = pcall(function()
+        local before = #LP.debugLog
+        LP.lastDebugKey = nil
+        LP.OnChat("CHAT_MSG_CHANNEL", "Rogue 300 lockpicking, PM me for lockboxes", "Adrogue-Realm", true)
+        eq(#LP.requests, n, "no request created")
+        local found = false
+        for i = before + 1, #LP.debugLog do
+            if tostring(LP.debugLog[i]):find("ignored as an advertisement of another rogue", 1, true) then found = true end
+        end
+        truthy(found, "the ignored advertisement is in the log")
+    end)
+    db.debug = wasDebug
+    if not ok then error(err, 0) end
 end)

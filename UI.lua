@@ -964,7 +964,7 @@ local function BuildDev(p)
             tostring(LP.skillSource), tostring(LP.skillEstimated))
         P("requests %d | feed %d | log %d lines", #LP.requests, #LP.feed, #LP.debugLog)
         P("pending %s | partner %s", tostring(LP.pending and LP.pending.name), tostring(LP.partner))
-        P("stats picked %d | tips %s | invited %d | thanked %d", LP.cdb.stats.picked, LP.Money(LP.cdb.stats.tips), LP.cdb.stats.invited, LP.cdb.stats.thanked)
+        P("stats picked %d | tips %s | invited %d | thanked %d", LP.db.stats.picked, LP.Money(LP.db.stats.tips), LP.db.stats.invited, LP.db.stats.thanked)
     end
     local function ClientInfo()
         local version, build, bdate, toc = GetBuildInfo()
