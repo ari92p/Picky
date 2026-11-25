@@ -486,12 +486,16 @@ local function NewCard(parent)
     return c
 end
 
--- Tips sit in the game's own bronze dialog frame (same look as the window border), the kind shows in the sign on the left
+-- Tips sit in the game's dialog frame, tinted bronze to match the window border, the kind shows in the sign on the left
 local TIP_BACKDROP = { bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
     tile = true, tileSize = 32, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } }
 local function NewCallout(parent)
     local c = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    if c.SetBackdrop then c:SetBackdrop(TIP_BACKDROP) end
+    if c.SetBackdrop then
+        c:SetBackdrop(TIP_BACKDROP)
+        c:SetBackdropBorderColor(0.85, 0.55, 0.25, 1)   -- the border texture is silver: tint it bronze like the window frame
+        c:SetBackdropColor(0.55, 0.40, 0.28, 1)         -- slightly warm dark body
+    end
     c:SetWidth(GUIDE_W)
     c.glyph = FS(c, "GameFontNormalLarge")
     c.glyph:SetPoint("LEFT", 12, 0)
