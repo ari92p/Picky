@@ -862,7 +862,7 @@ T("guide: Map button data goes through LP.Game and never sends anything", functi
 end)
 T("guide: every tab of the guide page builds and fills without errors", function()
     local was = LP.db.ui and LP.db.ui.winPos
-    for i = 1, 6 do LP.OpenGuide(i) end
+    for i = 1, 5 do LP.OpenGuide(i) end
     LP.OpenGuide(nil)
     WithGame({ Faction = function() return "Horde" end, ItemIcon = function() return nil end, MapName = function() return nil end }, function()
         LP.OpenGuide(1)

@@ -96,7 +96,7 @@ LP.OnLanguage(function()
     local STRONGBOX   = Obj(L["Buccaneer's Strongbox"], 4632, nil, L["Opens up to about skill 100."])
     local PRACTICE    = Obj(L["Practice Lockbox"], 4632, nil, L["Respawns really fast."])
     local BATTERED    = Obj(L["Battered Footlocker"], 4634, 150, L["Upstairs at Angor Fortress."])
-    local BATTERED_LO = Obj(L["Battered Footlocker"], 4634, nil, L["The lower ones, about skill 70 to 110."])
+    local BATTERED_LO = Obj(L["Battered Footlocker"], 4634, nil, L["Needs about skill 70 to 110 here."])
     local WATERLOGGED = Obj(L["Waterlogged Footlocker"], 4637, 110, L["On the shore from the start, the ones in the water open from 110."])
     local DENTED_LOW  = Obj(L["Dented Footlocker (lower)"], 5758, 200, L["The lower part gives points until you stop getting them, then switch to the upper part."])
     local DENTED_175  = Obj(L["Dented Footlocker (175)"], 5758, 175, L["Downstairs at Angor Fortress. A point every time until 215."])
@@ -117,6 +117,7 @@ LP.OnLanguage(function()
             tips = {
                 { "warn", L["Do NOT open 'The Jewel of the Southsea' at the bottom of the ship at a low level: it spawns a mob that kills you."] },
                 { "tip", L["Points get slow after about 65. Move on at 100 at the latest."] },
+                { "warn", L["Keep Thieves' Tools in your bags, or Pick Lock does nothing."] },
             },
         },
         {
@@ -171,17 +172,6 @@ LP.OnLanguage(function()
                 { "warn", L["Do not pickpocket at Angor Fortress or the Slag Pit, it is not worth it."] },
             },
         },
-    }
-    -- Tips that apply everywhere (the Tips tab)
-    LP.GUIDE_TIPS = {
-        { "info", L["Your skill cannot be higher than 5 x your level (level 20: 100, 30: 150, 45: 225, 60: 300)."] },
-        { "warn", L["Keep Thieves' Tools in your bags, or Pick Lock does nothing."] },
-        { "tip", L["A box that looks grey may still give a point. Try it once."] },
-        { "tip", L["Stand where you can reach two boxes without moving."] },
-        { "tip", L["Other rogues compete for the starter spots. Switch spot or try another layer."] },
-        { "tip", L["Bring Water Breathing for underwater boxes."] },
-        { "tip", L["Boxes can hide in grass and seaweed. Lower the ground clutter."] },
-        { "tip", L["Spawn counts differ from Classic. If a spot is empty, move on."] },
     }
 end)
 -- Warning when the skill is held back by the character level (cap = 5 x level). nil when nothing is wrong.

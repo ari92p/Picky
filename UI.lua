@@ -161,20 +161,6 @@ local function MakeSkillBar(parent, w, h, fullScale)
     bar.levelTick:SetSize(2, h)
     bar.label = FS(bar, "GameFontHighlightSmall")
     bar.label:SetPoint("CENTER", 0, 0)
-    bar:EnableMouse(true)
-    bar:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        local t = self.info
-        if not t then return end
-        GameTooltip:SetText(L["Lockpicking"], 1, 0.82, 0)
-        GameTooltip:AddLine(L["Trained skill: %d"]:format(t.base), 0, 0.74, 0.95)
-        if t.bonus > 0 then GameTooltip:AddLine(L["Bonus (gear, buffs): +%d"]:format(t.bonus), 0.3, 0.91, 0.54) end
-        GameTooltip:AddLine(L["Limit of your rank: %d, train for more"]:format(t.max), 1, 1, 1)
-        GameTooltip:AddLine(L["Limit of your level: %d (5 x level)"]:format(t.levelCap), 1, 0.6, 0.1)
-        GameTooltip:AddLine(L["You can reach %d right now. The maximum is 300."]:format(t.reach), 0.3, 0.91, 0.54)
-        GameTooltip:Show()
-    end)
-    bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return bar
 end
 
@@ -385,11 +371,11 @@ function RefreshRequests()
     p.clear:SetText((armedAt and GetTime() - armedAt < 4) and L["Really delete?"] or L["Delete finished"])
 end
 -- Page 2: Guide ------------------------------------------------------------------------------------
--- Tabs: 1-4 = the skill stages, 5 = all boxes by skill, 6 = general tips. Content sits in a scroll frame made of pooled pieces:
+-- Tabs: 1-4 = the skill stages, 5 = all boxes by skill. Content sits in a scroll frame made of pooled pieces:
 -- spot cards (zone, coordinates, Map button, box icons with tooltip), callouts (red warning, green tip, blue info), box rows.
-local GUIDE_TABS = 6
+local GUIDE_TABS = 5
 local GUIDE_W = 376
-local guideFaction            -- "Alliance" | "Horde" | nil = both; starts as the player's faction, the button cycles it
+local guideFaction            -- "Alliance" | "Horde" | nil = both (faction unknown): the guide shows the places of your own faction
 local guidePool = { cards = {}, callouts = {}, rows = {}, heads = {} }
 local CALLOUT = {   -- bar color, background, glyph
     warn = { { 0.95, 0.25, 0.25 }, { 0.35, 0.05, 0.05, 0.6 }, "!", "ff5959" },
@@ -535,14 +521,6 @@ local function BuildGuide(p)
     p.sub = FS(p, "GameFontHighlightSmall")
     p.sub:SetPoint("TOPLEFT", 0, -26)
 
-    p.fac = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    p.fac:SetSize(120, 22)
-    p.fac:SetPoint("TOPRIGHT", 0, 0)
-    p.fac:SetScript("OnClick", function()
-        guideFaction = (guideFaction == nil and "Alliance") or (guideFaction == "Alliance" and "Horde") or (guideFaction == "Horde" and nil) or nil
-        LP.RefreshUI()
-    end)
-
     p.bar = MakeSkillBar(p, 408, 14, true)
     p.bar:SetPoint("TOPLEFT", 0, -42)
     -- markers where the stages change (100, 150, 225)
@@ -668,18 +646,14 @@ local function RefreshGuide()
     local skill = LP.Skill()
     local cur = LP.StageForSkill(skill)
     guideStage = guideStage or cur
-    if guideFaction == nil and not guidePool.factionSet then   -- first time: start with the player's own faction
-        guidePool.factionSet = true
-        local f = LP.Game.Faction()
-        if f == "Alliance" or f == "Horde" then guideFaction = f end
-    end
+    local f = LP.Game.Faction()
+    guideFaction = (f == "Alliance" or f == "Horde") and f or nil
     UpdateSkillBar(p.bar)
     local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
     p.head:SetText(LP.skillNotLearned and L["Lockpicking: not learned yet"] or L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, p.bar.info.reach))
     p.sub:SetText(L["Current stage %s  ·  %d points to the next"]:format(LP.GUIDE[cur].title, math.max(0, LP.GUIDE[cur].to - skill)))
-    p.fac:SetText(L["Faction: %s"]:format(guideFaction and L[guideFaction] or L["Both"]))
     for i, c in ipairs(p.chips) do
-        local t = LP.GUIDE[i] and LP.GUIDE[i].title or (i == 5 and L["Boxes"] or L["Tips"])
+        local t = LP.GUIDE[i] and LP.GUIDE[i].title or L["All boxes"]
         if i == guideStage then t = "|cffffd100" .. t .. "|r" elseif i == cur then t = "|cff4de88a" .. t .. "|r" end
         c:SetText(t)
     end
@@ -693,22 +667,19 @@ local function RefreshGuide()
     local y = -2
     local st = LP.GUIDE[guideStage]
     if st then
-        y = PlaceCallout(y, "info", L["Skill %d needs level %d."]:format(st.to, st.levelReq))
-        local kind, advice = LP.GuideAdvice(skill, LP.Game.UnitLevel())
-        if kind then y = PlaceCallout(y, kind, advice) end
-        y = PlaceHead(y, L["Where to practice"])
         for _, spot in ipairs(st.spots) do
             if (not guideFaction) or (not spot.faction) or (spot.faction == (guideFaction == "Alliance" and "A" or "H")) then
                 y = PlaceCard(y, spot)
             end
         end
         y = PlaceHead(y, L["Tips"])
+        local kind, advice = LP.GuideAdvice(skill, LP.Game.UnitLevel())
+        if kind then y = PlaceCallout(y, kind, advice) end
+        y = PlaceCallout(y, "info", L["Skill %d needs level %d."]:format(st.to, st.levelReq))
         for _, t in ipairs(st.tips) do y = PlaceCallout(y, t[1], t[2]) end
     elseif guideStage == 5 then
         y = PlaceCallout(y, "info", L["Boxes by required skill. Hover for details."])
         for _, e in ipairs(SortedBoxes()) do y = PlaceRow(y, e) end
-    else
-        for _, t in ipairs(LP.GUIDE_TIPS) do y = PlaceCallout(y, t[1], t[2]) end
     end
     p.child:SetHeight(math.max(10, -y + 4))
 
@@ -1536,7 +1507,7 @@ function LP.ShowUI()
     win:Show()
 end
 
--- Open the window on the guide page (stage 1-4, 5 = boxes, 6 = tips; nil = the stage for your skill)
+-- Open the window on the guide page (stage 1-4, 5 = all boxes; nil = the stage for your skill)
 function LP.OpenGuide(stage)
     Build()
     guideStage = stage
