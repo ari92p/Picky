@@ -136,10 +136,12 @@ local function FS(parent, font, text)
     return fs
 end
 
--- Skill bar: always the full scale 0-300 (the number inside the bar says so). Blue = your trained skill, green = bonus from gear/buffs,
--- white tick = limit of your current rank (train at the trainer), orange tick = limit of your level (5 x level). Mouse over: all numbers.
-local function MakeSkillBar(parent, w, h)
+-- Skill bar. Header bar: the scale is what you can reach NOW = the lower of your rank limit and your level limit (5 x level), so "165 / 175".
+-- Guide bar (fullScale): the whole route 0-300 with a white tick at the rank limit and an orange tick at the level limit.
+-- Blue = trained skill, green = bonus from gear/buffs. Mouse over: all numbers.
+local function MakeSkillBar(parent, w, h, fullScale)
     local bar = CreateFrame("StatusBar", nil, parent)
+    bar.fullScale = fullScale
     bar:SetSize(w, h)
     bar.w = w
     bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
@@ -165,11 +167,11 @@ local function MakeSkillBar(parent, w, h)
         local t = self.info
         if not t then return end
         GameTooltip:SetText(L["Lockpicking"], 1, 0.82, 0)
-        GameTooltip:AddLine(L["Scale of the bar: 0 to 300"], 0.8, 0.8, 0.8)
         GameTooltip:AddLine(L["Trained skill: %d"]:format(t.base), 0, 0.74, 0.95)
         if t.bonus > 0 then GameTooltip:AddLine(L["Bonus (gear, buffs): +%d"]:format(t.bonus), 0.3, 0.91, 0.54) end
-        if t.max < 300 then GameTooltip:AddLine(L["Limit of your rank: %d (white mark), train for more"]:format(t.max), 1, 1, 1) end
-        if t.levelCap < 300 then GameTooltip:AddLine(L["Limit of your level: %d (orange mark, 5 x level)"]:format(t.levelCap), 1, 0.6, 0.1) end
+        GameTooltip:AddLine(L["Limit of your rank: %d, train for more"]:format(t.max), 1, 1, 1)
+        GameTooltip:AddLine(L["Limit of your level: %d (5 x level)"]:format(t.levelCap), 1, 0.6, 0.1)
+        GameTooltip:AddLine(L["You can reach %d right now. The maximum is 300."]:format(t.reach), 0.3, 0.91, 0.54)
         GameTooltip:Show()
     end)
     bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -181,23 +183,29 @@ local function UpdateSkillBar(bar)
     local bonus = LP.skillBonus or 0
     if LP.skillNotLearned then base, bonus = 0, 0 end
     base = math.max(0, math.min(300, base))
-    bonus = math.max(0, math.min(300 - base, bonus))
+    bonus = math.max(0, bonus)
     local max = (LP.skillMax and LP.skillMax > 0) and math.min(300, LP.skillMax) or 300
     local level = tonumber(LP.Game.UnitLevel()) or 1
     local levelCap = math.min(300, level * 5)
-    bar.info = { base = base, bonus = bonus, max = max, levelCap = levelCap }
-    bar:SetValue(base)
+    local reach = LP.SkillReach(LP.skillMax, level, base)
+    local scale = bar.fullScale and 300 or reach
+    bonus = math.min(bonus, scale - math.min(base, scale))
+    bar.info = { base = base, bonus = bonus, max = max, levelCap = levelCap, reach = reach }
+    bar:SetMinMaxValues(0, scale)
+    bar:SetValue(math.min(base, scale))
     bar.bonus:ClearAllPoints()
-    bar.bonus:SetPoint("LEFT", bar, "LEFT", bar.w * base / 300, 0)
-    bar.bonus:SetWidth(math.max(1, bar.w * bonus / 300))
+    bar.bonus:SetPoint("LEFT", bar, "LEFT", bar.w * math.min(base, scale) / scale, 0)
+    bar.bonus:SetWidth(math.max(1, bar.w * bonus / scale))
     bar.bonus:SetShown(bonus > 0)
     bar.rankTick:ClearAllPoints()
     bar.rankTick:SetPoint("LEFT", bar, "LEFT", math.min(bar.w - 2, bar.w * max / 300), 0)
-    bar.rankTick:SetShown(max < 300)
+    bar.rankTick:SetShown(bar.fullScale and max < 300 or false)
     bar.levelTick:ClearAllPoints()
     bar.levelTick:SetPoint("LEFT", bar, "LEFT", math.min(bar.w - 2, bar.w * levelCap / 300), 0)
-    bar.levelTick:SetShown(levelCap < 300 and levelCap ~= max)
-    bar.label:SetText(LP.skillNotLearned and "0 / 300" or (bonus > 0 and ("%d |cff4de88a+%d|r / 300"):format(base, bonus) or ("%d / 300"):format(base)))
+    bar.levelTick:SetShown(bar.fullScale and levelCap < 300 and levelCap ~= max or false)
+    local num = bonus > 0 and ("%d |cff4de88a+%d|r"):format(base, bonus) or tostring(base)
+    if LP.skillNotLearned then num = "0" end
+    bar.label:SetText(bar.fullScale and ("%s  |cff9aa0ad(%s %d)  / 300|r"):format(num, L["now reachable"], reach) or ("%s / %d"):format(num, reach))
 end
 
 -- Page 1: Requests --------------------------------------------------------------------------------
@@ -535,7 +543,7 @@ local function BuildGuide(p)
         LP.RefreshUI()
     end)
 
-    p.bar = MakeSkillBar(p, 408, 14)
+    p.bar = MakeSkillBar(p, 408, 14, true)
     p.bar:SetPoint("TOPLEFT", 0, -42)
     -- markers where the stages change (100, 150, 225)
     p.bar.marks = {}
@@ -665,11 +673,11 @@ local function RefreshGuide()
         local f = LP.Game.Faction()
         if f == "Alliance" or f == "Horde" then guideFaction = f end
     end
+    UpdateSkillBar(p.bar)
     local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
-    p.head:SetText(LP.skillNotLearned and L["Lockpicking: not learned yet"] or L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, 300))
+    p.head:SetText(LP.skillNotLearned and L["Lockpicking: not learned yet"] or L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, p.bar.info.reach))
     p.sub:SetText(L["Current stage %s  ·  %d points to the next"]:format(LP.GUIDE[cur].title, math.max(0, LP.GUIDE[cur].to - skill)))
     p.fac:SetText(L["Faction: %s"]:format(guideFaction and L[guideFaction] or L["Both"]))
-    UpdateSkillBar(p.bar)
     for i, c in ipairs(p.chips) do
         local t = LP.GUIDE[i] and LP.GUIDE[i].title or (i == 5 and L["Boxes"] or L["Tips"])
         if i == guideStage then t = "|cffffd100" .. t .. "|r" elseif i == cur then t = "|cff4de88a" .. t .. "|r" end
@@ -1508,13 +1516,13 @@ function LP.RefreshUI()
     if not win or not win:IsShown() or not LP.db then return end
     local skill = LP.Skill()
     local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
+    UpdateSkillBar(win.bar)
     local est = LP.skillEstimated and "  |cffffd100" .. L["estimated"] .. "|r" or ""
     if LP.skillNotLearned then
         win.skillText:SetText(L["Lockpicking: not learned yet"])
     else
-        win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, 300, est))
+        win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, win.bar.info.reach, est))
     end
-    UpdateSkillBar(win.bar)
     win.finder:SetText(LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"])
     if currentTab == 1 then RefreshRequests()
     elseif currentTab == 2 then RefreshGuide()

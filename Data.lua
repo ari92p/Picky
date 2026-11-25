@@ -192,6 +192,12 @@ function LP.GuideAdvice(skill, level)
         return "warn", L["Your skill is capped by your level. Reach level %d to learn more."]:format(math.ceil((skill + 1) / 5))
     end
 end
+-- What you can reach right now: the lower of your rank limit and your level limit (5 x level), at most 300, never below what you have
+function LP.SkillReach(rankMax, level, base)
+    local rank = (tonumber(rankMax) and rankMax > 0) and math.min(300, rankMax) or 300
+    local cap = math.min(300, (tonumber(level) or 1) * 5)
+    return math.max(1, math.min(rank, cap), tonumber(base) or 0)
+end
 function LP.StageForSkill(skill)
     for i, s in ipairs(LP.GUIDE) do
         if skill < s.to then return i end
