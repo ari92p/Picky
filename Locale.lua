@@ -188,7 +188,6 @@ local DE = {
     ["Opens up to about skill 100."] = "Lässt sich bis etwa Skill 100 nutzen.",
     ["Respawns really fast."] = "Respawnt sehr schnell.",
     ["Upstairs at Angor Fortress."] = "Oben in der Angor-Festung.",
-    ["Needs about skill 70 to 110 here."] = "Hier brauchst du etwa Skill 70 bis 110.",
     ["On the shore from the start, the ones in the water open from 110."] = "Am Ufer von Anfang an, die im Wasser lassen sich ab 110 öffnen.",
     ["The lower part gives points until you stop getting them, then switch to the upper part."] = "Der untere Teil gibt Punkte, bis keine mehr kommen, dann wechsle in den oberen Teil.",
     ["Downstairs at Angor Fortress. A point every time until 215."] = "Unten in der Angor-Festung. Bis 215 jedes Mal ein Punkt.",
