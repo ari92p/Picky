@@ -1048,13 +1048,40 @@ local function RefreshTestSlots()
     end
 end
 
+-- Buttons that fit their text: a row of buttons (same y) is laid out again from its first button, each one as wide as its text needs
+-- (never narrower than the width given), the next one 4 pixels behind it. German texts are longer than the English ones.
+local function FitButtonRows(list)
+    local rows = {}
+    for _, e in ipairs(list) do
+        local key = tostring(e.y)
+        rows[key] = rows[key] or {}
+        table.insert(rows[key], e)
+    end
+    for _, row in pairs(rows) do
+        table.sort(row, function(a, b) return a.x < b.x end)
+        local cur = row[1].x
+        for _, e in ipairs(row) do
+            local fs = e.b.GetFontString and e.b:GetFontString()
+            local tw = fs and fs.GetStringWidth and fs:GetStringWidth()
+            local w = (type(tw) == "number") and math.max(e.w, math.ceil(tw) + 22) or e.w
+            e.b:SetWidth(w)
+            e.b:ClearAllPoints()
+            e.b:SetPoint("TOPLEFT", cur, e.y)
+            cur = cur + w + 4
+        end
+    end
+end
+
 local function BuildDebug(p)
+    local fitList = {}
     local function Btn(parent, label, w, x, y, fn)
         local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
         b:SetSize(w, 22)
         b:SetPoint("TOPLEFT", x, y)
         b:SetText(label)
         b:SetScript("OnClick", function() fn() end)
+        fitList[parent == p and "page" or "tools"] = fitList[parent == p and "page" or "tools"] or {}
+        table.insert(fitList[parent == p and "page" or "tools"], { b = b, w = w, x = x, y = y })
         return b
     end
 
@@ -1190,6 +1217,7 @@ local function BuildDebug(p)
     LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit)
         if unit == "player" and pages[4] and pages[4]:IsShown() then LP.After(0.3, RefreshTestSlots) end
     end)
+    for _, list in pairs(fitList) do FitButtonRows(list) end
 end
 
 local function RefreshDebug()
@@ -1217,12 +1245,14 @@ end
 -- Development only: self tests, hover check, diagnostics. Intentionally untranslated.
 local RefreshDev   -- defined below BuildDev
 local function BuildDev(p)
+    local fitList = {}
     local function Btn(label, w, x, y, fn)
         local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
         b:SetSize(w, 22)
         b:SetPoint("TOPLEFT", x, y)
         b:SetText(label)
         b:SetScript("OnClick", function() fn() end)
+        table.insert(fitList, { b = b, w = w, x = x, y = y })
         return b
     end
     local h = FS(p, "GameFontNormalLarge", "Developer tools")
@@ -1377,6 +1407,7 @@ local function BuildDev(p)
         end)
         p.langBtns[i] = b
     end
+    FitButtonRows(fitList)
     RefreshDev()
 end
 
