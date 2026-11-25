@@ -78,8 +78,8 @@ T("data: the guide stages cover skill 1-300 without gaps", function()
         truthy(s.from < s.to, "stage " .. i .. " is not empty")
         if i > 1 then eq(s.from, g[i - 1].to, "stage " .. i .. " continues the previous one") end
         truthy(#s.spots > 0, "stage " .. i .. " names places")
-        truthy(#s.tips > 0, "stage " .. i .. " has tips")
-        for _, t in ipairs(s.tips) do
+        if i == 1 then truthy(#s.tips > 0, "stage 1 has tips") end
+        for _, t in ipairs(s.tips or {}) do
             truthy(t[1] == "warn" or t[1] == "tip" or t[1] == "info", "tip kind of stage " .. i)
             truthy(type(t[2]) == "string" and t[2] ~= "", "tip text of stage " .. i)
         end

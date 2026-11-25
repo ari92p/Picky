@@ -691,7 +691,7 @@ local function RefreshGuide()
         local kind, advice = LP.GuideAdvice(skill, LP.Game.UnitLevel())
         if kind then y = PlaceCallout(y, kind, advice) end
         y = PlaceCallout(y, "info", L["Skill %d needs level %d."]:format(st.to, st.levelReq))
-        for _, t in ipairs(st.tips) do y = PlaceCallout(y, t[1], t[2]) end
+        for _, t in ipairs(st.tips or {}) do y = PlaceCallout(y, t[1], t[2]) end
     elseif guideStage == 5 then
         y = PlaceCallout(y, "info", L["Boxes by required skill. Hover for details."])
         for _, e in ipairs(SortedBoxes()) do y = PlaceRow(y, e) end
