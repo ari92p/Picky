@@ -682,16 +682,16 @@ local function RefreshGuide()
     local y = -2
     local st = LP.GUIDE[guideStage]
     if st then
-        for _, spot in ipairs(st.spots) do
-            if (not guideFaction) or (not spot.faction) or (spot.faction == (guideFaction == "Alliance" and "A" or "H")) then
-                y = PlaceCard(y, spot)
-            end
-        end
         y = PlaceHead(y, L["Tips"])
         local kind, advice = LP.GuideAdvice(skill, LP.Game.UnitLevel())
         if kind then y = PlaceCallout(y, kind, advice) end
         y = PlaceCallout(y, "info", L["Skill %d needs level %d."]:format(st.to, st.levelReq))
         for _, t in ipairs(st.tips or {}) do y = PlaceCallout(y, t[1], t[2]) end
+        for _, spot in ipairs(st.spots) do
+            if (not guideFaction) or (not spot.faction) or (spot.faction == (guideFaction == "Alliance" and "A" or "H")) then
+                y = PlaceCard(y, spot)
+            end
+        end
     elseif guideStage == 5 then
         y = PlaceCallout(y, "info", L["Boxes by required skill. Hover for details."])
         for _, e in ipairs(SortedBoxes()) do y = PlaceRow(y, e) end
