@@ -1,4 +1,4 @@
-# Picky
+# Picky - Lockpick Assistant
 
 Rogue lockpicking helper for WoW Forever.
 
