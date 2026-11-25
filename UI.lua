@@ -145,13 +145,13 @@ local function MakeSkillBar(parent, w, h, fullScale)
     bar:SetSize(w, h)
     bar.w = w
     bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    bar:SetStatusBarColor(0.0, 0.74, 0.95)
+    bar:SetStatusBarColor(0.80, 0.62, 0.10)   -- amber: fits the copper window frame
     bar:SetMinMaxValues(0, 300)
     bar.bg = bar:CreateTexture(nil, "BACKGROUND")
     bar.bg:SetAllPoints()
-    bar.bg:SetColorTexture(0, 0, 0, 0.5)
+    bar.bg:SetColorTexture(0, 0, 0, 0.6)
     bar.bonus = bar:CreateTexture(nil, "OVERLAY")
-    bar.bonus:SetColorTexture(0.30, 0.91, 0.54, 1)
+    bar.bonus:SetColorTexture(0.35, 0.80, 0.40, 1)
     bar.bonus:SetSize(1, h)
     bar.rankTick = bar:CreateTexture(nil, "OVERLAY")
     bar.rankTick:SetColorTexture(1, 1, 1, 0.9)
@@ -438,20 +438,14 @@ local function ZoneName(spot)
     return LP.Game.MapName(spot.zone) or ("#" .. tostring(spot.zone))
 end
 
--- Panel in the game's own tooltip style (dark body, thin border), the same look as the window around it. Border color tells the kind.
-local PANEL_BACKDROP = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } }
+-- Plain piece of the guide list: no frame, a faint line under it (the window around it already has the Blizzard look)
 local function NewPanel(parent)
-    local f = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    if f.SetBackdrop then
-        f:SetBackdrop(PANEL_BACKDROP)
-        f:SetBackdropColor(0.05, 0.05, 0.08, 0.9)
-        f:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-    else
-        f.bg = f:CreateTexture(nil, "BACKGROUND")
-        f.bg:SetAllPoints()
-        f.bg:SetColorTexture(0.1, 0.1, 0.12, 0.8)
-    end
+    local f = CreateFrame("Frame", nil, parent)
+    f.line = f:CreateTexture(nil, "BACKGROUND")
+    f.line:SetPoint("BOTTOMLEFT", 0, 0)
+    f.line:SetPoint("BOTTOMRIGHT", 0, 0)
+    f.line:SetHeight(1)
+    f.line:SetColorTexture(1, 0.82, 0, 0.18)
     return f
 end
 
@@ -495,11 +489,12 @@ end
 local function NewCallout(parent)
     local c = NewPanel(parent)
     c:SetWidth(GUIDE_W)
+    c.line:Hide()
     c.glyph = FS(c, "GameFontNormalLarge")
-    c.glyph:SetPoint("LEFT", 14, 0)
+    c.glyph:SetPoint("LEFT", 6, 0)
     c.text = FS(c, "GameFontHighlight")
-    c.text:SetPoint("TOPLEFT", 34, -7)
-    c.text:SetWidth(GUIDE_W - 44)
+    c.text:SetPoint("TOPLEFT", 28, -6)
+    c.text:SetWidth(GUIDE_W - 34)
     c.text:SetJustifyV("TOP")
     return c
 end
@@ -539,9 +534,9 @@ local function BuildGuide(p)
         c:SetSize(w, 26)
         c:SetPoint("TOPLEFT", x, -22)
         c.w = w
-        c.fill = c:CreateTexture(nil, "ARTWORK", nil, 7)
-        c.fill:SetPoint("TOPLEFT", 4, -4)
-        c.fill:SetPoint("BOTTOMLEFT", 4, 4)
+        c.fill = c:CreateTexture(nil, "OVERLAY")   -- thin progress line along the bottom edge
+        c.fill:SetPoint("BOTTOMLEFT", 6, 5)
+        c.fill:SetHeight(2)
         c.fill:SetWidth(1)
         c:SetScript("OnClick", function() guideStage = i LP.RefreshUI() end)
         p.chips[i] = c
@@ -578,10 +573,9 @@ local function PlaceCallout(y, kind, text)
     guidePool.calloutsUsed = used
     local c = Pooled(guidePool.callouts, used, NewCallout, guidePool.parent)
     local look = CALLOUT[kind] or CALLOUT.info
-    if c.SetBackdropBorderColor then c:SetBackdropBorderColor(look[1][1], look[1][2], look[1][3], 1) end
     c.glyph:SetText("|cff" .. look[4] .. look[3] .. "|r")
     c.text:SetText(text)
-    local h = math.max(30, TextHeight(text, GUIDE_W - 44, 13) + 14)
+    local h = math.max(30, TextHeight(text, GUIDE_W - 34, 13) + 12)
     c:SetHeight(h)
     c:ClearAllPoints()
     c:SetPoint("TOPLEFT", 0, y)
@@ -658,10 +652,11 @@ local function RefreshGuide()
         local frac = 0
         if st then frac = math.max(0, math.min(1, (skill - st.from) / (st.to - st.from))) end
         local done, here = st and skill >= st.to, st and i == cur
-        c.fill:SetWidth(math.max(1, (c.w - 8) * frac))
+        c.fill:SetWidth(math.max(1, (c.w - 12) * frac))
         c.fill:SetShown(st ~= nil and frac > 0)
-        if done then c.fill:SetColorTexture(0.30, 0.91, 0.54, 0.40) else c.fill:SetColorTexture(0.0, 0.74, 0.95, 0.45) end
-        c:SetText((i == guideStage and "|cffffd100" or (here and "|cff4de88a" or "")) .. label .. ((i == guideStage or here) and "|r" or ""))
+        if done then c.fill:SetColorTexture(0.35, 0.80, 0.40, 1) else c.fill:SetColorTexture(1, 0.82, 0, 1) end
+        if i == guideStage then c:LockHighlight() else c:UnlockHighlight() end
+        c:SetText((here and "|cff4de88a" or "") .. label .. (here and "|r" or ""))
     end
 
     -- content
