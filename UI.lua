@@ -486,15 +486,18 @@ local function NewCard(parent)
     return c
 end
 
+-- Tips sit in the game's own bronze dialog frame (same look as the window border), the kind shows in the sign on the left
+local TIP_BACKDROP = { bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } }
 local function NewCallout(parent)
-    local c = NewPanel(parent)
+    local c = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    if c.SetBackdrop then c:SetBackdrop(TIP_BACKDROP) end
     c:SetWidth(GUIDE_W)
-    c.line:Hide()
     c.glyph = FS(c, "GameFontNormalLarge")
-    c.glyph:SetPoint("LEFT", 6, 0)
+    c.glyph:SetPoint("LEFT", 12, 0)
     c.text = FS(c, "GameFontHighlight")
-    c.text:SetPoint("TOPLEFT", 28, -6)
-    c.text:SetWidth(GUIDE_W - 34)
+    c.text:SetPoint("TOPLEFT", 32, -8)
+    c.text:SetWidth(GUIDE_W - 42)
     c.text:SetJustifyV("TOP")
     return c
 end
@@ -575,7 +578,7 @@ local function PlaceCallout(y, kind, text)
     local look = CALLOUT[kind] or CALLOUT.info
     c.glyph:SetText("|cff" .. look[4] .. look[3] .. "|r")
     c.text:SetText(text)
-    local h = math.max(30, TextHeight(text, GUIDE_W - 34, 13) + 12)
+    local h = math.max(30, TextHeight(text, GUIDE_W - 42, 13) + 16)
     c:SetHeight(h)
     c:ClearAllPoints()
     c:SetPoint("TOPLEFT", 0, y)
