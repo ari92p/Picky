@@ -88,6 +88,7 @@ LP.OnLanguage(function()
     -- Sources: wow-professions.com and conquestcapped.com (Forever lockpicking guides) plus the author's own tests.
     -- COORDINATES (x, y in percent) and mapIDs come from those guides / from memory and are NOT yet checked in the game:
     -- the dev self test "guide: map ids resolve to zone names" logs what the client says; verify the pins by clicking "Map".
+    -- Lost Rigger Cove and Tyr's Hand: coordinates of the place itself (warcraft.wiki.gg), the pin is a start point, not the exact box.
     -- A spot without x/y only opens the zone map. faction = "A" (Alliance) / "H" (Horde) / nil (both): the nearer place, anyone can go anywhere.
     -- Objects (footlockers, strongboxes) are no items: iconItem is only a lockbox whose icon stands in for them.
     local function Obj(name, iconItem, skill, hint)
@@ -160,9 +161,9 @@ LP.OnLanguage(function()
             spots = {
                 { zone = 1427, x = 42.0, y = 38.0, best = true, where = L["The Slag Pit"],
                   note = L["The cave in the middle of Searing Gorge. Lower ones need 200, upper ones 225."], boxes = { DENTED_LOW, DENTED_UP } },
-                { zone = 1446, where = L["Lost Rigger Cove"],
+                { zone = 1446, x = 72.2, y = 46.0, where = L["Lost Rigger Cove"],
                   note = L["Pirate camp on the east coast of Tanaris. The same boxes as the upper Slag Pit: come here when the Slag Pit is crowded."], boxes = { DENTED_UP, MOSSY } },
-                { zone = 1423, where = L["Tyr's Hand"],
+                { zone = 1423, x = 79.0, y = 75.0, where = L["Tyr's Hand"],
                   note = L["For the last points, from 250. The boxes respawn slowly."], boxes = { SCARLET, HEAVYJUNK } },
             },
             tips = {
