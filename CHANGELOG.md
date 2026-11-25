@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+- Guide: Lost Rigger Cove (Tanaris) and Tyr's Hand (Eastern Plaguelands) now set a map pin too. The pin marks the place, not the exact box.
+- Buttons in the Test and Developer tabs fit their text, also for the longer German labels.
+- Self tests: they no longer close the Picky window or switch its tab, they print nothing to the chat while they run (no more "Tip from ..." lines), and the guide test is lighter.
+
 ## 1.1.0
 - The guide page is rebuilt. Each skill stage lists several places with zone, coordinates and a "Map" button that opens the world map and sets a pin (TomTom if you have it, otherwise the game's own pin). Horde and Alliance get their own places: the guide shows the ones for your faction.
 - The stage buttons double as a route: a thin line under each shows your progress in that stage (gold = in progress, green = done).
