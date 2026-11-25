@@ -438,12 +438,26 @@ local function ZoneName(spot)
     return LP.Game.MapName(spot.zone) or ("#" .. tostring(spot.zone))
 end
 
+-- Panel in the game's own tooltip style (dark body, thin border), the same look as the window around it. Border color tells the kind.
+local PANEL_BACKDROP = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } }
+local function NewPanel(parent)
+    local f = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    if f.SetBackdrop then
+        f:SetBackdrop(PANEL_BACKDROP)
+        f:SetBackdropColor(0.05, 0.05, 0.08, 0.9)
+        f:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    else
+        f.bg = f:CreateTexture(nil, "BACKGROUND")
+        f.bg:SetAllPoints()
+        f.bg:SetColorTexture(0.1, 0.1, 0.12, 0.8)
+    end
+    return f
+end
+
 local function NewCard(parent)
-    local c = CreateFrame("Frame", nil, parent)
+    local c = NewPanel(parent)
     c:SetWidth(GUIDE_W)
-    c.bg = c:CreateTexture(nil, "BACKGROUND")
-    c.bg:SetAllPoints()
-    c.bg:SetColorTexture(0.1, 0.1, 0.12, 0.65)
     c.title = FS(c, "GameFontNormal")
     c.title:SetPoint("TOPLEFT", 8, -7)
     c.title:SetWidth(GUIDE_W - 90)
@@ -479,18 +493,12 @@ local function NewCard(parent)
 end
 
 local function NewCallout(parent)
-    local c = CreateFrame("Frame", nil, parent)
+    local c = NewPanel(parent)
     c:SetWidth(GUIDE_W)
-    c.bg = c:CreateTexture(nil, "BACKGROUND")
-    c.bg:SetAllPoints()
-    c.bar = c:CreateTexture(nil, "ARTWORK")
-    c.bar:SetPoint("TOPLEFT", 0, 0)
-    c.bar:SetPoint("BOTTOMLEFT", 0, 0)
-    c.bar:SetWidth(4)
     c.glyph = FS(c, "GameFontNormalLarge")
-    c.glyph:SetPoint("LEFT", 12, 0)
+    c.glyph:SetPoint("LEFT", 14, 0)
     c.text = FS(c, "GameFontHighlight")
-    c.text:SetPoint("TOPLEFT", 34, -6)
+    c.text:SetPoint("TOPLEFT", 34, -7)
     c.text:SetWidth(GUIDE_W - 44)
     c.text:SetJustifyV("TOP")
     return c
@@ -570,8 +578,7 @@ local function PlaceCallout(y, kind, text)
     guidePool.calloutsUsed = used
     local c = Pooled(guidePool.callouts, used, NewCallout, guidePool.parent)
     local look = CALLOUT[kind] or CALLOUT.info
-    c.bg:SetColorTexture(unpack(look[2]))
-    c.bar:SetColorTexture(look[1][1], look[1][2], look[1][3], 1)
+    if c.SetBackdropBorderColor then c:SetBackdropBorderColor(look[1][1], look[1][2], look[1][3], 1) end
     c.glyph:SetText("|cff" .. look[4] .. look[3] .. "|r")
     c.text:SetText(text)
     local h = math.max(30, TextHeight(text, GUIDE_W - 44, 13) + 14)
