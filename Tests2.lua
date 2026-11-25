@@ -861,16 +861,24 @@ T("guide: Map button data goes through LP.Game and never sends anything", functi
     eq(LP.Game.SetWaypoint(nil, 1, 1), false, "no zone: no pin")
 end)
 T("guide: every tab of the guide page builds and fills without errors", function()
-    local was = LP.db.ui and LP.db.ui.winPos
-    for i = 1, 5 do LP.OpenGuide(i) end
-    LP.OpenGuide(nil)
-    WithGame({ Faction = function() return "Horde" end, ItemIcon = function() return nil end, MapName = function() return nil end }, function()
-        LP.OpenGuide(1)
-        LP.OpenGuide(4)
+    -- the window is the user's: leave it open or closed, and on the tab it was on (the self tests run from the Developer tab)
+    local before = _G.PickyFrame
+    local wasShown = before and before:IsShown()
+    local tab = LP.UITab()
+    local pos = LP.db.ui and LP.db.ui.winPos
+    local ok, err = pcall(function()
+        for i = 1, 5 do LP.OpenGuide(i) end
+        LP.OpenGuide(nil)
+        WithGame({ Faction = function() return "Horde" end, ItemIcon = function() return nil end, MapName = function() return nil end }, function()
+            LP.OpenGuide(1)
+            LP.OpenGuide(4)
+        end)
     end)
     local win = _G.PickyFrame
-    if win then win:Hide() end
-    if LP.db.ui then LP.db.ui.winPos = was end
+    LP.UITab(tab)
+    if win and not wasShown then win:Hide() end
+    if LP.db.ui then LP.db.ui.winPos = pos end
+    if not ok then error(err, 0) end
 end)
 T("menus: the guild is only listed inside a guild", function()
     WithGame({ IsInGuild = function() return false end, GetChannelList = function() return 1, "General - City", false, 2, "Trade - City", false end }, function()

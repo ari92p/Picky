@@ -1531,6 +1531,12 @@ function LP.OpenGuide(stage)
     LP.RefreshUI()
 end
 
+-- Current tab of the window (1-5); with a number it switches to that tab first. The self tests use it to put the window back as they found it.
+function LP.UITab(i)
+    if i and win then SelectTab(i) end
+    return currentTab
+end
+
 function LP.ToggleUI()
     Build()
     if win:IsShown() then win:Hide() else win:Show() end
