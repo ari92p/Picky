@@ -137,7 +137,7 @@ local function FS(parent, font, text)
 end
 
 -- Skill bar. Header bar: the scale is what you can reach NOW = the lower of your rank limit and your level limit (5 x level), so "165 / 175".
--- Guide bar (fullScale): the whole route 0-300 with a white tick at the rank limit and an orange tick at the level limit.
+-- Guide bar (fullScale): the whole route 0-300 without numbers (faint marks where the stages change); the chips below name the stages.
 -- Blue = trained skill, green = bonus from gear/buffs. Mouse over: all numbers.
 local function MakeSkillBar(parent, w, h, fullScale)
     local bar = CreateFrame("StatusBar", nil, parent)
@@ -185,13 +185,13 @@ local function UpdateSkillBar(bar)
     bar.bonus:SetShown(bonus > 0)
     bar.rankTick:ClearAllPoints()
     bar.rankTick:SetPoint("LEFT", bar, "LEFT", math.min(bar.w - 2, bar.w * max / 300), 0)
-    bar.rankTick:SetShown(bar.fullScale and max < 300 or false)
+    bar.rankTick:SetShown(false)
     bar.levelTick:ClearAllPoints()
     bar.levelTick:SetPoint("LEFT", bar, "LEFT", math.min(bar.w - 2, bar.w * levelCap / 300), 0)
-    bar.levelTick:SetShown(bar.fullScale and levelCap < 300 and levelCap ~= max or false)
+    bar.levelTick:SetShown(false)
     local num = bonus > 0 and ("%d |cff4de88a+%d|r"):format(base, bonus) or tostring(base)
     if LP.skillNotLearned then num = "0" end
-    bar.label:SetText(bar.fullScale and ("%s  |cff9aa0ad(%s %d)  / 300|r"):format(num, L["now reachable"], reach) or ("%s / %d"):format(num, reach))
+    bar.label:SetText(bar.fullScale and "" or ("%s / %d"):format(num, reach))   -- the guide bar is only the route: the numbers are in the header
 end
 
 -- Page 1: Requests --------------------------------------------------------------------------------
@@ -516,20 +516,18 @@ local function Pooled(list, i, make, parent)
 end
 
 local function BuildGuide(p)
-    p.head = FS(p, "GameFontNormalLarge")
-    p.head:SetPoint("TOPLEFT", 0, -2)
     p.sub = FS(p, "GameFontHighlightSmall")
-    p.sub:SetPoint("TOPLEFT", 0, -26)
+    p.sub:SetPoint("TOPLEFT", 0, -2)
 
-    p.bar = MakeSkillBar(p, 408, 14, true)
-    p.bar:SetPoint("TOPLEFT", 0, -42)
+    p.bar = MakeSkillBar(p, 408, 8, true)
+    p.bar:SetPoint("TOPLEFT", 0, -20)
     -- markers where the stages change (100, 150, 225)
     p.bar.marks = {}
     for i = 1, #LP.GUIDE - 1 do
         local m = p.bar:CreateTexture(nil, "OVERLAY")
-        m:SetSize(1, 14)
+        m:SetSize(1, 8)
         m:SetPoint("LEFT", p.bar, "LEFT", math.floor(408 * LP.GUIDE[i].to / 300), 0)
-        m:SetColorTexture(1, 1, 1, 0.7)
+        m:SetColorTexture(1, 1, 1, 0.35)
         p.bar.marks[i] = m
     end
 
@@ -538,13 +536,13 @@ local function BuildGuide(p)
     for i = 1, GUIDE_TABS do
         local c = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
         c:SetSize(cw - 3, 22)
-        c:SetPoint("TOPLEFT", (i - 1) * cw, -62)
+        c:SetPoint("TOPLEFT", (i - 1) * cw, -36)
         c:SetScript("OnClick", function() guideStage = i LP.RefreshUI() end)
         p.chips[i] = c
     end
 
     local sf = CreateFrame("ScrollFrame", "PickyGuideScroll", p, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", 0, -92)
+    sf:SetPoint("TOPLEFT", 0, -66)
     sf:SetPoint("BOTTOMRIGHT", -24, 40)
     local child = CreateFrame("Frame", nil, sf)
     child:SetSize(GUIDE_W, 600)
@@ -649,8 +647,6 @@ local function RefreshGuide()
     local f = LP.Game.Faction()
     guideFaction = (f == "Alliance" or f == "Horde") and f or nil
     UpdateSkillBar(p.bar)
-    local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
-    p.head:SetText(LP.skillNotLearned and L["Lockpicking: not learned yet"] or L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, p.bar.info.reach))
     p.sub:SetText(L["Current stage %s  ·  %d points to the next"]:format(LP.GUIDE[cur].title, math.max(0, LP.GUIDE[cur].to - skill)))
     for i, c in ipairs(p.chips) do
         local t = LP.GUIDE[i] and LP.GUIDE[i].title or L["All boxes"]
