@@ -77,12 +77,75 @@ T("data: the guide stages cover skill 1-300 without gaps", function()
     for i, s in ipairs(g) do
         truthy(s.from < s.to, "stage " .. i .. " is not empty")
         if i > 1 then eq(s.from, g[i - 1].to, "stage " .. i .. " continues the previous one") end
-        truthy(#s.boxes > 0, "stage " .. i .. " names boxes")
-        truthy(#s.places > 0, "stage " .. i .. " names places")
-        for _, x in ipairs(s.boxes) do truthy(type(x) == "string" and x ~= "", "box text of stage " .. i) end
-        for _, x in ipairs(s.places) do truthy(type(x) == "string" and x ~= "", "place text of stage " .. i) end
-        truthy(type(s.tip) == "string" and s.tip ~= "", "tip of stage " .. i)
+        truthy(#s.spots > 0, "stage " .. i .. " names places")
+        truthy(#s.tips > 0, "stage " .. i .. " has tips")
+        for _, t in ipairs(s.tips) do
+            truthy(t[1] == "warn" or t[1] == "tip" or t[1] == "info", "tip kind of stage " .. i)
+            truthy(type(t[2]) == "string" and t[2] ~= "", "tip text of stage " .. i)
+        end
     end
+end)
+T("data: a guide stage's level requirement is its end skill / 5", function()
+    for i, s in ipairs(LP.GUIDE) do eq(s.levelReq, s.to / 5, "level for stage " .. i) end
+end)
+T("data: every guide spot has a zone, text, boxes and sane coordinates", function()
+    for i, s in ipairs(LP.GUIDE) do
+        local best = 0
+        for j, sp in ipairs(s.spots) do
+            local w = "stage " .. i .. " spot " .. j
+            truthy(type(sp.zone) == "number", w .. " zone")
+            truthy(type(sp.where) == "string" and sp.where ~= "", w .. " name")
+            truthy(type(sp.note) == "string" and sp.note ~= "", w .. " note")
+            truthy(#sp.boxes > 0, w .. " boxes")
+            truthy(sp.faction == nil or sp.faction == "A" or sp.faction == "H", w .. " faction")
+            truthy((sp.x == nil) == (sp.y == nil), w .. " x and y go together")
+            if sp.x then truthy(sp.x > 0 and sp.x < 100 and sp.y > 0 and sp.y < 100, w .. " coordinates are percent") end
+            for _, b in ipairs(sp.boxes) do
+                truthy(type(b.name) == "string" and b.name ~= "", w .. " box name")
+                truthy(b.item or b.iconItem, w .. " box icon")
+                truthy(b.skill == nil or b.skill <= s.to, w .. " box skill is within the stage")
+            end
+            if sp.best then best = best + 1 end
+        end
+        truthy(best >= 1, "stage " .. i .. " has a best spot")
+    end
+end)
+T("data: both factions get a spot in every guide stage", function()
+    for i, s in ipairs(LP.GUIDE) do
+        for _, f in ipairs({ "A", "H" }) do
+            local n = 0
+            for _, sp in ipairs(s.spots) do if sp.faction == nil or sp.faction == f then n = n + 1 end end
+            truthy(n >= 1, "stage " .. i .. " has a spot for " .. f)
+        end
+    end
+end)
+T("data: guide spots of stage 1 are split by faction", function()
+    local a, h
+    for _, sp in ipairs(LP.GUIDE[1].spots) do if sp.faction == "A" then a = sp elseif sp.faction == "H" then h = sp end end
+    truthy(a and h, "one spot per faction")
+    truthy(a.zone ~= h.zone, "different zones")
+end)
+T("guide advice: only warns when the level holds the skill back", function()
+    local k, text = LP.GuideAdvice(100, 20)
+    eq(k, "warn", "skill 100 at level 20 is capped")
+    truthy(text:find("21", 1, true), "tells the next level: 21")
+    eq(LP.GuideAdvice(99, 20), nil, "below the cap")
+    eq(LP.GuideAdvice(150, 29), "warn", "above the cap of level 29")
+    eq(LP.GuideAdvice(144, 29), nil, "just below")
+    eq(LP.GuideAdvice(300, 60), nil, "maxed")
+    eq(LP.GuideAdvice(100, 0), nil, "unknown level")
+end)
+T("guide: map ids resolve to zone names (log for the dev: check the names in the log)", function()
+    if not (C_Map and C_Map.GetMapInfo) then return end   -- only inside the real game
+    local bad = {}
+    for i, s in ipairs(LP.GUIDE) do
+        for _, sp in ipairs(s.spots) do
+            local n = LP.Game.MapName(sp.zone)
+            LP.Debug("test", "guide %d: map %d = %s (%s)", i, sp.zone, tostring(n), sp.where)
+            if not n then bad[#bad + 1] = sp.zone end
+        end
+    end
+    if #bad > 0 then return "warn: unknown map ids: " .. table.concat(bad, ",") end
 end)
 T("data: guide stage by skill is in range and never goes down", function()
     local last = 1
@@ -778,6 +841,29 @@ local function WithGame(mocks, fn)   -- replace calls into the game (LP.Game fie
     if not ok then error(err, 0) end
 end
 local function keys(list) local t = {} for _, e in ipairs(list) do t[#t + 1] = e.key end return table.concat(t, ",") end
+T("guide: Map button data goes through LP.Game and never sends anything", function()
+    local opened, pinned
+    WithGame({ OpenMap = function(id) opened = id return true end,
+               SetWaypoint = function(id, x, y) pinned = { id, x, y } return true end }, function()
+        local sp = LP.GUIDE[4].spots[1]
+        truthy(LP.Game.OpenMap(sp.zone) and LP.Game.SetWaypoint(sp.zone, sp.x, sp.y), "stubs used")
+        eq(opened, 1427, "Searing Gorge map")
+        eq(pinned[2], 42.0, "x")
+    end)
+    eq(LP.Game.SetWaypoint(nil, 1, 1), false, "no zone: no pin")
+end)
+T("guide: every tab of the guide page builds and fills without errors", function()
+    local was = LP.db.ui and LP.db.ui.winPos
+    for i = 1, 6 do LP.OpenGuide(i) end
+    LP.OpenGuide(nil)
+    WithGame({ Faction = function() return "Horde" end, ItemIcon = function() return nil end, MapName = function() return nil end }, function()
+        LP.OpenGuide(1)
+        LP.OpenGuide(4)
+    end)
+    local win = _G.PickyFrame
+    if win then win:Hide() end
+    if LP.db.ui then LP.db.ui.winPos = was end
+end)
 T("menus: the guild is only listed inside a guild", function()
     WithGame({ IsInGuild = function() return false end, GetChannelList = function() return 1, "General - City", false, 2, "Trade - City", false end }, function()
         eq(keys(LP.ListenSources()), "say,yell,general,trade", "listen list without a guild")

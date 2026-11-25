@@ -136,6 +136,70 @@ local function FS(parent, font, text)
     return fs
 end
 
+-- Skill bar: always the full scale 0-300 (the number inside the bar says so). Blue = your trained skill, green = bonus from gear/buffs,
+-- white tick = limit of your current rank (train at the trainer), orange tick = limit of your level (5 x level). Mouse over: all numbers.
+local function MakeSkillBar(parent, w, h)
+    local bar = CreateFrame("StatusBar", nil, parent)
+    bar:SetSize(w, h)
+    bar.w = w
+    bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    bar:SetStatusBarColor(0.0, 0.74, 0.95)
+    bar:SetMinMaxValues(0, 300)
+    bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+    bar.bg:SetAllPoints()
+    bar.bg:SetColorTexture(0, 0, 0, 0.5)
+    bar.bonus = bar:CreateTexture(nil, "OVERLAY")
+    bar.bonus:SetColorTexture(0.30, 0.91, 0.54, 1)
+    bar.bonus:SetSize(1, h)
+    bar.rankTick = bar:CreateTexture(nil, "OVERLAY")
+    bar.rankTick:SetColorTexture(1, 1, 1, 0.9)
+    bar.rankTick:SetSize(2, h)
+    bar.levelTick = bar:CreateTexture(nil, "OVERLAY")
+    bar.levelTick:SetColorTexture(1, 0.6, 0.1, 0.9)
+    bar.levelTick:SetSize(2, h)
+    bar.label = FS(bar, "GameFontHighlightSmall")
+    bar.label:SetPoint("CENTER", 0, 0)
+    bar:EnableMouse(true)
+    bar:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        local t = self.info
+        if not t then return end
+        GameTooltip:SetText(L["Lockpicking"], 1, 0.82, 0)
+        GameTooltip:AddLine(L["Scale of the bar: 0 to 300"], 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(L["Trained skill: %d"]:format(t.base), 0, 0.74, 0.95)
+        if t.bonus > 0 then GameTooltip:AddLine(L["Bonus (gear, buffs): +%d"]:format(t.bonus), 0.3, 0.91, 0.54) end
+        if t.max < 300 then GameTooltip:AddLine(L["Limit of your rank: %d (white mark), train for more"]:format(t.max), 1, 1, 1) end
+        if t.levelCap < 300 then GameTooltip:AddLine(L["Limit of your level: %d (orange mark, 5 x level)"]:format(t.levelCap), 1, 0.6, 0.1) end
+        GameTooltip:Show()
+    end)
+    bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return bar
+end
+
+local function UpdateSkillBar(bar)
+    local base = LP.skillBase or LP.Skill()
+    local bonus = LP.skillBonus or 0
+    if LP.skillNotLearned then base, bonus = 0, 0 end
+    base = math.max(0, math.min(300, base))
+    bonus = math.max(0, math.min(300 - base, bonus))
+    local max = (LP.skillMax and LP.skillMax > 0) and math.min(300, LP.skillMax) or 300
+    local level = tonumber(LP.Game.UnitLevel()) or 1
+    local levelCap = math.min(300, level * 5)
+    bar.info = { base = base, bonus = bonus, max = max, levelCap = levelCap }
+    bar:SetValue(base)
+    bar.bonus:ClearAllPoints()
+    bar.bonus:SetPoint("LEFT", bar, "LEFT", bar.w * base / 300, 0)
+    bar.bonus:SetWidth(math.max(1, bar.w * bonus / 300))
+    bar.bonus:SetShown(bonus > 0)
+    bar.rankTick:ClearAllPoints()
+    bar.rankTick:SetPoint("LEFT", bar, "LEFT", math.min(bar.w - 2, bar.w * max / 300), 0)
+    bar.rankTick:SetShown(max < 300)
+    bar.levelTick:ClearAllPoints()
+    bar.levelTick:SetPoint("LEFT", bar, "LEFT", math.min(bar.w - 2, bar.w * levelCap / 300), 0)
+    bar.levelTick:SetShown(levelCap < 300 and levelCap ~= max)
+    bar.label:SetText(LP.skillNotLearned and "0 / 300" or (bonus > 0 and ("%d |cff4de88a+%d|r / 300"):format(base, bonus) or ("%d / 300"):format(base)))
+end
+
 -- Page 1: Requests --------------------------------------------------------------------------------
 -- Two tabs: Open (running orders) and Done (everything finished, stored permanently).
 -- Done orders stay until you delete them (x per order or "Delete finished").
@@ -313,36 +377,193 @@ function RefreshRequests()
     p.clear:SetText((armedAt and GetTime() - armedAt < 4) and L["Really delete?"] or L["Delete finished"])
 end
 -- Page 2: Guide ------------------------------------------------------------------------------------
+-- Tabs: 1-4 = the skill stages, 5 = all boxes by skill, 6 = general tips. Content sits in a scroll frame made of pooled pieces:
+-- spot cards (zone, coordinates, Map button, box icons with tooltip), callouts (red warning, green tip, blue info), box rows.
+local GUIDE_TABS = 6
+local GUIDE_W = 376
+local guideFaction            -- "Alliance" | "Horde" | nil = both; starts as the player's faction, the button cycles it
+local guidePool = { cards = {}, callouts = {}, rows = {}, heads = {} }
+local CALLOUT = {   -- bar color, background, glyph
+    warn = { { 0.95, 0.25, 0.25 }, { 0.35, 0.05, 0.05, 0.6 }, "!", "ff5959" },
+    tip  = { { 0.30, 0.91, 0.54 }, { 0.05, 0.25, 0.12, 0.6 }, "+", "4de88a" },
+    info = { { 0.00, 0.74, 0.95 }, { 0.00, 0.18, 0.25, 0.6 }, "i", "00bdf2" },
+}
+local FACTION_TAG = { A = "|cff4a8bff" .. "Alliance" .. "|r", H = "|cffff4a4a" .. "Horde" .. "|r" }
+
+-- The window has no way to measure wrapped text in the tests, so estimate: characters per line of the given width
+local function TextHeight(text, width, lineH)
+    local plain = tostring(text):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    local chars = select(2, plain:gsub("[^\128-\191]", ""))
+    return math.max(1, math.ceil(chars / math.floor(width / 5.6))) * (lineH or 12)
+end
+
+local function BoxTip(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local shown = false
+    if self.item then shown = pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. self.item) end
+    if not shown then GameTooltip:SetText(self.label or "?", 1, 1, 1) end
+    if self.hint then GameTooltip:AddLine(self.hint, 0.8, 0.8, 0.8, true) end
+    local skill = LP.Skill()
+    if self.skill and self.skill > 1 then
+        local ok = skill >= self.skill
+        GameTooltip:AddLine(L["Needs skill %d"]:format(self.skill), ok and 0.3 or 1, ok and 0.9 or 0.35, ok and 0.55 or 0.35)
+    elseif self.skill then
+        GameTooltip:AddLine(L["No skill requirement"], 0.8, 0.8, 0.8)
+    end
+    GameTooltip:Show()
+end
+
+local function NewIconButton(parent)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(28, 28)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints()
+    b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hl:SetAllPoints()
+    b.hl:SetColorTexture(1, 1, 1, 0.25)
+    b.req = FS(b, "GameFontHighlightSmall")
+    b.req:SetPoint("BOTTOMRIGHT", 2, 0)
+    b:SetScript("OnEnter", BoxTip)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+end
+
+-- Fill an icon button from a box entry: { item = id | iconItem = id, name, skill, hint }
+local function FillIcon(b, e)
+    local icon = LP.Game.ItemIcon(e.item or e.iconItem) or "Interface\\Icons\\INV_Misc_QuestionMark"
+    b.tex:SetTexture(icon)
+    b.item = e.item
+    b.label, b.hint, b.skill = e.name, e.hint, e.skill
+    local ok = (not e.skill) or LP.Skill() >= e.skill
+    b.tex:SetDesaturated(not ok)
+    b.req:SetText(e.skill and e.skill > 1 and ((ok and "|cff4de88a" or "|cffff5959") .. e.skill .. "|r") or "")
+    b:Show()
+end
+
+local function ZoneName(spot)
+    return LP.Game.MapName(spot.zone) or ("#" .. tostring(spot.zone))
+end
+
+local function NewCard(parent)
+    local c = CreateFrame("Frame", nil, parent)
+    c:SetWidth(GUIDE_W)
+    c.bg = c:CreateTexture(nil, "BACKGROUND")
+    c.bg:SetAllPoints()
+    c.bg:SetColorTexture(0.1, 0.1, 0.12, 0.65)
+    c.title = FS(c, "GameFontNormal")
+    c.title:SetPoint("TOPLEFT", 8, -7)
+    c.title:SetWidth(GUIDE_W - 90)
+    c.sub = FS(c, "GameFontHighlightSmall")
+    c.sub:SetPoint("TOPLEFT", 8, -24)
+    c.sub:SetWidth(GUIDE_W - 90)
+    c.map = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    c.map:SetSize(60, 22)
+    c.map:SetPoint("TOPRIGHT", -6, -6)
+    c.map:SetText(L["Map"])
+    c.map:SetScript("OnClick", function(self)
+        local s = self:GetParent().spot
+        if not s then return end
+        local name = ZoneName(s)
+        LP.Game.OpenMap(s.zone)
+        if s.x and LP.Game.SetWaypoint(s.zone, s.x, s.y, name .. " - " .. s.where) then
+            LP.Print(L["Pin set: %s (%.1f, %.1f)"]:format(name .. " - " .. s.where, s.x, s.y))
+        else
+            LP.Print(L["Map opened: %s"]:format(name))
+        end
+    end)
+    c.map:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["Click: open the map and set a pin"])
+        GameTooltip:Show()
+    end)
+    c.map:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    c.note = FS(c, "GameFontHighlightSmall")
+    c.note:SetWidth(GUIDE_W - 16)
+    c.note:SetJustifyV("TOP")
+    c.icons = {}
+    return c
+end
+
+local function NewCallout(parent)
+    local c = CreateFrame("Frame", nil, parent)
+    c:SetWidth(GUIDE_W)
+    c.bg = c:CreateTexture(nil, "BACKGROUND")
+    c.bg:SetAllPoints()
+    c.bar = c:CreateTexture(nil, "ARTWORK")
+    c.bar:SetPoint("TOPLEFT", 0, 0)
+    c.bar:SetPoint("BOTTOMLEFT", 0, 0)
+    c.bar:SetWidth(4)
+    c.glyph = FS(c, "GameFontNormalLarge")
+    c.glyph:SetPoint("LEFT", 12, 0)
+    c.text = FS(c, "GameFontHighlight")
+    c.text:SetPoint("TOPLEFT", 34, -6)
+    c.text:SetWidth(GUIDE_W - 44)
+    c.text:SetJustifyV("TOP")
+    return c
+end
+
+local function NewRow(parent)
+    local r = CreateFrame("Frame", nil, parent)
+    r:SetSize(GUIDE_W, 30)
+    r.icon = NewIconButton(parent)
+    r.icon:SetParent(r)
+    r.icon:SetPoint("LEFT", 2, 0)
+    r.name = FS(r, "GameFontHighlight")
+    r.name:SetPoint("LEFT", 38, 0)
+    r.name:SetWidth(GUIDE_W - 150)
+    r.skill = FS(r, "GameFontHighlightSmall")
+    r.skill:SetPoint("RIGHT", -4, 0)
+    return r
+end
+
+local function Pooled(list, i, make, parent)
+    if not list[i] then list[i] = make(parent) end
+    return list[i]
+end
+
 local function BuildGuide(p)
     p.head = FS(p, "GameFontNormalLarge")
     p.head:SetPoint("TOPLEFT", 0, -2)
     p.sub = FS(p, "GameFontHighlightSmall")
     p.sub:SetPoint("TOPLEFT", 0, -26)
 
-    p.bar = CreateFrame("StatusBar", nil, p)
-    p.bar:SetSize(408, 8)
-    p.bar:SetPoint("TOPLEFT", 0, -44)
-    p.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    p.bar:SetStatusBarColor(0.0, 0.74, 0.95)
-    p.bar:SetMinMaxValues(0, 300)
-    p.bar.bg = p.bar:CreateTexture(nil, "BACKGROUND")
-    p.bar.bg:SetAllPoints()
-    p.bar.bg:SetColorTexture(0, 0, 0, 0.5)
+    p.fac = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    p.fac:SetSize(120, 22)
+    p.fac:SetPoint("TOPRIGHT", 0, 0)
+    p.fac:SetScript("OnClick", function()
+        guideFaction = (guideFaction == nil and "Alliance") or (guideFaction == "Alliance" and "Horde") or (guideFaction == "Horde" and nil) or nil
+        LP.RefreshUI()
+    end)
+
+    p.bar = MakeSkillBar(p, 408, 14)
+    p.bar:SetPoint("TOPLEFT", 0, -42)
+    -- markers where the stages change (100, 150, 225)
+    p.bar.marks = {}
+    for i = 1, #LP.GUIDE - 1 do
+        local m = p.bar:CreateTexture(nil, "OVERLAY")
+        m:SetSize(1, 14)
+        m:SetPoint("LEFT", p.bar, "LEFT", math.floor(408 * LP.GUIDE[i].to / 300), 0)
+        m:SetColorTexture(1, 1, 1, 0.7)
+        p.bar.marks[i] = m
+    end
 
     p.chips = {}
-    for i, st in ipairs(LP.GUIDE) do
+    local cw = math.floor(408 / GUIDE_TABS)
+    for i = 1, GUIDE_TABS do
         local c = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-        c:SetSize(98, 22)
-        c:SetPoint("TOPLEFT", (i - 1) * 103, -62)
+        c:SetSize(cw - 3, 22)
+        c:SetPoint("TOPLEFT", (i - 1) * cw, -62)
         c:SetScript("OnClick", function() guideStage = i LP.RefreshUI() end)
         p.chips[i] = c
     end
 
-    p.body = FS(p, "GameFontHighlight")
-    p.body:SetPoint("TOPLEFT", 4, -96)
-    p.body:SetWidth(400)
-    p.body:SetJustifyV("TOP")
-    p.body:SetSpacing(3)
+    local sf = CreateFrame("ScrollFrame", "PickyGuideScroll", p, "UIPanelScrollFrameTemplate")
+    sf:SetPoint("TOPLEFT", 0, -92)
+    sf:SetPoint("BOTTOMRIGHT", -24, 40)
+    local child = CreateFrame("Frame", nil, sf)
+    child:SetSize(GUIDE_W, 600)
+    sf:SetScrollChild(child)
+    p.scroll, p.child = sf, child
 
     p.bags = FS(p, "GameFontHighlightSmall")
     p.bags:SetPoint("BOTTOMLEFT", 0, 0)
@@ -350,30 +571,138 @@ local function BuildGuide(p)
     p.bags:SetJustifyV("BOTTOM")
 end
 
+-- Layout helpers: each adds one piece below the previous one and returns the new y
+local function PlaceHead(y, text)
+    local used = guidePool.headsUsed + 1
+    guidePool.headsUsed = used
+    local h = Pooled(guidePool.heads, used, function(par) local f = FS(par, "GameFontNormal") f:SetWidth(GUIDE_W) return f end, guidePool.parent)
+    h:ClearAllPoints()
+    h:SetPoint("TOPLEFT", 2, y)
+    h:SetText("|cffffd100" .. text .. "|r")
+    h:Show()
+    return y - 22
+end
+
+local function PlaceCallout(y, kind, text)
+    local used = guidePool.calloutsUsed + 1
+    guidePool.calloutsUsed = used
+    local c = Pooled(guidePool.callouts, used, NewCallout, guidePool.parent)
+    local look = CALLOUT[kind] or CALLOUT.info
+    c.bg:SetColorTexture(unpack(look[2]))
+    c.bar:SetColorTexture(look[1][1], look[1][2], look[1][3], 1)
+    c.glyph:SetText("|cff" .. look[4] .. look[3] .. "|r")
+    c.text:SetText(text)
+    local h = math.max(30, TextHeight(text, GUIDE_W - 44, 13) + 14)
+    c:SetHeight(h)
+    c:ClearAllPoints()
+    c:SetPoint("TOPLEFT", 0, y)
+    c:Show()
+    return y - h - 6
+end
+
+local function PlaceCard(y, spot)
+    local used = guidePool.cardsUsed + 1
+    guidePool.cardsUsed = used
+    local c = Pooled(guidePool.cards, used, NewCard, guidePool.parent)
+    c.spot = spot
+    local badge = spot.faction and (" |cff9aa0ad[|r" .. (spot.faction == "A" and "|cff4a8bff" .. L["Alliance"] or "|cffff4a4a" .. L["Horde"]) .. "|r|cff9aa0ad]|r") or ""
+    local star = spot.best and ("  |cff4de88a* " .. L["Best spot"] .. "|r") or ""
+    c.title:SetText(spot.where .. badge .. star)
+    local coords = spot.x and ("  |cff9aa0ad(%.1f, %.1f)|r"):format(spot.x, spot.y) or ""
+    c.sub:SetText("|cff00bdf2" .. ZoneName(spot) .. "|r" .. coords)
+    c.note:SetText(spot.note or "")
+    local noteH = TextHeight(spot.note or "", GUIDE_W - 16, 12)
+    c.note:ClearAllPoints()
+    c.note:SetPoint("TOPLEFT", 8, -42)
+    for i = 1, #c.icons do c.icons[i]:Hide() end
+    local iconsY = 42 + noteH + 6
+    for i, e in ipairs(spot.boxes or {}) do
+        if not c.icons[i] then c.icons[i] = NewIconButton(c) end
+        local b = c.icons[i]
+        FillIcon(b, e)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", 8 + (i - 1) * 34, -iconsY)
+    end
+    local h = iconsY + (#(spot.boxes or {}) > 0 and 34 or 0) + 4
+    c:SetHeight(h)
+    c:ClearAllPoints()
+    c:SetPoint("TOPLEFT", 0, y)
+    c:Show()
+    return y - h - 6
+end
+
+local function PlaceRow(y, entry)
+    local used = guidePool.rowsUsed + 1
+    guidePool.rowsUsed = used
+    local r = Pooled(guidePool.rows, used, NewRow, guidePool.parent)
+    FillIcon(r.icon, entry)
+    local ok = LP.Skill() >= (entry.skill or 1)
+    r.name:SetText((ok and "|cffffffff" or "|cff9aa0ad") .. entry.name .. "|r" .. (entry.pickpocket and ("  |cff9aa0ad(" .. L["Pick Pocket only"] .. ")|r") or ""))
+    r.skill:SetText(entry.skill and entry.skill > 1 and ((ok and "|cff4de88a" or "|cffff5959") .. L["Needs skill %d"]:format(entry.skill) .. "|r") or "")
+    r:ClearAllPoints()
+    r:SetPoint("TOPLEFT", 0, y)
+    r:Show()
+    return y - 32
+end
+
+-- All boxes from LP.BOXES, sorted by required skill (data from the client tooltips, see Data.lua)
+local function SortedBoxes()
+    local list = {}
+    for id, b in pairs(LP.BOXES) do
+        list[#list + 1] = { item = id, skill = b[1], name = LP.BoxName(id), pickpocket = (b[2]:find("Junkbox") or b[2] == "Battered Chest") and true or nil }
+    end
+    table.sort(list, function(a, b) if a.skill ~= b.skill then return a.skill < b.skill end return a.item < b.item end)
+    return list
+end
+
 local function RefreshGuide()
     local p = pages[2]
     local skill = LP.Skill()
-    local max = (LP.skillMax and LP.skillMax > 0) and LP.skillMax or 300
     local cur = LP.StageForSkill(skill)
     guideStage = guideStage or cur
-    local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
-    p.head:SetText(LP.skillNotLearned and L["Lockpicking: not learned yet"] or L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, max))
-    p.sub:SetText(L["Current stage %s  ·  %d points to the next"]:format(LP.GUIDE[cur].title, math.max(0, LP.GUIDE[cur].to - skill)))
-    p.bar:SetMinMaxValues(0, 300)
-    p.bar:SetValue(math.min(300, skill))
-    for i, c in ipairs(p.chips) do
-        local t = LP.GUIDE[i].title
-        c:SetText(i == guideStage and ("|cffffd100" .. t .. "|r") or t)
+    if guideFaction == nil and not guidePool.factionSet then   -- first time: start with the player's own faction
+        guidePool.factionSet = true
+        local f = LP.Game.Faction()
+        if f == "Alliance" or f == "Horde" then guideFaction = f end
     end
+    local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
+    p.head:SetText(LP.skillNotLearned and L["Lockpicking: not learned yet"] or L["Lockpicking %d%s / %d"]:format(LP.skillBase or skill, bonus, 300))
+    p.sub:SetText(L["Current stage %s  ·  %d points to the next"]:format(LP.GUIDE[cur].title, math.max(0, LP.GUIDE[cur].to - skill)))
+    p.fac:SetText(L["Faction: %s"]:format(guideFaction and L[guideFaction] or L["Both"]))
+    UpdateSkillBar(p.bar)
+    for i, c in ipairs(p.chips) do
+        local t = LP.GUIDE[i] and LP.GUIDE[i].title or (i == 5 and L["Boxes"] or L["Tips"])
+        if i == guideStage then t = "|cffffd100" .. t .. "|r" elseif i == cur then t = "|cff4de88a" .. t .. "|r" end
+        c:SetText(t)
+    end
+
+    -- content
+    guidePool.parent = p.child
+    for _, list in pairs({ guidePool.cards, guidePool.callouts, guidePool.rows, guidePool.heads }) do
+        for _, f in ipairs(list) do f:Hide() end
+    end
+    guidePool.cardsUsed, guidePool.calloutsUsed, guidePool.rowsUsed, guidePool.headsUsed = 0, 0, 0, 0
+    local y = -2
     local st = LP.GUIDE[guideStage]
-    local lines = { "|cffffd100" .. L["Practice on these boxes"] .. "|r" }
-    for _, b in ipairs(st.boxes) do lines[#lines + 1] = "  -  " .. b end
-    lines[#lines + 1] = ""
-    lines[#lines + 1] = "|cffffd100" .. L["Where to find them?"] .. "|r"
-    for _, pl in ipairs(st.places) do lines[#lines + 1] = "  -  " .. pl end
-    lines[#lines + 1] = ""
-    lines[#lines + 1] = "|cff4de88a" .. L["Hint"] .. ":|r " .. st.tip
-    p.body:SetText(table.concat(lines, "\n"))
+    if st then
+        y = PlaceCallout(y, "info", L["Skill %d needs level %d."]:format(st.to, st.levelReq))
+        local kind, advice = LP.GuideAdvice(skill, LP.Game.UnitLevel())
+        if kind then y = PlaceCallout(y, kind, advice) end
+        y = PlaceHead(y, L["Where to practice"])
+        for _, spot in ipairs(st.spots) do
+            if (not guideFaction) or (not spot.faction) or (spot.faction == (guideFaction == "Alliance" and "A" or "H")) then
+                y = PlaceCard(y, spot)
+            end
+        end
+        y = PlaceHead(y, L["Tips"])
+        for _, t in ipairs(st.tips) do y = PlaceCallout(y, t[1], t[2]) end
+    elseif guideStage == 5 then
+        y = PlaceCallout(y, "info", L["Boxes by required skill. Hover for details."])
+        for _, e in ipairs(SortedBoxes()) do y = PlaceRow(y, e) end
+    else
+        for _, t in ipairs(LP.GUIDE_TIPS) do y = PlaceCallout(y, t[1], t[2]) end
+    end
+    p.child:SetHeight(math.max(10, -y + 4))
 
     local found = {}
     for bag = 0, 4 do
@@ -1126,16 +1455,9 @@ local function Build()
     win.skillText = FS(win, "GameFontHighlight")
     win.skillText:SetPoint("TOPLEFT", 76, -27)
     win.stats = FS(win, "GameFontNormalSmall")
-    win.stats:SetPoint("TOPLEFT", 78, -49)
-    win.bar = CreateFrame("StatusBar", nil, win)
-    win.bar:SetSize(196, 7)
+    win.stats:SetPoint("TOPLEFT", 78, -54)
+    win.bar = MakeSkillBar(win, 196, 12)
     win.bar:SetPoint("TOPLEFT", 78, -40)
-    win.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    win.bar:SetStatusBarColor(0.0, 0.74, 0.95)
-    win.bar:SetMinMaxValues(0, 300)
-    win.bar.bg = win.bar:CreateTexture(nil, "BACKGROUND")
-    win.bar.bg:SetAllPoints()
-    win.bar.bg:SetColorTexture(0, 0, 0, 0.5)
 
     win.finder = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
     win.finder:SetSize(104, 26)
@@ -1185,15 +1507,14 @@ end
 function LP.RefreshUI()
     if not win or not win:IsShown() or not LP.db then return end
     local skill = LP.Skill()
-    local max = (LP.skillMax and LP.skillMax > 0) and LP.skillMax or 300
     local bonus = (LP.skillBonus and LP.skillBonus > 0) and (" |cff4de88a(+" .. LP.skillBonus .. ")|r") or ""
     local est = LP.skillEstimated and "  |cffffd100" .. L["estimated"] .. "|r" or ""
     if LP.skillNotLearned then
         win.skillText:SetText(L["Lockpicking: not learned yet"])
     else
-        win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, max, est))
+        win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, 300, est))
     end
-    win.bar:SetValue(math.min(300, skill))
+    UpdateSkillBar(win.bar)
     win.finder:SetText(LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"])
     if currentTab == 1 then RefreshRequests()
     elseif currentTab == 2 then RefreshGuide()
@@ -1205,6 +1526,15 @@ end
 function LP.ShowUI()
     Build()
     win:Show()
+end
+
+-- Open the window on the guide page (stage 1-4, 5 = boxes, 6 = tips; nil = the stage for your skill)
+function LP.OpenGuide(stage)
+    Build()
+    guideStage = stage
+    SelectTab(2)
+    win:Show()
+    LP.RefreshUI()
 end
 
 function LP.ToggleUI()

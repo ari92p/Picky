@@ -122,6 +122,10 @@ M = [
     ("data: ornate bronze lockbox", "Data.lua", '[4632]  = { 1, ', '[4632]  = { 25,'),
     ("data: iron keyword is a whole word", "Data.lua", '{ "%f[%a]iron%f[%A]", 125, L["Iron box"], true }', '{ "iron", 125, L["Iron box"] }'),
     ("data: thorium keyword", "Data.lua", '{ "thorium", 225,', '{ "thorium", 250,'),
+    ("data: stage 2 level requirement", "Data.lua", "from = 100, to = 150, title = \"100 - 150\", levelReq = 30", "from = 100, to = 150, title = \"100 - 150\", levelReq = 25"),
+    ("data: Alliance start spot", "Data.lua", 'faction = "A", best = true, where = L["Alther\'s Mill"]', 'faction = "H", best = true, where = L["Alther\'s Mill"]'),
+    ("data: level cap advice threshold", "Data.lua", "if skill >= level * 5 then", "if skill > level * 5 then"),
+    ("data: level cap advice next level", "Data.lua", "math.ceil((skill + 1) / 5)", "math.ceil(skill / 5)"),
     ("data: guide stage borders", "Data.lua", "from = 100, to = 150", "from = 100, to = 160"),
 ]
 

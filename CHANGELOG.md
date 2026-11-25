@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- The guide page is rebuilt. Every skill stage lists several places with zone, coordinates and a "Map" button that opens the world map and sets a pin (TomTom if you have it, otherwise the game's own pin). Horde and Alliance have their own places, a button switches between Alliance, Horde and both. Box icons show the game's own icons with a tooltip, locked ones are greyed out. New tabs "Boxes" (all boxes by required skill) and "Tips". Tips are now colored call-outs: red warnings, green tips, blue notes. A warning appears when your level holds your skill back.
+- The skill bar always shows its scale (the number in the bar, e.g. "165 +12 / 300"). Green = bonus from gear and buffs, white mark = limit of your rank, orange mark = limit of your level. Mouse over the bar for all numbers.
+- Map coordinates are taken from other guides and still need checking in the game.
+
 ## 1.0.22
 - A request that a player splits into several short messages is now recognised, in any order: "LF rogue", "for", then the item link; or the link first and "LF rogue" after it; or "LF", "chest", "open it". Picky remembers the last few messages of each player for 5 seconds and checks them together, with the same rules as a single message (advertisements and sales words still block it, and a general question plus a box link is no request).
 - Fixed: running the self tests (Developer tab) no longer replaces game functions. Doing so tainted them and made Blizzard's own code (nameplates, unit frames) fail with errors like "execution tainted by 'Picky'" until the next /reload. Normal use of Picky was not affected.

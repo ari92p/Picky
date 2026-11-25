@@ -26,6 +26,46 @@ LP.Game = {
             if ok then return info end
         end
     end,
+    -- Guide: faction, icons, zone names, map and pin. Everything is guarded: a client without a function simply returns nothing.
+    Faction = function() return UnitFactionGroup and (UnitFactionGroup("player")) or nil end,
+    ItemIcon = function(id)
+        if C_Item and C_Item.GetItemIconByID then
+            local ok, icon = pcall(C_Item.GetItemIconByID, id)
+            if ok and icon then return icon end
+        end
+        if GetItemIcon then
+            local ok, icon = pcall(GetItemIcon, id)
+            if ok then return icon end
+        end
+    end,
+    MapName = function(mapID)
+        if C_Map and C_Map.GetMapInfo then
+            local ok, info = pcall(C_Map.GetMapInfo, mapID)
+            if ok and type(info) == "table" then return info.name end
+        end
+    end,
+    OpenMap = function(mapID)   -- only calls Blizzard's function, never writes to it
+        if InCombatLockdown and InCombatLockdown() then return false end
+        if OpenWorldMap then return pcall(OpenWorldMap, mapID) end
+        if WorldMapFrame and WorldMapFrame.SetMapID and ShowUIPanel then
+            return pcall(function() ShowUIPanel(WorldMapFrame) WorldMapFrame:SetMapID(mapID) end)
+        end
+        return false
+    end,
+    SetWaypoint = function(mapID, x, y, title)   -- x, y in percent; TomTom if present, otherwise the game's own map pin
+        if not (mapID and x and y) then return false end
+        if TomTom and TomTom.AddWaypoint then
+            return pcall(function() TomTom:AddWaypoint(mapID, x / 100, y / 100, { title = title, persistent = false, minimap = true, world = true }) end)
+        end
+        if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
+            return pcall(function()
+                if C_Map.CanSetUserWaypointOnMap and not C_Map.CanSetUserWaypointOnMap(mapID) then error("no pin on this map") end
+                C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x / 100, y / 100))
+                if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then C_SuperTrack.SetSuperTrackedUserWaypoint(true) end
+            end)
+        end
+        return false
+    end,
 }
 
 _G.BINDING_HEADER_PICKY = "Picky"

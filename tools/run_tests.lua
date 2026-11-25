@@ -68,6 +68,7 @@ local function NewFrame(name)
     return f
 end
 function CreateFrame(kind, name, parent, template)
+    if template == "ButtonFrameTemplate" or template == "LargeSideTabButtonTemplate" then error("template not available in the test runner") end   -- the addon has fallbacks
     local f = NewFrame(name)
     if name then _G[name] = f end
     frames[#frames + 1] = f
