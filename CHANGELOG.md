@@ -1,8 +1,12 @@
 # Changelog
 
-## Unreleased
-- The guide page is rebuilt. Every skill stage lists several places with zone, coordinates and a "Map" button that opens the world map and sets a pin (TomTom if you have it, otherwise the game's own pin). Horde and Alliance have their own places, a button switches between Alliance, Horde and both. Box icons show the game's own icons with a tooltip, locked ones are greyed out. New tabs "Boxes" (all boxes by required skill) and "Tips". Tips are now colored call-outs: red warnings, green tips, blue notes. A warning appears when your level holds your skill back.
-- The skill bar always shows its scale (the number in the bar, e.g. "165 +12 / 300"). Green = bonus from gear and buffs, white mark = limit of your rank, orange mark = limit of your level. Mouse over the bar for all numbers.
+## 1.1.0
+- The guide page is rebuilt. Each skill stage lists several places with zone, coordinates and a "Map" button that opens the world map and sets a pin (TomTom if you have it, otherwise the game's own pin). Horde and Alliance get their own places: the guide shows the ones for your faction.
+- The stage buttons double as a route: a thin line under each shows your progress in that stage (gold = in progress, green = done).
+- Box icons are the game's own icons with a tooltip, boxes above your skill are greyed out. The new tab "All boxes" lists every box by required skill.
+- Tips are shown in a bronze frame below the places, with a sign for the kind (red "!" warning, green "+" tip, blue "i" note). A note tells you when your level holds your skill back (skill cannot exceed 5 x level).
+- The skill bar in the window header now shows what you can reach right now (the lower of your rank limit and your level limit, 5 x level), e.g. "165 / 165", with the gear bonus in green.
+- Texts of the guide reworded in English and German.
 - Map coordinates are taken from other guides and still need checking in the game.
 
 ## 1.0.22
