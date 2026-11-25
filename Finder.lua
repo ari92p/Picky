@@ -275,9 +275,12 @@ function LP.ChatAllowed(event, chanString, baseName)
     return (not key) or LP.ReadChannelOn(key)
 end
 
--- Who asked for a rogue without naming a box yet (short name, lowercase -> time), and how many seconds a follow-up message still counts
-LP.recentSeek = LP.recentSeek or {}
-local SEEK_FOLLOW = 5
+-- Players often split a request into several short messages ("LF rogue", "for", then the item link; or the link first and "LF rogue" after it).
+-- Messages that are no request on their own are remembered per player for a few seconds (short name, lowercase -> list of { text, t })
+-- and tried TOGETHER with the next message, with exactly the same rules as a single message (advertisements, sales and so on still count).
+LP.recentMsgs = LP.recentMsgs or {}
+local MSG_WINDOW = 5   -- seconds a fragment is kept
+local MSG_MAX = 4      -- fragments kept per player
 
 local simCount = 0
 -- Process a chat message. sim = true: simulation (bypasses "Finder on" and "Rogue", name is not checked against you)
@@ -301,23 +304,31 @@ function LP.OnChat(event, msg, sender, sim, chanString, baseName)
     if not sim and not LP.ChatAllowed(event, chanString, baseName) then return end   -- this channel is switched off
     local ok, req, label, why = Analyze(msg, isWhisper)
     if not ok and not isWhisper and why then
-        -- Players often split the request into two messages: "LF rogue for" and then, a few seconds later, only the item link.
-        -- A message that only names a box counts as a request when the same player asked for a rogue just before.
         local k = (LP.Short(name) or name):lower()
         local t0 = GetTime()
-        if why.lock and not why.excl and not why.ad then
-            local t = LP.recentSeek[k]
-            if t and t0 - t <= SEEK_FOLLOW then
-                ok = true
-                LP.recentSeek[k] = nil
-                LP.Debug("chat", "%s named a box %d s after asking for a rogue -> counts as one request", name, math.floor(t0 - t))
+        local kept = {}
+        for _, e in ipairs(LP.recentMsgs[k] or {}) do
+            if t0 - e.t <= MSG_WINDOW then kept[#kept + 1] = e end
+        end
+        if #kept > 0 then
+            local parts = {}
+            for _, e in ipairs(kept) do parts[#parts + 1] = e.text end
+            parts[#parts + 1] = msg
+            local ok2, req2, label2, why2 = Analyze(table.concat(parts, " "), false)
+            if ok2 then
+                ok, req, label, why = true, req2, label2, why2
+                kept = {}
+                LP.Debug("chat", "%s: %d messages within %d s together make one request", name, #parts, MSG_WINDOW)
             end
-        elseif why.rogue and (why.seek or why.verb) and not why.lock and not why.excl and not why.ad then
-            LP.recentSeek[k] = t0
-            local n = 0
-            for key, tt in pairs(LP.recentSeek) do
-                if t0 - tt > SEEK_FOLLOW then LP.recentSeek[key] = nil else n = n + 1 end
-            end
+        end
+        if not ok and (why.lock or why.verb or why.rogue or why.seek or why.excl or why.ad) then
+            -- keep fragments that say something (also sale/advertisement words, so that they can veto a later combination)
+            kept[#kept + 1] = { text = msg, t = t0 }
+            while #kept > MSG_MAX do table.remove(kept, 1) end
+        end
+        LP.recentMsgs[k] = (#kept > 0) and kept or nil
+        for key, list in pairs(LP.recentMsgs) do   -- forget players whose fragments are all too old
+            if t0 - list[#list].t > MSG_WINDOW then LP.recentMsgs[key] = nil end
         end
     end
     if not ok then
@@ -600,20 +611,18 @@ local tradeName, tradeTip, tradeStartMoney, tipHandled = nil, 0, 0, false
 local closedName, closedAt   -- partner of the trade that just closed (the completion message can arrive after the window closed)
 local lastTrade   -- last closed trade with a tip: waits for the money to arrive / the completion message
 LP.On("TRADE_SHOW", function()
-    tradeName = (UnitName("NPC")) or (TradeFrameRecipientNameText and TradeFrameRecipientNameText:GetText())
+    tradeName = (LP.Game.UnitName("NPC")) or (TradeFrameRecipientNameText and TradeFrameRecipientNameText:GetText())
     tradeTip, tipHandled = 0, false
-    tradeStartMoney = GetMoney and GetMoney() or 0
+    tradeStartMoney = LP.Game.GetMoney()
     LP.DevDebug("trade", "trade window opened with %s", tradeName)
     LP.tradePartner = tradeName
     LP.HandleTradeStart(tradeName)
     if LP.partner then LP.CancelLeave() end   -- the customer trades again (another box): do not leave
 end)
 local function UpdateTip()
-    if GetTargetTradeMoney then
-        local m = GetTargetTradeMoney() or 0
-        if m ~= tradeTip then LP.DevDebug("trade", "partner offers %s", LP.Money(m)) end
-        tradeTip = m
-    end
+    local m = LP.Game.GetTargetTradeMoney() or 0
+    if m ~= tradeTip then LP.DevDebug("trade", "partner offers %s", LP.Money(m)) end
+    tradeTip = m
 end
 LP.On("TRADE_MONEY_CHANGED", UpdateTip)
 LP.On("TRADE_ACCEPT_UPDATE", UpdateTip)
@@ -622,7 +631,7 @@ LP.On("TRADE_ACCEPT_UPDATE", UpdateTip)
 local function ResolveTip(why)
     local lt = lastTrade
     if not lt or lt.done then return end
-    local nowMoney = GetMoney and GetMoney() or 0
+    local nowMoney = LP.Game.GetMoney()
     if nowMoney >= lt.start + lt.tip then
         lt.done = true
         LP.Debug("trade", "tip confirmed (%s): +%s", why, LP.Money(nowMoney - lt.start))
@@ -753,7 +762,7 @@ end)
 -- Channels: key = name without suffix ("Trade - Stormwind" -> "trade"), so the choice applies in every city/zone
 function LP.ChannelKey(name) return (tostring(name):gsub("%s*%-.*$", ""):lower()) end
 function LP.ChannelList()
-    local out, list = {}, { GetChannelList() }
+    local out, list = {}, { LP.Game.GetChannelList() }
     for i = 1, #list, 3 do
         if type(list[i]) == "number" and type(list[i + 1]) == "string" then
             out[#out + 1] = { id = list[i], name = list[i + 1], key = LP.ChannelKey(list[i + 1]) }

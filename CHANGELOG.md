@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.22
+- A request that a player splits into several short messages is now recognised, in any order: "LF rogue", "for", then the item link; or the link first and "LF rogue" after it; or "LF", "chest", "open it". Picky remembers the last few messages of each player for 5 seconds and checks them together, with the same rules as a single message (advertisements and sales words still block it, and a general question plus a box link is no request).
+- Fixed: running the self tests (Developer tab) no longer replaces game functions. Doing so tainted them and made Blizzard's own code (nameplates, unit frames) fail with errors like "execution tainted by 'Picky'" until the next /reload. Normal use of Picky was not affected.
+- More self tests for these cases, and tests for the tests (deliberately built-in mistakes that the tests must catch, a check that no test touches a game function, and a check that the tests leave no data behind).
+
 ## 1.0.21
 - A customer who uses an offer word is no longer taken for an advertisement: "Kann mir jemand umsonst meine Kisten öffnen?", "can someone open my lockbox for free pls" and "any rogue available to open a lockbox?" are requests again. Words like "free", "gratis", "kostenlos", "umsonst", "available" and "service" only mark an advertisement when nobody is being asked.
 - More self tests for these messages.

@@ -2,8 +2,8 @@
 # Check everything that can be checked without the game.
 #   tools/check_all.sh          everything
 #   tools/check_all.sh --fast   without the mutation test
-# 1. syntax of every Lua file   2. all tests   3. three runs in a row (must be identical)
-# 4. random orders (no test may depend on another one)   5. mutation test (every deliberate bug must be noticed)
+# 1. syntax of every Lua file   2. no write to a game global (taint)   3. all tests   4. three runs in a row (must be identical)
+# 5. random orders (no test may depend on another one)   6. mutation test (every deliberate bug must be noticed)
 cd "$(dirname "$0")/.." || exit 2
 command -v luajit >/dev/null || { echo "luajit is missing: brew install luajit"; exit 2; }
 fail=0
@@ -16,17 +16,22 @@ for f in *.lua; do
 done
 [ $bad = 0 ] && echo "ok" || fail=1
 
-step "2. All tests"
+step "2. No game global is written (taint)"
+out=$(python3 tools/check_taint.py 2>&1); code=$?
+echo "$out" | head -1
+[ $code = 0 ] || { echo "$out" | tail -n +2 | sed 's/^/   /'; fail=1; }
+
+step "3. All tests"
 out=$(luajit tools/run_tests.lua 2>&1); code=$?
 echo "$out" | head -1
 [ $code = 0 ] || { echo "$out" | tail -n +2 | sed 's/^/   /'; fail=1; }
 
-step "3. Three runs in a row (identical)"
+step "4. Three runs in a row (identical)"
 out=$(luajit tools/run_tests.lua --repeat 3 2>&1); code=$?
 echo "$out" | head -1
 [ $code = 0 ] || { echo "$out" | tail -n +2 | sed 's/^/   /'; fail=1; }
 
-step "4. Random order (10 runs)"
+step "5. Random order (10 runs)"
 bad=0
 for seed in 1 2 3 4 5 6 7 8 9 10; do
   out=$(luajit tools/run_tests.lua --seed $seed 2>&1) || { echo; echo "   seed $seed:"; echo "$out" | sed 's/^/   /'; bad=1; }
@@ -34,7 +39,7 @@ done
 [ $bad = 0 ] && echo "ok (10 different orders)" || fail=1
 
 if [ "$1" != "--fast" ]; then
-  step "5. Mutation test"
+  step "6. Mutation test"
   out=$(python3 tools/mutate.py 2>&1); code=$?
   echo "$out" | tail -1
   [ $code = 0 ] || { echo "$out" | grep -E "SURVIVED|STALE" | sed 's/^/   /'; fail=1; }

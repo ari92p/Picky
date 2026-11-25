@@ -446,9 +446,9 @@ T("data: statistics and orders are part of the defaults (new installs)", functio
 end)
 T("skill: the stored skill belongs to the account and is not used on a character without Pick Lock", function()
     local db = LP.db
-    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = db.skillBase, ts = C_TradeSkillUI }
+    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = db.skillBase, ts = LP.Game.TradeSkillInfo }
     local ok, err = pcall(function()
-        C_TradeSkillUI = false
+        LP.Game.TradeSkillInfo = function() return nil end
         LP.IsRogue = function() return true end
         LP.ReadSkillList = function() return nil end
         db.skillBase = 160   -- stored by another character (the main)
@@ -463,7 +463,7 @@ T("skill: the stored skill belongs to the account and is not used on a character
         LP.RefreshSkill()
         eq(LP.skillBase, 160, "when the client cannot tell, the stored value is used too")
     end)
-    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, db.skillBase, C_TradeSkillUI = keep.known, keep.rogue, keep.list, keep.base, keep.ts
+    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, db.skillBase, LP.Game.TradeSkillInfo = keep.known, keep.rogue, keep.list, keep.base, keep.ts
     LP.RefreshSkill()
     if not ok then error(err, 0) end
 end)
@@ -501,9 +501,9 @@ T("non-rogue sayings: every saying can be shown (with the class name) and the pi
     LP.quoteIndex = was
 end)
 T("skill: a rogue without Pick Lock has skill 0 (not learned), not a guess from the level", function()
-    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = LP.db.skillBase, ts = C_TradeSkillUI }
+    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = LP.db.skillBase, ts = LP.Game.TradeSkillInfo }
     local ok, err = pcall(function()
-        C_TradeSkillUI = false   -- the second source of the skill must not answer for the real character
+        LP.Game.TradeSkillInfo = function() return nil end   -- the second source of the skill must not answer for the real character
         LP.IsRogue = function() return true end
         LP.ReadSkillList = function() return nil end     -- no Lockpicking line in the skill list
         LP.db.skillBase = nil   -- nothing stored
@@ -529,14 +529,14 @@ T("skill: a rogue without Pick Lock has skill 0 (not learned), not a guess from 
         falsy(LP.skillEstimated, "not estimated")
         falsy(LP.skillNotLearned, "learned")
     end)
-    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, LP.db.skillBase, C_TradeSkillUI = keep.known, keep.rogue, keep.list, keep.base, keep.ts
+    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, LP.db.skillBase, LP.Game.TradeSkillInfo = keep.known, keep.rogue, keep.list, keep.base, keep.ts
     LP.RefreshSkill()
     if not ok then error(err, 0) end
 end)
 T("skill: a character that is not a rogue is never marked as not learned", function()
-    local keep = { rogue = LP.IsRogue, list = LP.ReadSkillList, known = LP.PickLockKnown, ts = C_TradeSkillUI, base = LP.db.skillBase }
+    local keep = { rogue = LP.IsRogue, list = LP.ReadSkillList, known = LP.PickLockKnown, ts = LP.Game.TradeSkillInfo, base = LP.db.skillBase }
     local ok, err = pcall(function()
-        C_TradeSkillUI = false
+        LP.Game.TradeSkillInfo = function() return nil end
         LP.db.skillBase = nil
         LP.IsRogue = function() return false end
         LP.ReadSkillList = function() return nil end
@@ -545,7 +545,7 @@ T("skill: a character that is not a rogue is never marked as not learned", funct
         eq(LP.skillBase, 0, "base 0")
         falsy(LP.skillNotLearned, "no 'not learned' flag for other classes")
     end)
-    LP.IsRogue, LP.ReadSkillList, LP.PickLockKnown, C_TradeSkillUI, LP.db.skillBase = keep.rogue, keep.list, keep.known, keep.ts, keep.base
+    LP.IsRogue, LP.ReadSkillList, LP.PickLockKnown, LP.Game.TradeSkillInfo, LP.db.skillBase = keep.rogue, keep.list, keep.known, keep.ts, keep.base
     LP.RefreshSkill()
     if not ok then error(err, 0) end
 end)
@@ -566,8 +566,8 @@ T("chat detection: a lone item link of a box is a box (also with the German name
     falsy(why3.lock, "and names no box")
 end)
 T("chat detection: 'LF rogue for' + the box link a few seconds later becomes one request", function()
-    local was = LP.recentSeek
-    LP.recentSeek = {}
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
     Sandbox(nil, function()
         LP.OnChat("CHAT_MSG_CHANNEL", "Lf Rogue for", "Splitter", true)
         falsy(LP.FindRequest("Splitter"), "no request yet")
@@ -576,11 +576,11 @@ T("chat detection: 'LF rogue for' + the box link a few seconds later becomes one
         truthy(r, "request after the second message")
         eq(r.req, 125, "required skill from the link")
     end)
-    LP.recentSeek = was
+    LP.recentMsgs = was
 end)
 T("chat detection: a box link from someone who did not ask for a rogue is no request", function()
-    local was = LP.recentSeek
-    LP.recentSeek = {}
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
     Sandbox(nil, function()
         LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Seller", true)
         falsy(LP.FindRequest("Seller"), "a lone link is no request")
@@ -588,33 +588,102 @@ T("chat detection: a box link from someone who did not ask for a rogue is no req
         LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "SomeoneElse", true)
         falsy(LP.FindRequest("SomeoneElse"), "another player's link does not use the asker's message")
     end)
-    LP.recentSeek = was
-end)
-T("chat detection: the follow-up only counts for 5 seconds and only once", function()
-    local was = LP.recentSeek
-    LP.recentSeek = {}
-    Sandbox(nil, function()
-        LP.recentSeek["late"] = GetTime() - 6
-        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Late", true)
-        falsy(LP.FindRequest("Late"), "too late (6 s)")
-        LP.recentSeek["intime"] = GetTime() - 3
-        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "InTime", true)
-        truthy(LP.FindRequest("InTime"), "in time (3 s)")
-        LP.OnChat("CHAT_MSG_CHANNEL", "Lf Rogue for", "Once", true)
-        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Once", true)
-        truthy(LP.recentSeek["once"] == nil, "the remembered question is used up")
-    end)
-    LP.recentSeek = was
+    LP.recentMsgs = was
 end)
 T("chat detection: an advertisement before a box link does not open the follow-up", function()
-    local was = LP.recentSeek
-    LP.recentSeek = {}
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
     Sandbox(nil, function()
         LP.OnChat("CHAT_MSG_CHANNEL", "Rogue offering lockbox opening", "Adder", true)
         LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Adder", true)
         falsy(LP.FindRequest("Adder"), "no request from an advertiser")
     end)
-    LP.recentSeek = was
+    LP.recentMsgs = was
+end)
+
+T("split messages: the earlier part only counts for 5 seconds", function()
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
+    Sandbox(nil, function()
+        LP.recentMsgs["late"] = { { text = "Lf Rogue for", t = GetTime() - 6 } }
+        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Late", true)
+        falsy(LP.FindRequest("Late"), "too late (6 s)")
+        LP.recentMsgs["intime"] = { { text = "Lf Rogue for", t = GetTime() - 3 } }
+        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "InTime", true)
+        truthy(LP.FindRequest("InTime"), "in time (3 s)")
+    end)
+    LP.recentMsgs = was
+end)
+T("split messages: the parts are used up by the request", function()
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
+    Sandbox(nil, function()
+        LP.OnChat("CHAT_MSG_CHANNEL", "Lf Rogue for", "Once", true)
+        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Once", true)
+        truthy(LP.recentMsgs["once"] == nil, "nothing is left over after the request")
+    end)
+    LP.recentMsgs = was
+end)
+T("split messages: three parts in any order become one request", function()
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
+    Sandbox(nil, function()
+        local function Say(who, ...) for _, m in ipairs({ ... }) do LP.OnChat("CHAT_MSG_CHANNEL", m, who, true) end end
+        Say("Drei1", "LF rogue", "for", LINK_STRONG_DE)
+        truthy(LP.FindRequest("Drei1"), "'LF rogue', 'for', link")
+        Say("Drei2", LINK_STRONG_DE, "LF rogue")
+        truthy(LP.FindRequest("Drei2"), "the link first, then 'LF rogue'")
+        Say("Drei3", "LF", "rogue", LINK_STRONG_DE)
+        truthy(LP.FindRequest("Drei3"), "'LF', 'rogue', link: every word on its own line")
+        Say("Drei4", "need", "a rogue", "to open", "my lockbox")
+        truthy(LP.FindRequest("Drei4"), "four short parts")
+        Say("Drei6", "LF", "chest", "open it")
+        truthy(LP.FindRequest("Drei6"), "three parts that only work TOGETHER: 'LF' + 'chest' + 'open it'")
+        Say("Drei5", "Kann", "ein Schurke", "meine Kiste", "aufmachen?")
+        truthy(LP.FindRequest("Drei5"), "four German parts")
+        eq(LP.FindRequest("Drei1").req, 125, "the skill comes from the link in the third part")
+    end)
+    LP.recentMsgs = was
+end)
+T("split messages: unrelated or vetoed parts do not become a request", function()
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
+    Sandbox(nil, function()
+        local function Say(who, ...) for _, m in ipairs({ ... }) do LP.OnChat("CHAT_MSG_CHANNEL", m, who, true) end end
+        Say("Veto1", "LF rogue", "WTS", LINK_STRONG_DE)
+        falsy(LP.FindRequest("Veto1"), "a sale word between the parts vetoes the combination")
+        Say("Veto2", "Rogue offering", LINK_STRONG_DE)
+        falsy(LP.FindRequest("Veto2"), "an offer word vetoes it")
+        Say("Veto3", "hello everyone", "how are you", "nice weather")
+        falsy(LP.FindRequest("Veto3"), "chatter is no request")
+        Say("Veto4", "can someone help me", "with this", LINK_STRONG_DE)
+        falsy(LP.FindRequest("Veto4"), "a general question and a link is no request")
+        Say("Veto5", "LF", "rogue", "lf dps", "for brd")
+        falsy(LP.FindRequest("Veto5"), "a group search")
+    end)
+    LP.recentMsgs = was
+end)
+T("split messages: only a few parts are kept per player and chatter is not stored", function()
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
+    Sandbox(nil, function()
+        for i = 1, 8 do LP.OnChat("CHAT_MSG_CHANNEL", "LF rogue", "Spammer", true) end
+        local list = LP.recentMsgs["spammer"]
+        truthy(list == nil or #list <= 4, "at most 4 parts are kept (or the repeated question already became a request)")
+        LP.OnChat("CHAT_MSG_CHANNEL", "good morning everyone", "Plauderer", true)
+        eq(LP.recentMsgs["plauderer"], nil, "a message without any signal is not stored")
+    end)
+    LP.recentMsgs = was
+end)
+T("split messages: old parts of players who stopped writing are forgotten", function()
+    local was = LP.recentMsgs
+    LP.recentMsgs = { alt = { { text = "LF rogue", t = GetTime() - 30 } } }
+    Sandbox(nil, function()
+        LP.OnChat("CHAT_MSG_CHANNEL", "LF rogue", "Neu", true)
+        eq(LP.recentMsgs["alt"], nil, "the old entry is removed")
+        truthy(LP.recentMsgs["neu"] ~= nil, "the new one is kept")
+    end)
+    LP.recentMsgs = was
 end)
 
 -- 7) Real chat: switched-off channels and advertisements (moved here from Tests.lua) --------------------------------------------------------
@@ -684,15 +753,15 @@ T("guild chat: it can be switched off and on without touching the other sources"
     f.readOff = was
 end)
 T("guild chat: a request from a guild member becomes a request, an advertisement does not", function()
-    local was = LP.recentSeek
-    LP.recentSeek = {}
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
     Sandbox(nil, function()
         LP.OnChat("CHAT_MSG_GUILD", "LF rogue to open my lockbox", "Gildenfreund", true)
         truthy(LP.FindRequest("Gildenfreund"), "request from the guild")
         LP.OnChat("CHAT_MSG_GUILD", "Rogue here, lockpicking 300, tips welcome", "Gildenwerber", true)
         falsy(LP.FindRequest("Gildenwerber"), "advertisement in guild chat")
     end)
-    LP.recentSeek = was
+    LP.recentMsgs = was
 end)
 T("guild chat: the menu lists it next to say and yell", function()
     local en, de = LP.Both("Guild")
@@ -701,11 +770,11 @@ T("guild chat: the menu lists it next to say and yell", function()
 end)
 
 -- 9) The menus only list what the character really has; announcing in guild chat ----------------------------------------------------
-local function WithGame(mocks, fn)   -- replace global functions for one call (guild, channel list); always restore them
+local function WithGame(mocks, fn)   -- replace calls into the game (LP.Game fields) for one call; always restore them. NEVER touch a game global.
     local saved = {}
-    for name, v in pairs(mocks) do saved[name] = _G[name] _G[name] = v end
+    for name, v in pairs(mocks) do saved[name] = LP.Game[name] LP.Game[name] = v end
     local ok, err = pcall(fn)
-    for name in pairs(mocks) do _G[name] = saved[name] end
+    for name in pairs(mocks) do LP.Game[name] = saved[name] end
     if not ok then error(err, 0) end
 end
 local function keys(list) local t = {} for _, e in ipairs(list) do t[#t + 1] = e.key end return table.concat(t, ",") end
@@ -776,24 +845,24 @@ end)
 
 -- 10) Rules that were not pinned down yet (found by the mutation test, tools/mutate.py) ------------------------------------------------------
 T("follow-up: a box message that is itself an advertisement does not finish the request", function()
-    local was = LP.recentSeek
-    LP.recentSeek = {}
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
     Sandbox(nil, function()
         LP.OnChat("CHAT_MSG_CHANNEL", "Lf Rogue for", "Mixer", true)
         LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE .. " tips appreciated", "Mixer", true)
         falsy(LP.FindRequest("Mixer"), "the second message is an advertisement")
     end)
-    LP.recentSeek = was
+    LP.recentMsgs = was
 end)
 T("follow-up: only asking for a ROGUE opens the follow-up (not any question)", function()
-    local was = LP.recentSeek
-    LP.recentSeek = {}
+    local was = LP.recentMsgs
+    LP.recentMsgs = {}
     Sandbox(nil, function()
         LP.OnChat("CHAT_MSG_CHANNEL", "can someone help me", "Helper", true)
         LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Helper", true)
         falsy(LP.FindRequest("Helper"), "a general question plus a box link is no request")
     end)
-    LP.recentSeek = was
+    LP.recentMsgs = was
 end)
 T("announce: not twice within 60 seconds", function()
     local db = LP.db
@@ -838,9 +907,9 @@ T("decide: exactly enough skill is enough, one point less is not", function()
 end)
 T("skill: the estimate is level x 5, at most 300", function()
     local db = LP.db
-    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = db.skillBase, ts = C_TradeSkillUI }
+    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = db.skillBase, ts = LP.Game.TradeSkillInfo }
     local ok, err = pcall(function()
-        C_TradeSkillUI = false
+        LP.Game.TradeSkillInfo = function() return nil end
         LP.IsRogue = function() return true end
         LP.ReadSkillList = function() return nil end
         db.skillBase = nil
@@ -859,7 +928,7 @@ T("skill: the estimate is level x 5, at most 300", function()
             eq(LP.skillBase, 5, "level 1")
         end)
     end)
-    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, db.skillBase, C_TradeSkillUI = keep.known, keep.rogue, keep.list, keep.base, keep.ts
+    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, db.skillBase, LP.Game.TradeSkillInfo = keep.known, keep.rogue, keep.list, keep.base, keep.ts
     LP.RefreshSkill()
     if not ok then error(err, 0) end
 end)

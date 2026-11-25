@@ -655,12 +655,13 @@ local function Fire(event, ...)
     local f = LP.frame
     f:GetScript("OnEvent")(f, event, ...)
 end
--- Replace globals for the duration of fn (restored even on errors)
+-- Replace calls into the game for the duration of fn (restored even on errors). They are the fields of LP.Game (the addon's own table):
+-- a test NEVER assigns to a game global, that taints it for Blizzard's own code ("execution tainted by 'Picky'").
 local function WithStubs(stubs, fn)
     local saved = {}
-    for k, v in pairs(stubs) do saved[k] = _G[k]; _G[k] = v end
+    for k, v in pairs(stubs) do saved[k] = LP.Game[k]; LP.Game[k] = v end
     local ok, err = pcall(fn)
-    for k in pairs(stubs) do _G[k] = saved[k] end
+    for k in pairs(stubs) do LP.Game[k] = saved[k] end
     if not ok then error(err, 0) end
 end
 
@@ -1082,9 +1083,8 @@ end)
 local VOLATILE_DB = { savedLog = true, savedFeed = true, itemNames = true }   -- the addon changes these by itself
 local LP_FIELDS = { "requests", "pending", "partner", "partnerSim", "pickedForPartner", "waitTradeClose", "forceDry", "InGroup", "GroupCount",
     "IsRogue", "PickLockKnown", "ReadSkillList", "skill", "skillEstimated", "skillNotLearned", "skillBase", "skillBonus", "skillMax",
-    "skillSource", "feed", "recentSeek", "lastAd", "lastAdSeen", "leaveAt", "leaveToken", "lastInviter", "quoteIndex",
+    "skillSource", "feed", "recentMsgs", "lastAd", "lastAdSeen", "leaveAt", "leaveToken", "lastInviter", "quoteIndex",
     "Invite", "Whisper", "SendChannel", "SendGuild", "Leave", "After" }
-local GLOBAL_FIELDS = { "IsInGuild", "GetChannelList", "UnitName", "UnitGUID", "UnitClass", "IsPlayerSpell", "IsSpellKnown", "C_TradeSkillUI", "C_SkillInfo" }
 local function DeepCopy(v, top)
     if type(v) ~= "table" then return v end
     local c = {}
@@ -1109,9 +1109,9 @@ local function Diff(a, b, path)   -- first difference between two copies, or nil
     return nil
 end
 local function Snapshot()
-    local snap = { db = DeepCopy(LP.db, true), fields = {}, globals = {} }
+    local snap = { db = DeepCopy(LP.db, true), fields = {}, game = {} }
     for _, k in ipairs(LP_FIELDS) do snap.fields[k] = LP[k] end
-    for _, k in ipairs(GLOBAL_FIELDS) do snap.globals[k] = _G[k] end
+    for k, v in pairs(LP.Game) do snap.game[k] = v end
     return snap
 end
 -- Compares with the state before the test, restores shared fields/globals (so one leak does not make later tests fail) and names what leaked
@@ -1125,13 +1125,32 @@ local function Leaks(snap)
             LP[k] = snap.fields[k]
         end
     end
-    for _, k in ipairs(GLOBAL_FIELDS) do
-        if _G[k] ~= snap.globals[k] then
-            leaks[#leaks + 1] = "global " .. k .. " was not restored"
-            _G[k] = snap.globals[k]
+    for k, v in pairs(snap.game) do   -- the stand-ins for game calls (LP.Game is the addon's own table, so restoring is safe)
+        if LP.Game[k] ~= v then
+            leaks[#leaks + 1] = "LP.Game." .. k .. " was not restored"
+            LP.Game[k] = v
         end
     end
     return leaks
+end
+
+-- Game globals must stay exactly as they are: a test (or the addon) that overwrites one taints it for Blizzard's code.
+-- Compared once per run: values changed or removed, and new globals that do not belong to Picky.
+local function GlobalSnapshot()
+    local g = {}
+    for k, v in pairs(_G) do g[k] = v end
+    return g
+end
+local function GlobalChanges(before)
+    local changed = {}
+    for k, v in pairs(before) do
+        if _G[k] ~= v then changed[#changed + 1] = tostring(k) .. " (changed)" end
+    end
+    for k in pairs(_G) do
+        if before[k] == nil and not tostring(k):find("^Picky") then changed[#changed + 1] = tostring(k) .. " (added)" end
+    end
+    table.sort(changed)
+    return changed
 end
 
 -- Run -------------------------------------------------------------------------------------------------------------------
@@ -1149,6 +1168,7 @@ function LP.RunTests(opts)
             order[i], order[j] = order[j], order[i]
         end
     end
+    local globalsBefore = GlobalSnapshot()
     for _, idx in ipairs(order) do
         local t = tests[idx]
         local snap = Snapshot()
@@ -1167,8 +1187,15 @@ function LP.RunTests(opts)
             pass = pass + 1
         end
     end
-    LP.lastTests = { pass = pass, fail = failed, warn = warned, total = #tests, lines = out, seed = opts.seed }
-    local head = ("%d/%d tests passed, %d failed, %d warnings"):format(pass, #tests, failed, warned)
+    local gc = GlobalChanges(globalsBefore)
+    if #gc > 0 then
+        failed = failed + 1
+        out[#out + 1] = { "fail", "no game global may change during the tests", "TAINT RISK: " .. table.concat(gc, ", ") }
+    else
+        pass = pass + 1
+    end
+    LP.lastTests = { pass = pass, fail = failed, warn = warned, total = #tests + 1, lines = out, seed = opts.seed }
+    local head = ("%d/%d tests passed, %d failed, %d warnings"):format(pass, #tests + 1, failed, warned)
     LP.Print((failed == 0 and "|cff4de88a" or "|cffff5959") .. head .. "|r")
     LP.Debug("test", "%s", head)
     for _, o in ipairs(out) do

@@ -10,6 +10,24 @@ do
 end
 LP.PICK_SPELL_ID = 1804
 
+-- Calls into the game that the self tests have to replace. The tests replace the fields of THIS table and never assign to a game global:
+-- an addon that writes a game function (even to restore it) taints it, and Blizzard's own code that reads it afterwards fails with
+-- "execution tainted by 'Picky'" (seen in the nameplates). Production code calls the game through here where tests need a stand-in.
+LP.Game = {
+    IsInGuild = function() return IsInGuild and IsInGuild() end,
+    GetChannelList = function() if GetChannelList then return GetChannelList() end end,
+    UnitLevel = function() return (UnitLevel and UnitLevel("player")) or 1 end,
+    UnitName = function(unit) return UnitName and UnitName(unit) end,
+    GetMoney = function() return (GetMoney and GetMoney()) or 0 end,
+    GetTargetTradeMoney = function() return GetTargetTradeMoney and GetTargetTradeMoney() or nil end,
+    TradeSkillInfo = function(id)
+        if C_TradeSkillUI and C_TradeSkillUI.GetProfessionInfoBySkillLineID then
+            local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, id)
+            if ok then return info end
+        end
+    end,
+}
+
 _G.BINDING_HEADER_PICKY = "Picky"
 LP.OnLanguage(function()
     _G.BINDING_NAME_PICKY_TOGGLE = L["Picky window"]
@@ -307,7 +325,7 @@ end
 
 -- Guild chat: only available when the character is in a guild
 function LP.InGuild()
-    return (IsInGuild and IsInGuild()) and true or false
+    return LP.Game.IsInGuild() and true or false
 end
 function LP.SendGuild(text)
     if LP.IsDry() then LP.Debug("chat", "[dry run] would post to guild chat: %s", text) return true end
@@ -459,9 +477,9 @@ end
 function LP.RefreshSkill()
     local base, max, apiBonus, source, estimated
     base, max, apiBonus, source = LP.ReadSkillList()
-    if not base and C_TradeSkillUI and C_TradeSkillUI.GetProfessionInfoBySkillLineID then
-        local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, LOCKPICKING_SKILL_LINE)
-        if ok and type(info) == "table" and (info.skillLevel or 0) > 0 then
+    if not base then
+        local info = LP.Game.TradeSkillInfo(LOCKPICKING_SKILL_LINE)
+        if type(info) == "table" and (info.skillLevel or 0) > 0 then
             base, max, apiBonus, source = info.skillLevel, info.maxSkillLevel, info.skillModifier or 0, "C_TradeSkillUI"
         end
     end
@@ -475,7 +493,7 @@ function LP.RefreshSkill()
             -- Pick Lock is not in the spellbook yet (a new rogue): there is no skill at all, so it is 0, not a guess from the level
             base, max, notLearned, source = 0, 300, true, L["not learned"]
         else
-            base, max, estimated, source = math.min(300, UnitLevel("player") * 5), 300, true, L["estimated"]
+            base, max, estimated, source = math.min(300, LP.Game.UnitLevel() * 5), 300, true, L["estimated"]
         end
     end
     base = base or 0
