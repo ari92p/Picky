@@ -93,17 +93,17 @@ LP.OnLanguage(function()
     local function Obj(name, iconItem, skill, hint)
         return { name = name, iconItem = iconItem, skill = skill, hint = hint }
     end
-    local STRONGBOX   = Obj(L["Buccaneer's Strongbox"], 4632, nil, L["Opens up to about skill 100."])
-    local PRACTICE    = Obj(L["Practice Lockbox"], 4632, nil, L["Respawns really fast."])
-    local BATTERED    = Obj(L["Battered Footlocker"], 4634, 150, L["Upstairs at Angor Fortress."])
+    local STRONGBOX   = Obj(L["Buccaneer's Strongbox"], 4632, nil, L["Good for skill points up to about 100."])
+    local PRACTICE    = Obj(L["Practice Lockbox"], 4632, nil, L["Respawns very fast."])
+    local BATTERED    = Obj(L["Battered Footlocker"], 4634, 150, L["Upstairs in Angor Fortress."])
     local BATTERED_LO = Obj(L["Battered Footlocker"], 4634, 70)
-    local WATERLOGGED = Obj(L["Waterlogged Footlocker"], 4637, 110, L["On the shore from the start, the ones in the water open from 110."])
-    local DENTED_LOW  = Obj(L["Dented Footlocker (lower)"], 5758, 200, L["The lower part gives points until you stop getting them, then switch to the upper part."])
-    local DENTED_175  = Obj(L["Dented Footlocker (175)"], 5758, 175, L["Downstairs at Angor Fortress. A point every time until 215."])
-    local DENTED_UP   = Obj(L["Dented Footlocker (upper)"], 5759, 225, L["Gives points all the way to 300."])
-    local MOSSY       = Obj(L["Mossy Footlocker"], 5759, nil, L["Seen in Desolace, Swamp of Sorrows, Tanaris and Azshara."])
-    local SCARLET     = Obj(L["Scarlet Footlocker"], 5760, nil, L["Tyr's Hand, full of level 55-60 elites."])
-    local HEAVYJUNK   = { name = L["Heavy Junkbox"], item = 16885, skill = 250, hint = L["Pick Pocket level 51-60 humanoids."] }
+    local WATERLOGGED = Obj(L["Waterlogged Footlocker"], 4637, 110, L["The ones on the shore open from the start, the ones in the water from skill 110."])
+    local DENTED_LOW  = Obj(L["Dented Footlocker (lower)"], 5758, 200, L["Gives points in the lower part until they stop coming, then move to the upper part."])
+    local DENTED_175  = Obj(L["Dented Footlocker (175)"], 5758, 175, L["Downstairs in Angor Fortress. Gives a point every time until skill 215."])
+    local DENTED_UP   = Obj(L["Dented Footlocker (upper)"], 5759, 225, L["Gives points up to skill 300."])
+    local MOSSY       = Obj(L["Mossy Footlocker"], 5759, nil, L["Found in Desolace, Swamp of Sorrows, Tanaris and Azshara."])
+    local SCARLET     = Obj(L["Scarlet Footlocker"], 5760, nil, L["Found in Tyr's Hand, which is full of level 55-60 elites."])
+    local HEAVYJUNK   = { name = L["Heavy Junkbox"], item = 16885, skill = 250, hint = L["Comes from pickpocketing level 51-60 humanoids."] }
 
     LP.GUIDE = {
         {
@@ -112,25 +112,24 @@ LP.OnLanguage(function()
                 { zone = 1413, x = 65.0, y = 45.5, faction = "H", best = true, where = L["Ship south of Ratchet"],
                   note = L["Inside the ship. Fast respawn, two rogues can skill up together."], boxes = { STRONGBOX } },
                 { zone = 1433, x = 46.6, y = 45.0, faction = "A", best = true, where = L["Alther's Mill"],
-                  note = L["Also north of Lake Everstill. Really fast respawn."], boxes = { PRACTICE } },
+                  note = L["Practice Lockboxes also stand north of Lake Everstill. They respawn very fast."], boxes = { PRACTICE } },
             },
             tips = {
-                { "warn", L["Do NOT open 'The Jewel of the Southsea' at the bottom of the ship at a low level: it spawns a mob that kills you."] },
-                { "tip", L["Points get slow after about 65. Move on at 100 at the latest."] },
-                { "warn", L["Keep Thieves' Tools in your bags, or Pick Lock does nothing."] },
+                { "tip", L["Skill points come slower after about 65. Move on by 100 at the latest."] },
+                { "warn", L["Keep Thieves' Tools in your bags, or Pick Lock will not work."] },
             },
         },
         {
             from = 100, to = 150, title = "100 - 150", levelReq = 30,
             spots = {
                 { zone = 1440, x = 11.3, y = 21.7, faction = "H", best = true, where = L["Zoram Strand"],
-                  note = L["Along the shore. Alone you get to about 150 if nobody competes."], boxes = { WATERLOGGED } },
+                  note = L["Along the shore. Without competition you can reach about 150 here."], boxes = { WATERLOGGED } },
                 { zone = 1442, x = 67.5, y = 51.5, faction = "H", where = L["Windshear Crag"],
-                  note = L["Inner and upper spots (Windshear Mine) for the higher boxes."], boxes = { BATTERED_LO, WATERLOGGED } },
+                  note = L["The higher boxes are further inside and higher up (Windshear Mine)."], boxes = { BATTERED_LO, WATERLOGGED } },
                 { zone = 1437, x = 18.7, y = 35.6, faction = "A", where = L["Murloc camps"],
-                  note = L["The inner camps hold the higher boxes."], boxes = { BATTERED_LO, WATERLOGGED } },
+                  note = L["The higher boxes are in the inner camps."], boxes = { BATTERED_LO, WATERLOGGED } },
                 { zone = 1424, x = 78.8, y = 43.4, where = L["Durnholde Keep"],
-                  note = L["The upper ring has the higher boxes."], boxes = { BATTERED_LO, WATERLOGGED } },
+                  note = L["The higher boxes are on the upper ring."], boxes = { BATTERED_LO, WATERLOGGED } },
                 { zone = 1433, x = 40.5, y = 60.0, faction = "A", where = L["Lake Everstill"],
                   note = L["The boxes are underwater."], boxes = { WATERLOGGED } },
             },
@@ -148,12 +147,12 @@ LP.OnLanguage(function()
                 { zone = 1443, x = 34.5, y = 12.8, where = L["North coast of Desolace"],
                   note = L["Many Mossy Footlockers."], boxes = { DENTED_175, MOSSY } },
                 { zone = 1435, x = 65.3, y = 53.8, where = L["Pool of Tears"],
-                  note = L["Underwater, only two Mossy Footlockers."], boxes = { DENTED_175, MOSSY } },
+                  note = L["Underwater. Only two Mossy Footlockers here."], boxes = { DENTED_175, MOSSY } },
             },
             tips = {
-                { "tip", L["The Dented Footlockers downstairs give a skill point every time until 215, so you can stay until 225."] },
-                { "tip", L["Angor Fortress is often camped by other rogues."] },
-                { "warn", L["Do not pickpocket here: their boxes are too low to give skill."] },
+                { "tip", L["The Dented Footlockers downstairs give a point every time until skill 215. You can stay here until 225."] },
+                { "tip", L["Other rogues often camp at Angor Fortress."] },
+                { "warn", L["Do not pickpocket here: the boxes are too low to give skill."] },
             },
         },
         {
@@ -162,14 +161,14 @@ LP.OnLanguage(function()
                 { zone = 1427, x = 42.0, y = 38.0, best = true, where = L["The Slag Pit"],
                   note = L["The cave in the middle of Searing Gorge. Lower ones need 200, upper ones 225."], boxes = { DENTED_LOW, DENTED_UP } },
                 { zone = 1446, where = L["Lost Rigger Cove"],
-                  note = L["Pirate camp on the east coast of Tanaris. Same boxes as the Slag Pit upper part, go here when the Slag Pit is full."], boxes = { DENTED_UP, MOSSY } },
+                  note = L["Pirate camp on the east coast of Tanaris. The same boxes as the upper Slag Pit: come here when the Slag Pit is crowded."], boxes = { DENTED_UP, MOSSY } },
                 { zone = 1423, where = L["Tyr's Hand"],
-                  note = L["For the last points from 250. Boxes respawn slowly."], boxes = { SCARLET, HEAVYJUNK } },
+                  note = L["For the last points, from 250. The boxes respawn slowly."], boxes = { SCARLET, HEAVYJUNK } },
             },
             tips = {
-                { "tip", L["The upper ones are yellow until 290, so the last 10 points take longer."] },
-                { "warn", L["Tyr's Hand is full of level 55-60 elites. Only go when you are ready."] },
-                { "warn", L["Do not pickpocket at Angor Fortress or the Slag Pit, it is not worth it."] },
+                { "tip", L["The upper ones stay yellow until 290, so the last 10 points are slower."] },
+                { "warn", L["Tyr's Hand is full of level 55-60 elites. Only go if you can handle them."] },
+                { "warn", L["Pickpocketing at Angor Fortress or the Slag Pit is not worth it."] },
             },
         },
     }
@@ -179,7 +178,7 @@ function LP.GuideAdvice(skill, level)
     skill, level = tonumber(skill) or 0, tonumber(level) or 0
     if level < 1 or skill >= 300 then return nil end
     if skill >= level * 5 then
-        return "warn", L["Your skill is capped by your level. Reach level %d to learn more."]:format(math.ceil((skill + 1) / 5))
+        return "warn", L["Your level limits your skill. Reach level %d to raise it further."]:format(math.ceil((skill + 1) / 5))
     end
 end
 -- What you can reach right now: the lower of your rank limit and your level limit (5 x level), at most 300, never below what you have

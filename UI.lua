@@ -388,7 +388,14 @@ local FACTION_TAG = { A = "|cff4a8bff" .. "Alliance" .. "|r", H = "|cffff4a4a" .
 local function TextHeight(text, width, lineH)
     local plain = tostring(text):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     local chars = select(2, plain:gsub("[^\128-\191]", ""))
-    return math.max(1, math.ceil(chars / math.floor(width / 5.6))) * (lineH or 12)
+    return math.max(1, math.ceil(chars / math.floor(width / 6.4))) * (lineH or 12)
+end
+
+-- Height of a wrapped text: ask the game (GetStringHeight after SetText); where that gives no number (test runner) fall back to the estimate
+local function MeasuredHeight(fs, text, width, lineH)
+    local ok, h = pcall(fs.GetStringHeight, fs)
+    if ok and type(h) == "number" and h > 0 then return math.ceil(h) end
+    return TextHeight(text, width, lineH)
 end
 
 local function BoxTip(self)
@@ -582,7 +589,7 @@ local function PlaceCallout(y, kind, text)
     local look = CALLOUT[kind] or CALLOUT.info
     c.glyph:SetText("|cff" .. look[4] .. look[3] .. "|r")
     c.text:SetText(text)
-    local h = math.max(30, TextHeight(text, GUIDE_W - 42, 13) + 16)
+    local h = math.max(30, MeasuredHeight(c.text, text, GUIDE_W - 42, 13) + 18)
     c:SetHeight(h)
     c:ClearAllPoints()
     c:SetPoint("TOPLEFT", 0, y)
@@ -601,7 +608,7 @@ local function PlaceCard(y, spot)
     local coords = spot.x and ("  |cff9aa0ad(%.1f, %.1f)|r"):format(spot.x, spot.y) or ""
     c.sub:SetText("|cff00bdf2" .. ZoneName(spot) .. "|r" .. coords)
     c.note:SetText(spot.note or "")
-    local noteH = TextHeight(spot.note or "", GUIDE_W - 16, 12)
+    local noteH = MeasuredHeight(c.note, spot.note or "", GUIDE_W - 16, 12)
     c.note:ClearAllPoints()
     c.note:SetPoint("TOPLEFT", 8, -42)
     for i = 1, #c.icons do c.icons[i]:Hide() end
