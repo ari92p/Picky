@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+- Guide: the tips of the stages 100-150, 150-225 and 225-300 now sit directly with the places they belong to (Water Breathing, crowded spots, pickpocketing, elites at Tyr's Hand).
+- Guide: the tips block (level note and general tips) is shown first, above the places, without a heading.
+
 ## 1.1.1
 - Guide: Lost Rigger Cove (Tanaris) and Tyr's Hand (Eastern Plaguelands) now set a map pin too. The pin marks the place, not the exact box.
 - Buttons in the Test and Developer tabs fit their text, also for the longer German labels.
