@@ -29,15 +29,19 @@ local LOCKSUB = { "lockpick", "pick lock", "schlossknack", "schlösser", "knack"
 local ACT_SUB = { "lockpick", "pick lock", "schlossknack", "öffn", "aufmach", "aufbrech", "knack", "aufschlie", "aufsperr" }
 local SEEK = { "lf", "lf1", "suche", "suchen", "sucht", "gesucht", "need", "needs", "brauche", "braucht", "wer", "jemand",
     "anyone", "anybody", "someone", "wtb", "pls", "plz", "bitte", "please", "help", "hilfe", "can", "could", "would",
-    "looking", "needed", "wanted" }
+    "looking", "needed", "wanted", "any" }
 local EXCL = { "lfm", "dps", "tank", "tanks", "healer", "heal", "wts", "wtt", "biete", "bietet", "bieten", "offering",
     "offers", "boost", "raid", "sell", "verkaufe", "where", "wo", "how", "wie", "quest", "quests" }
 
 -- Advertisements of OTHER rogues ("Rogue offering lockpicking, tips welcome, invite me"): never a request.
 -- A Pick Lock spell link in public chat is an ad as well (customers do not link the spell).
-local AD_TOK = { "offer", "offers", "offering", "service", "services", "available", "hire", "free", "gratis", "kostenlos", "umsonst", "anbieten", "lfw" }
+local AD_TOK = { "offer", "offers", "offering", "anbieten", "lfw" }
+-- Offer words that a CUSTOMER can say too ("can someone open my chests for free?", "any rogue available?"): they only mark an ad when
+-- nobody is being asked (no "can", "wer", "anyone", "pls" ...)
+local AD_SOFT_TOK = { "free", "available", "service", "services", "hire" }
+local AD_SOFT_SUB = { "kostenlos", "gratis", "umsonst" }   -- substrings: "kostenloses", "gratis" inside longer words
 local AD_SUB = { "tips welcome", "tip welcome", "tips appreciated", "tips are welcome", "invite me", "inv me", "just invite", "trinkgeld willkommen",
-    "einfach einladen", "lade mich ein", "ich öffne", "ich knacke", "i open", "i unlock", "kostenlos", "gratis", "looking for work", "for hire" }
+    "einfach einladen", "lade mich ein", "ich öffne", "ich knacke", "i open", "i unlock", "looking for work", "for hire" }
 
 -- Ad phrases that only count when nobody is being SEARCHED ("rogue here, will open your boxes for tips" is an ad, "lf rogue ... for tips" is a customer)
 local AD_NOSEEK = { "for tips", "for a tip", "for tip", "tip if", "tips if", "tip appreciated", "tips are appreciated", "tips greatly", "rogue here", "rogue in ",
@@ -123,7 +127,7 @@ local function Analyze(msg, isWhisper)
     local act = verb or HasSub(s, ACT_SUB)
     local excl = HasTok(s, EXCL)
     local isAd = msg:find("|Hspell:" .. tostring(LP.PICK_SPELL_ID), 1, true) ~= nil or HasTok(s, AD_TOK) or HasSub(s, AD_SUB)
-        or (not seek and (HasSub(s, CONTACT_SUB) or HasSub(s, AD_NOSEEK)))                    -- "Rogue 300 lockpicking, PM me for lockboxes"
+        or (not seek and (HasSub(s, CONTACT_SUB) or HasSub(s, AD_NOSEEK) or HasTok(s, AD_SOFT_TOK) or HasSub(s, AD_SOFT_SUB)))                    -- "Rogue 300 lockpicking, PM me for lockboxes"
         or (not seek and rogue and ExplicitSkill(s) ~= nil)         -- a rogue stating HIS skill ("Rogue 300 lockpicking"), not asking for one
 
     local ok

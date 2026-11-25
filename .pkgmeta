@@ -10,3 +10,4 @@ ignore:
   - .gitignore
   - .github
   - assets
+  - tools

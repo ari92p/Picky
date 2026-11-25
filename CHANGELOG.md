@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.21
+- A customer who uses an offer word is no longer taken for an advertisement: "Kann mir jemand umsonst meine Kisten öffnen?", "can someone open my lockbox for free pls" and "any rogue available to open a lockbox?" are requests again. Words like "free", "gratis", "kostenlos", "umsonst", "available" and "service" only mark an advertisement when nobody is being asked.
+- More self tests for these messages.
+
 ## 1.0.20
 - Advertisements of other rogues that say they are looking for work ("Rogue LFW Locking!", "looking for work", "for hire") are no longer taken as requests, so Picky does not invite them. "umsonst" (German for "for free") counts as an offer word too, like "free", "gratis" and "kostenlos".
 - More self tests for these messages.

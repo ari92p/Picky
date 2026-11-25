@@ -193,7 +193,20 @@ local CHAT2 = {
     { "Rogue opens lockboxes 4 free", false, false },
     { "Schurke öffnet Kisten umsonst", false, false },
     { "Schurke knackt Kisten gratis", false, false },
-    { "LF rogue to open my lockbox, I will tip", false, true },   -- whispers are a direct message: still a request
+    { "LF rogue to open my lockbox, I will tip", false, true },
+    -- each of these has exactly ONE signal, so every word and rule has to carry its own test
+    { "Schurke Schlossknacken umsonst", false, false },       -- only "umsonst"
+    { "Rogue lockboxes tips welcome", false, false },         -- only "tips welcome"
+    { "Rogue lockboxes pm me", false, false },                -- only "pm me"
+    { "WTS rogue lockbox", false, false },                    -- only the sale word
+    { "where is a rogue for my chest", false, false },        -- only "where"
+    -- customers who use an offer word: the word only marks an ad when nobody is being asked
+    { "Kann mir jemand umsonst meine Kisten öffnen?", false, true },
+    { "wer kann mir kostenlos eine Kiste aufmachen?", false, true },
+    { "can someone open my lockbox for free pls", false, true },
+    { "any rogue available to open a lockbox?", false, true },
+    { "need a rogue to hire for my chests pls", false, true },
+    { "anyone offering lockpicking? I need a chest opened", false, false },   -- 'offering' stays an unconditional ad word   -- whispers are a direct message: still a request
     -- whispers (a box or an open request is enough)
     { "can you open my box", true, true },
     { "Hi, do you open lockboxes?", true, true },
@@ -236,6 +249,9 @@ local REQ2 = {
     { "LF rogue " .. LINK_IRON, false, 70 },                      -- item link = exact value
     { "LF rogue " .. LINK_STEEL .. " " .. LINK_HBRONZE, false, 175 },   -- several links: the highest
     { "LF rogue " .. LINK_BATTERED, false, 1 },
+    { "LF rogue 150 lockpicking, skill 225", false, 225 },       -- two explicit numbers: the higher one
+    { "LF rogue skill 225 and 150 lockpicking", false, 225 },
+    { "LF rogue " .. LINK_HBRONZE .. " " .. LINK_STEEL, false, 175 },   -- links in the other order: still the highest, not the first
     { "LF rogue " .. LINK_HBRONZE .. " thorium", false, 25 },     -- the link wins over the word
     { "LF rogue " .. LINK_CLOTH, false, nil },                    -- a link to something that is not a box
     { "can you open " .. LINK_IRON, true, 70 },                   -- whispers read links too
@@ -714,7 +730,7 @@ T("menus: only the channels that are really joined are listed", function()
 end)
 T("announce in guild chat: only by own choice, never by default", function()
     local ad = LP.db.ad
-    local was = ad.channels
+    local was, wasSeeded = ad.channels, ad.channelsSeeded
     ad.channels = nil
     falsy(LP.AdGuildOn(), "not part of the default")
     ad.channels = { trade = true }
@@ -724,7 +740,7 @@ T("announce in guild chat: only by own choice, never by default", function()
     truthy(LP.AdSourceOn("guild"), "the menu shows it ticked")
     LP.SetAdChannel("guild", false)
     falsy(LP.AdGuildOn(), "unticked")
-    ad.channels = was
+    ad.channels, ad.channelsSeeded = was, wasSeeded
 end)
 T("announce in guild chat: Announce posts into the guild (simulated) only inside a guild", function()
     local db = LP.db
@@ -756,4 +772,235 @@ T("announce in guild chat: Announce posts into the guild (simulated) only inside
     end)
     ad.channels, LP.lastAd, db.debug, LP.forceDry = keep.ch, keep.last, keep.debug, keep.dry
     if not ok then error(err, 0) end
+end)
+
+-- 10) Rules that were not pinned down yet (found by the mutation test, tools/mutate.py) ------------------------------------------------------
+T("follow-up: a box message that is itself an advertisement does not finish the request", function()
+    local was = LP.recentSeek
+    LP.recentSeek = {}
+    Sandbox(nil, function()
+        LP.OnChat("CHAT_MSG_CHANNEL", "Lf Rogue for", "Mixer", true)
+        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE .. " tips appreciated", "Mixer", true)
+        falsy(LP.FindRequest("Mixer"), "the second message is an advertisement")
+    end)
+    LP.recentSeek = was
+end)
+T("follow-up: only asking for a ROGUE opens the follow-up (not any question)", function()
+    local was = LP.recentSeek
+    LP.recentSeek = {}
+    Sandbox(nil, function()
+        LP.OnChat("CHAT_MSG_CHANNEL", "can someone help me", "Helper", true)
+        LP.OnChat("CHAT_MSG_CHANNEL", LINK_STRONG_DE, "Helper", true)
+        falsy(LP.FindRequest("Helper"), "a general question plus a box link is no request")
+    end)
+    LP.recentSeek = was
+end)
+T("announce: not twice within 60 seconds", function()
+    local db = LP.db
+    local ad = db.ad
+    local keep = { ch = ad.channels, seeded = ad.channelsSeeded, last = LP.lastAd, debug = db.debug, dry = LP.forceDry }
+    local function posted()
+        local before = #LP.debugLog
+        LP.lastDebugKey = nil
+        LP.PostAd(false)
+        for i = before + 1, #LP.debugLog do
+            if tostring(LP.debugLog[i]):find("would post to guild chat", 1, true) then return true end
+        end
+        return false
+    end
+    local ok, err = pcall(function()
+        db.debug, LP.forceDry = true, true
+        ad.channels = { guild = true }
+        WithGame({ IsInGuild = function() return true end, GetChannelList = function() return end }, function()
+            LP.lastAd = GetTime() - 10
+            falsy(posted(), "10 seconds after the last announcement: nothing is posted")
+            LP.lastAd = GetTime() - 61
+            truthy(posted(), "61 seconds after: posted (simulated)")
+            LP.lastAd = nil
+            truthy(posted(), "no announcement before: posted (simulated)")
+        end)
+    end)
+    ad.channels, ad.channelsSeeded, LP.lastAd, db.debug, LP.forceDry = keep.ch, keep.seeded, keep.last, keep.debug, keep.dry
+    if not ok then error(err, 0) end
+end)
+T("decide: exactly enough skill is enough, one point less is not", function()
+    Sandbox(nil, function()
+        LP.skill = 225
+        local r = LP.SimulateChat("need rogue for thorium lockbox", false)
+        truthy(r, "request created")
+        eq(r.req, 225, "the box needs 225")
+        eq(r.status, "invited", "skill 225 for a box that needs 225")
+        LP.pending = nil
+        LP.skill = 224
+        local r2 = LP.SimulateChat("need rogue for thorium lockbox", false)
+        eq(r2.status, "toohigh", "skill 224 for a box that needs 225")
+    end)
+end)
+T("skill: the estimate is level x 5, at most 300", function()
+    local db = LP.db
+    local keep = { known = LP.PickLockKnown, rogue = LP.IsRogue, list = LP.ReadSkillList, base = db.skillBase, ts = C_TradeSkillUI }
+    local ok, err = pcall(function()
+        C_TradeSkillUI = false
+        LP.IsRogue = function() return true end
+        LP.ReadSkillList = function() return nil end
+        db.skillBase = nil
+        LP.PickLockKnown = function() return true end   -- known, but the list gives nothing: estimate
+        WithGame({ UnitLevel = function() return 40 end }, function()
+            LP.RefreshSkill()
+            eq(LP.skillBase, 200, "level 40")
+            truthy(LP.skillEstimated, "marked as an estimate")
+        end)
+        WithGame({ UnitLevel = function() return 70 end }, function()
+            LP.RefreshSkill()
+            eq(LP.skillBase, 300, "never more than 300")
+        end)
+        WithGame({ UnitLevel = function() return 1 end }, function()
+            LP.RefreshSkill()
+            eq(LP.skillBase, 5, "level 1")
+        end)
+    end)
+    LP.PickLockKnown, LP.IsRogue, LP.ReadSkillList, db.skillBase, C_TradeSkillUI = keep.known, keep.rogue, keep.list, keep.base, keep.ts
+    LP.RefreshSkill()
+    if not ok then error(err, 0) end
+end)
+T("defaults: the safe starting values of a new installation", function()
+    local f = LP.defaults.finder
+    eq(f.enabled, false, "duty is off")
+    eq(f.autoInvite, false, "no automatic invites")
+    eq(f.inviteUnknown, false, "no invites without a named box")
+    eq(f.onlyWhenFree, true, "one customer at a time")
+    eq(f.leaveDelay, 5, "wait before leaving")
+    eq(f.idleLeave, 180, "leave without activity")
+    eq(f.cooldown, 180, "cooldown for the same player")
+    eq(LP.defaults.debug, false, "test mode is off")
+    eq(LP.defaults.dev, false, "developer tab is hidden")
+end)
+
+-- 11) Statistics and thanks in REAL operation (not a dry run). Everything that would be sent is caught instead. ---------------------------------
+local function Real(fn)
+    -- real mode: no test mode, no dry run; whispers, invites, channel posts, leaving and timers are replaced, so nothing is ever sent
+    local db = LP.db
+    local sent = { invites = {}, whispers = {}, posts = 0, leaves = 0 }
+    local keep = { Invite = LP.Invite, Whisper = LP.Whisper, SendChannel = LP.SendChannel, SendGuild = LP.SendGuild, Leave = LP.Leave, After = LP.After,
+        debug = db.debug, dry = LP.forceDry, sim = LP.partnerSim }
+    LP.Invite = function(n) sent.invites[#sent.invites + 1] = n end
+    LP.Whisper = function(n, t) sent.whispers[#sent.whispers + 1] = { name = n, text = t } end
+    LP.SendChannel = function() sent.posts = sent.posts + 1 return true end
+    LP.SendGuild = function() sent.posts = sent.posts + 1 return true end
+    LP.Leave = function() sent.leaves = sent.leaves + 1 end
+    LP.After = function() end
+    db.debug, LP.forceDry, LP.partnerSim = false, false, nil
+    local ok, err = pcall(fn, sent)
+    LP.Invite, LP.Whisper, LP.SendChannel, LP.SendGuild, LP.Leave, LP.After = keep.Invite, keep.Whisper, keep.SendChannel, keep.SendGuild, keep.Leave, keep.After
+    db.debug, LP.forceDry, LP.partnerSim = keep.debug, keep.dry, keep.sim
+    if not ok then error(err, 0) end
+end
+local function Request(name, status, extra)
+    local r = { name = name, sender = name, status = status, msg = "x", time = GetTime() }
+    if extra then for k, v in pairs(extra) do r[k] = v end end
+    return r
+end
+T("statistics: an invite is counted in real operation, not in a dry run", function()
+    Sandbox(nil, function(db)
+        local r = Request("Kunde", "new", { req = 1 })
+        LP.forceDry = true
+        local before = db.stats.invited
+        LP.TryInvite(r)
+        eq(db.stats.invited, before, "dry run: not counted")
+        LP.pending = nil
+        Real(function(sent)
+            local r2 = Request("Kunde2", "new", { req = 1 })
+            LP.TryInvite(r2)
+            eq(db.stats.invited, before + 1, "real: counted once")
+            eq(#sent.invites, 1, "the invite was 'sent' (caught)")
+            eq(sent.invites[1], "Kunde2", "to the right player")
+            eq(r2.status, "invited", "status")
+        end)
+    end)
+end)
+T("statistics: a picked box is counted in real operation, not in a simulation", function()
+    Sandbox(nil, function(db)
+        Real(function()
+            local before = db.stats.picked
+            LP.OnPickSuccess(true)
+            eq(db.stats.picked, before, "simulated: not counted")
+            LP.OnPickSuccess(false)
+            eq(db.stats.picked, before + 1, "real: counted once")
+            LP.OnPickSuccess(false)
+            eq(db.stats.picked, before + 2, "real: counted again")
+        end)
+    end)
+end)
+T("statistics: tips add up and are never counted for a simulation", function()
+    Sandbox(nil, function(db)
+        Real(function()
+            local before = db.stats.tips
+            LP.HandleTip("Geber", 2500, true)
+            eq(db.stats.tips, before, "simulated: not counted")
+            LP.HandleTip("Geber", 2500, false)
+            LP.HandleTip("Geber", 100, false)
+            eq(db.stats.tips, before + 2600, "real: summed")
+        end)
+    end)
+end)
+T("thanks: one thank-you per order, only with a tip, only when switched on; counted in the statistics", function()
+    Sandbox(nil, function(db)
+        Real(function(sent)
+            db.finder.thanks = true
+            local before = db.stats.thanked
+            local r = Request("Dankbar", "done", { tipTotal = 500 })
+            LP.SendThanks(r)
+            eq(db.stats.thanked, before + 1, "counted")
+            eq(#sent.whispers, 1, "one whisper")
+            truthy(r.thanked, "marked as thanked")
+            LP.SendThanks(r)
+            eq(#sent.whispers, 1, "never twice")
+            eq(db.stats.thanked, before + 1, "not counted twice")
+            local noTip = Request("OhneTrinkgeld", "done", { tipTotal = 0 })
+            LP.SendThanks(noTip)
+            eq(#sent.whispers, 1, "no tip: no thanks")
+            db.finder.thanks = false
+            local off = Request("Aus", "done", { tipTotal = 900 })
+            LP.SendThanks(off)
+            eq(#sent.whispers, 1, "thanks switched off: no whisper")
+            eq(db.stats.thanked, before + 1, "and not counted")
+        end)
+    end)
+end)
+T("thanks: a tip from someone outside the group is thanked at once and counted on the order", function()
+    Sandbox(nil, function(db)
+        Real(function(sent)
+            db.finder.thanks = true
+            local before = db.stats.thanked
+            LP.requests[#LP.requests + 1] = Request("Passant", "done", { tipTotal = 0 })
+            LP.HandleTip("Passant", 700, false)
+            eq(#sent.whispers, 1, "thanked at once")
+            eq(db.stats.thanked, before + 1, "counted")
+            eq(LP.FindRequest("Passant").tipTotal, 700, "tip is on the order")
+        end)
+    end)
+end)
+T("thanks: with thanks switched off the tip still lands on the order and in the statistics", function()
+    Sandbox(nil, function(db)
+        Real(function(sent)
+            db.finder.thanks = false
+            local before = db.stats.tips
+            LP.requests[#LP.requests + 1] = Request("Stumm", "done", { tipTotal = 100 })
+            LP.HandleTip("Stumm", 400, false)
+            eq(#sent.whispers, 0, "no whisper")
+            eq(LP.FindRequest("Stumm").tipTotal, 500, "tip added to the order")
+            eq(db.stats.tips, before + 400, "and to the statistics")
+        end)
+    end)
+end)
+T("state: only waiting requests can be invited, the oldest first", function()
+    Sandbox(nil, function()
+        LP.requests = {
+            Request("neu2", "new"), Request("zuhoch", "toohigh"), Request("fertig", "done"), Request("eingeladen", "invited"),
+            Request("zeit", "timeout"), Request("neu1", "manual"),
+        }   -- newest first, like the real list
+        eq(LP.NextInvitable().name, "neu1", "the oldest waiting request")
+        LP.requests = { Request("zuhoch", "toohigh"), Request("fertig", "done"), Request("eingeladen", "invited"), Request("zeit", "timeout") }
+        eq(LP.NextInvitable(), nil, "nobody who can be invited")
+    end)
 end)

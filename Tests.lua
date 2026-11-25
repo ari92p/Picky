@@ -1078,13 +1078,86 @@ T("live: bag scan works", function()
     if checked == 0 then return "warn: no bag slots found" end
 end)
 
+-- Leak detector: a test must leave everything as it found it (saved data, shared state, replaced globals) ------------------------------------
+local VOLATILE_DB = { savedLog = true, savedFeed = true, itemNames = true }   -- the addon changes these by itself
+local LP_FIELDS = { "requests", "pending", "partner", "partnerSim", "pickedForPartner", "waitTradeClose", "forceDry", "InGroup", "GroupCount",
+    "IsRogue", "PickLockKnown", "ReadSkillList", "skill", "skillEstimated", "skillNotLearned", "skillBase", "skillBonus", "skillMax",
+    "skillSource", "feed", "recentSeek", "lastAd", "lastAdSeen", "leaveAt", "leaveToken", "lastInviter", "quoteIndex",
+    "Invite", "Whisper", "SendChannel", "SendGuild", "Leave", "After" }
+local GLOBAL_FIELDS = { "IsInGuild", "GetChannelList", "UnitName", "UnitGUID", "UnitClass", "IsPlayerSpell", "IsSpellKnown", "C_TradeSkillUI", "C_SkillInfo" }
+local function DeepCopy(v, top)
+    if type(v) ~= "table" then return v end
+    local c = {}
+    for k, x in pairs(v) do
+        if not (top and VOLATILE_DB[k]) and type(x) ~= "function" then c[k] = DeepCopy(x) end
+    end
+    return c
+end
+local function Diff(a, b, path)   -- first difference between two copies, or nil
+    if type(a) ~= type(b) then return path .. " (" .. type(a) .. " -> " .. type(b) .. ")" end
+    if type(a) ~= "table" then
+        if a ~= b then return ("%s (%s -> %s)"):format(path, tostring(a), tostring(b)) end
+        return nil
+    end
+    for k, x in pairs(a) do
+        local d = Diff(x, b[k], path .. "." .. tostring(k))
+        if d then return d end
+    end
+    for k in pairs(b) do
+        if a[k] == nil then return path .. "." .. tostring(k) .. " (added)" end
+    end
+    return nil
+end
+local function Snapshot()
+    local snap = { db = DeepCopy(LP.db, true), fields = {}, globals = {} }
+    for _, k in ipairs(LP_FIELDS) do snap.fields[k] = LP[k] end
+    for _, k in ipairs(GLOBAL_FIELDS) do snap.globals[k] = _G[k] end
+    return snap
+end
+-- Compares with the state before the test, restores shared fields/globals (so one leak does not make later tests fail) and names what leaked
+local function Leaks(snap)
+    local leaks = {}
+    local d = Diff(snap.db, DeepCopy(LP.db, true), "db")
+    if d then leaks[#leaks + 1] = "saved data changed: " .. d end
+    for _, k in ipairs(LP_FIELDS) do
+        if LP[k] ~= snap.fields[k] then
+            leaks[#leaks + 1] = "LP." .. k .. " was not restored"
+            LP[k] = snap.fields[k]
+        end
+    end
+    for _, k in ipairs(GLOBAL_FIELDS) do
+        if _G[k] ~= snap.globals[k] then
+            leaks[#leaks + 1] = "global " .. k .. " was not restored"
+            _G[k] = snap.globals[k]
+        end
+    end
+    return leaks
+end
+
 -- Run -------------------------------------------------------------------------------------------------------------------
-function LP.RunTests()
+-- opts.seed: run the tests in a shuffled order (a test that only passes in the usual order depends on another one)
+function LP.RunTests(opts)
+    opts = opts or {}
     local pass, failed, warned = 0, 0, 0
     local out = {}
-    for _, t in ipairs(tests) do
+    local order = {}
+    for i = 1, #tests do order[i] = i end
+    if opts.seed then
+        math.randomseed(opts.seed)
+        for i = #order, 2, -1 do
+            local j = math.random(1, i)
+            order[i], order[j] = order[j], order[i]
+        end
+    end
+    for _, idx in ipairs(order) do
+        local t = tests[idx]
+        local snap = Snapshot()
         local ok, ret = pcall(t.fn)
-        if not ok then
+        local leaks = Leaks(snap)
+        if #leaks > 0 then
+            failed = failed + 1
+            out[#out + 1] = { "fail", t.name, "LEAK: " .. table.concat(leaks, "; ") .. (ok and "" or " | and failed: " .. tostring(ret)) }
+        elseif not ok then
             failed = failed + 1
             out[#out + 1] = { "fail", t.name, tostring(ret) }
         elseif type(ret) == "string" and ret:sub(1, 5) == "warn:" then
@@ -1094,7 +1167,7 @@ function LP.RunTests()
             pass = pass + 1
         end
     end
-    LP.lastTests = { pass = pass, fail = failed, warn = warned, total = #tests, lines = out }
+    LP.lastTests = { pass = pass, fail = failed, warn = warned, total = #tests, lines = out, seed = opts.seed }
     local head = ("%d/%d tests passed, %d failed, %d warnings"):format(pass, #tests, failed, warned)
     LP.Print((failed == 0 and "|cff4de88a" or "|cffff5959") .. head .. "|r")
     LP.Debug("test", "%s", head)
