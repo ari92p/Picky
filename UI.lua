@@ -519,30 +519,41 @@ local function BuildGuide(p)
     p.sub = FS(p, "GameFontHighlightSmall")
     p.sub:SetPoint("TOPLEFT", 0, -2)
 
-    p.bar = MakeSkillBar(p, 408, 8, true)
-    p.bar:SetPoint("TOPLEFT", 0, -20)
-    -- markers where the stages change (100, 150, 225)
-    p.bar.marks = {}
-    for i = 1, #LP.GUIDE - 1 do
-        local m = p.bar:CreateTexture(nil, "OVERLAY")
-        m:SetSize(1, 8)
-        m:SetPoint("LEFT", p.bar, "LEFT", math.floor(408 * LP.GUIDE[i].to / 300), 0)
-        m:SetColorTexture(1, 1, 1, 0.35)
-        p.bar.marks[i] = m
-    end
-
+    -- The route: one button per stage, filled by your progress inside it (green = done, blue = you are here, empty = ahead).
+    -- The last button is the list of all boxes. Clicking a stage shows its places.
     p.chips = {}
-    local cw = math.floor(408 / GUIDE_TABS)
+    local gap = 4
+    local stageW = 78
     for i = 1, GUIDE_TABS do
-        local c = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-        c:SetSize(cw - 3, 22)
-        c:SetPoint("TOPLEFT", (i - 1) * cw, -36)
+        local w = (i <= #LP.GUIDE) and stageW or (408 - #LP.GUIDE * (stageW + gap))
+        local x = (i <= #LP.GUIDE) and (i - 1) * (stageW + gap) or #LP.GUIDE * (stageW + gap)
+        local c = CreateFrame("Button", nil, p)
+        c:SetSize(w, 28)
+        c:SetPoint("TOPLEFT", x, -22)
+        c.w = w
+        c.bg = c:CreateTexture(nil, "BACKGROUND")
+        c.bg:SetAllPoints()
+        c.bg:SetColorTexture(0.05, 0.05, 0.07, 0.85)
+        c.fill = c:CreateTexture(nil, "ARTWORK")
+        c.fill:SetPoint("TOPLEFT", 0, 0)
+        c.fill:SetPoint("BOTTOMLEFT", 0, 0)
+        c.fill:SetWidth(1)
+        c.under = c:CreateTexture(nil, "OVERLAY")
+        c.under:SetPoint("BOTTOMLEFT", 0, 0)
+        c.under:SetPoint("BOTTOMRIGHT", 0, 0)
+        c.under:SetHeight(3)
+        c.under:SetColorTexture(1, 0.82, 0, 1)
+        c.hl = c:CreateTexture(nil, "HIGHLIGHT")
+        c.hl:SetAllPoints()
+        c.hl:SetColorTexture(1, 1, 1, 0.12)
+        c.text = FS(c, "GameFontNormal")
+        c.text:SetPoint("CENTER", 0, 1)
         c:SetScript("OnClick", function() guideStage = i LP.RefreshUI() end)
         p.chips[i] = c
     end
 
     local sf = CreateFrame("ScrollFrame", "PickyGuideScroll", p, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", 0, -66)
+    sf:SetPoint("TOPLEFT", 0, -58)
     sf:SetPoint("BOTTOMRIGHT", -24, 40)
     local child = CreateFrame("Frame", nil, sf)
     child:SetSize(GUIDE_W, 600)
@@ -646,12 +657,18 @@ local function RefreshGuide()
     guideStage = guideStage or cur
     local f = LP.Game.Faction()
     guideFaction = (f == "Alliance" or f == "Horde") and f or nil
-    UpdateSkillBar(p.bar)
     p.sub:SetText(L["Current stage %s  ·  %d points to the next"]:format(LP.GUIDE[cur].title, math.max(0, LP.GUIDE[cur].to - skill)))
     for i, c in ipairs(p.chips) do
-        local t = LP.GUIDE[i] and LP.GUIDE[i].title or L["All boxes"]
-        if i == guideStage then t = "|cffffd100" .. t .. "|r" elseif i == cur then t = "|cff4de88a" .. t .. "|r" end
-        c:SetText(t)
+        local st = LP.GUIDE[i]
+        local label = st and st.title or L["All boxes"]
+        local frac = 0
+        if st then frac = math.max(0, math.min(1, (skill - st.from) / (st.to - st.from))) end
+        local done, here = st and skill >= st.to, st and i == cur
+        c.fill:SetWidth(math.max(1, c.w * frac))
+        c.fill:SetShown(st ~= nil and frac > 0)
+        if done then c.fill:SetColorTexture(0.30, 0.91, 0.54, 0.45) else c.fill:SetColorTexture(0.0, 0.74, 0.95, 0.55) end
+        c.under:SetShown(i == guideStage)
+        c.text:SetText((i == guideStage and "|cffffffff" or (here and "|cffffd100" or "|cffc8ccd4")) .. label .. "|r")
     end
 
     -- content
