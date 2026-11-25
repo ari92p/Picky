@@ -1169,6 +1169,7 @@ function LP.RunTests(opts)
         end
     end
     local globalsBefore = GlobalSnapshot()
+    LP.selfTesting = true    -- LP.Print is silent until the result is printed
     for _, idx in ipairs(order) do
         local t = tests[idx]
         local snap = Snapshot()
@@ -1187,6 +1188,7 @@ function LP.RunTests(opts)
             pass = pass + 1
         end
     end
+    LP.selfTesting = false
     local gc = GlobalChanges(globalsBefore)
     if #gc > 0 then
         failed = failed + 1

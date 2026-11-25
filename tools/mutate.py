@@ -128,6 +128,7 @@ M = [
     ("data: level cap advice next level", "Data.lua", "math.ceil((skill + 1) / 5)", "math.ceil(skill / 5)"),
     ("data: reach uses 5 x level", "Data.lua", "(tonumber(level) or 1) * 5)", "(tonumber(level) or 1) * 4)"),
     ("data: reach is limited by the rank", "Data.lua", "math.min(rank, cap)", "cap"),
+    ("tests: chat output muted during the self tests", "Tests.lua", "LP.selfTesting = true    --", "LP.selfTesting = false    --"),
     ("data: guide stage borders", "Data.lua", "from = 100, to = 150", "from = 100, to = 160"),
 ]
 

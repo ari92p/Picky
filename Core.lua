@@ -150,6 +150,7 @@ end)
 
 -- Helper functions -----------------------------------------------------------
 function LP.Print(msg)
+    if LP.selfTesting then return end   -- the self tests must not fill the chat ("Tip from ...", "New request from ..."); their result is printed after the run
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ccffPicky|r: " .. tostring(msg))
 end
 
