@@ -174,7 +174,6 @@ local DE = {
     ["Limit of your rank: %d, train for more"] = "Grenze deines Rangs: %d, beim Lehrer weitertrainieren",
     ["Limit of your level: %d (5 x level)"] = "Grenze deiner Stufe: %d (5 x Stufe)",
     ["You can reach %d right now. The maximum is 300."] = "Du kannst im Moment bis %d kommen. Das Maximum ist 300.",
-    ["now reachable"] = "jetzt erreichbar",
     ["Buccaneer's Strongbox"] = "Piratenkiste (Buccaneer's Strongbox)",
     ["Practice Lockbox"] = "Übungsschlosskiste (Practice Lockbox)",
     ["Battered Footlocker"] = "Ramponierte Truhe (Battered Footlocker)",
