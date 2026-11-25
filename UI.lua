@@ -376,7 +376,7 @@ end
 local GUIDE_TABS = 5
 local GUIDE_W = 376
 local guideFaction            -- "Alliance" | "Horde" | nil = both (faction unknown): the guide shows the places of your own faction
-local guidePool = { cards = {}, callouts = {}, rows = {}, heads = {} }
+local guidePool = { cards = {}, callouts = {}, rows = {} }
 local CALLOUT = {   -- bar color, background, glyph
     warn = { { 0.95, 0.25, 0.25 }, { 0.35, 0.05, 0.05, 0.6 }, "!", "ff5959" },
     tip  = { { 0.30, 0.91, 0.54 }, { 0.05, 0.25, 0.12, 0.6 }, "+", "4de88a" },
@@ -571,17 +571,6 @@ local function BuildGuide(p)
 end
 
 -- Layout helpers: each adds one piece below the previous one and returns the new y
-local function PlaceHead(y, text)
-    local used = guidePool.headsUsed + 1
-    guidePool.headsUsed = used
-    local h = Pooled(guidePool.heads, used, function(par) local f = FS(par, "GameFontNormal") f:SetWidth(GUIDE_W) return f end, guidePool.parent)
-    h:ClearAllPoints()
-    h:SetPoint("TOPLEFT", 2, y)
-    h:SetText("|cffffd100" .. text .. "|r")
-    h:Show()
-    return y - 22
-end
-
 local function PlaceCallout(y, kind, text)
     local used = guidePool.calloutsUsed + 1
     guidePool.calloutsUsed = used
@@ -675,14 +664,13 @@ local function RefreshGuide()
 
     -- content
     guidePool.parent = p.child
-    for _, list in pairs({ guidePool.cards, guidePool.callouts, guidePool.rows, guidePool.heads }) do
+    for _, list in pairs({ guidePool.cards, guidePool.callouts, guidePool.rows }) do
         for _, f in ipairs(list) do f:Hide() end
     end
-    guidePool.cardsUsed, guidePool.calloutsUsed, guidePool.rowsUsed, guidePool.headsUsed = 0, 0, 0, 0
+    guidePool.cardsUsed, guidePool.calloutsUsed, guidePool.rowsUsed = 0, 0, 0
     local y = -2
     local st = LP.GUIDE[guideStage]
     if st then
-        y = PlaceHead(y, L["Tips"])
         local kind, advice = LP.GuideAdvice(skill, LP.Game.UnitLevel())
         if kind then y = PlaceCallout(y, kind, advice) end
         y = PlaceCallout(y, "info", L["Skill %d needs level %d."]:format(st.to, st.levelReq))

@@ -233,7 +233,6 @@ local DE = {
     ["Keep Thieves' Tools in your bags, or Pick Lock will not work."] = "Du brauchst das Diebeswerkzeug in deinen Taschen, sonst funktioniert Schloss knacken nicht.",
     ["Map"] = "Karte",
     ["Where to practice"] = "Wo üben",
-    ["Tips"] = "Tipps",
     ["All boxes"] = "Alle Kisten",
     ["Best spot"] = "Bester Ort",
     ["Alliance"] = "Allianz",
