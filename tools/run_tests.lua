@@ -2,7 +2,7 @@
 --   luajit tools/run_tests.lua [-v]
 -- The WoW API is replaced by a tiny mock: frames accept every call and do nothing, units/channels/spells are fixed values.
 -- This checks the LOGIC (chat detection, data, migration, flows). It does not show the real UI and not how the real client behaves.
-local verbose, seed, repeats, coverage = false, nil, 1, false
+local verbose, seed, repeats, coverage, dataFile, inspect = false, nil, 1, false, nil, false
 do
     local i = 1
     local args = arg or {}
@@ -11,7 +11,9 @@ do
         if a == "-v" then verbose = true
         elseif a == "--seed" then i = i + 1 seed = tonumber(args[i])
         elseif a == "--repeat" then i = i + 1 repeats = tonumber(args[i]) or 1
-        elseif a == "--coverage" then coverage = true end
+        elseif a == "--coverage" then coverage = true
+        elseif a == "--data" then i = i + 1 dataFile = args[i]
+        elseif a == "--inspect" then inspect = true end
         i = i + 1
     end
 end
@@ -222,9 +224,37 @@ local function Fire(event, ...)
     end
 end
 PickyDB = nil
+if dataFile then   -- start with a saved-variables file, like the game does: the file sets PickyDB before the addon loads
+    local chunk, err = loadfile(dataFile)
+    if not chunk then io.stderr:write("cannot read " .. dataFile .. ": " .. tostring(err) .. "\n") os.exit(2) end
+    chunk()
+end
 Fire("ADDON_LOADED", ADDON)
 Fire("PLAYER_LOGIN")
 Fire("PLAYER_ENTERING_WORLD", true, false)
+
+if inspect then   -- print what the addon made of the loaded data (used by tools/check_testdata.py)
+    local db = PickyDB
+    local function P(k, v) print(k .. "=" .. tostring(v)) end
+    P("picked", db.stats and db.stats.picked) P("tips", db.stats and db.stats.tips)
+    P("invited", db.stats and db.stats.invited) P("thanked", db.stats and db.stats.thanked)
+    P("orders", db.orders and #db.orders)
+    local names = {}
+    for _, o in ipairs(db.orders or {}) do names[#names + 1] = tostring(o.name) end
+    P("order_names", table.concat(names, ","))
+    P("leaveDelay", db.finder and db.finder.leaveDelay)
+    P("debug", db.debug) P("dev", db.dev)
+    P("skillBase", db.skillBase)
+    P("chars", db.chars ~= nil)
+    P("tracker", db.ui and db.ui.tracker) P("feed", db.ui and db.ui.feed)
+    P("declineText", db.finder and db.finder.declineText) P("outline", db.pick and db.pick.outline)
+    local ch = {}
+    for k in pairs((db.ad and db.ad.channels) or {}) do ch[#ch + 1] = k end
+    table.sort(ch)
+    P("ad_channels", table.concat(ch, ","))
+    P("welcomeText", db.finder and db.finder.welcomeText ~= nil and db.finder.welcomeText ~= "")
+    os.exit(0)
+end
 
 if not LP.RunTests then io.stderr:write("LP.RunTests is missing\n") os.exit(2) end
 -- Run the suite (several times in a row with --repeat; in a shuffled order with --seed). Every run must give exactly the same result.
