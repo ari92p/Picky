@@ -141,6 +141,15 @@ M = [
     ("toast: invited toast age", "Toast.lua", "item.maxAge = 60", "item.maxAge = 600"),
     ("toast: grouped toast age", "Toast.lua", "item.maxAge = 8", "item.maxAge = 80"),
     ("toast: tip of the customer in the group", "Toast.lua", "if LP.partner and LP.SameName(name, LP.partner) then return T.Trade(name, copper) end", ""),
+    # --- Pick.lua: the click-area decision
+    ("pick: grace period length", "Pick.lua", "local PICK_GRACE = 3", "local PICK_GRACE = 30"),
+    ("pick: grace period is checked", "Pick.lua", "(LP.Game.Time() - t) < PICK_GRACE", "true"),
+    ("pick: a just-picked box counts as open", "Pick.lua", "if LP.RecentlyPicked(bag, slot) then return false end", ""),
+    ("pick: no-lock cache lasts 30 s", "Pick.lua", "LP.Game.Time() + 30", "LP.Game.Time() + 3000"),
+    ("pick: no-lock cache is used", "Pick.lua", "if untilT and LP.Game.Time() < untilT then return false end", ""),
+    ("pick: a locked unknown item is remembered", "Pick.lua", "        lockableID[id] = true\n", ""),
+    ("pick: the requirement comes from the table", "Pick.lua", "local req = box and box[1]", "local req = nil"),
+    ("pick: an unreadable slot is not locked", "Pick.lua", "if locked == nil then return false end", ""),
 ]
 
 

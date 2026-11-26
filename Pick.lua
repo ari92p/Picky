@@ -45,38 +45,43 @@ local function SlotLocked(bag, slot)
     return locked
 end
 
+-- Seams for the self tests (see LP.Game in Core.lua): tests replace these fields, never a game function
+LP.Game.ContainerItemID = ContainerItemID
+LP.Game.SlotLocked = SlotLocked
+LP.Game.Time = function() return GetTime() end
+
 -- Boxes just picked: the client needs a moment until the tooltip no longer shows "Locked".
 -- During this grace period the slot counts as open, so "Pick Lock" is never cast again on an open box.
 local recentPick = {}
 local PICK_GRACE = 3
 function LP.MarkPicked(bag, slot)
-    recentPick[bag .. ":" .. slot] = GetTime()
+    recentPick[bag .. ":" .. slot] = LP.Game.Time()
 end
 function LP.RecentlyPicked(bag, slot)
     local t = recentPick[bag .. ":" .. slot]
-    return t ~= nil and (GetTime() - t) < PICK_GRACE
+    return t ~= nil and (LP.Game.Time() - t) < PICK_GRACE
 end
 
 local lockableID = {}      -- item IDs that have shown "Locked" at least once
 local notLockableUntil = {} -- unknown items without a lock: do not check again for 30 seconds
 function LP.IsLockedItem(bag, slot)
-    local id = ContainerItemID(bag, slot)
+    local id = LP.Game.ContainerItemID(bag, slot)
     if not id then return false end
     if LP.RecentlyPicked(bag, slot) then return false end   -- just picked: counts as open (see above)
     local box = LP.BOXES[id]
     local req = box and box[1]
     if not box and not lockableID[id] then
         local untilT = notLockableUntil[id]
-        if untilT and GetTime() < untilT then return false end
+        if untilT and LP.Game.Time() < untilT then return false end
     end
-    local locked = SlotLocked(bag, slot)
+    local locked = LP.Game.SlotLocked(bag, slot)
     if locked == nil then return false end
     if locked then
         lockableID[id] = true
         notLockableUntil[id] = nil
         return true, req
     end
-    if not box and not lockableID[id] then notLockableUntil[id] = GetTime() + 30 end
+    if not box and not lockableID[id] then notLockableUntil[id] = LP.Game.Time() + 30 end
     return false
 end
 

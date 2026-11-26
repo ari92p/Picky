@@ -1299,3 +1299,86 @@ T("toast: a tip from the customer in the group becomes the trade toast", functio
         TOAST.Dismiss()
     end)
 end)
+
+-- 13) Pick.lua: which box is locked (the click area decision), the grace period after a pick --------------------------------------------------------
+-- Everything goes through LP.Game (item id, locked state, clock). Item IDs that are new on every run keep the addon's caches from carrying over.
+local function PickWorld(items, locks, fn)   -- items[bag..":"..slot] = id, locks[...] = true/false/nil; returns the clock and a call counter to the test
+    local w = { now = 1000, calls = 0 }
+    WithGame({
+        Time = function() return w.now end,
+        ContainerItemID = function(bag, slot) return items[bag .. ":" .. slot] end,
+        SlotLocked = function(bag, slot) w.calls = w.calls + 1 return locks[bag .. ":" .. slot] end,
+    }, function() fn(w) end)
+end
+local function FreshID() return 700000 + math.floor(GetTime() * 1000) % 100000 end
+T("pick: a locked known box is reported with its required skill", function()
+    PickWorld({ ["90:1"] = 4634 }, { ["90:1"] = true }, function()
+        local locked, req = LP.IsLockedItem(90, 1)
+        eq(locked, true, "locked")
+        eq(req, 70, "Iron Lockbox needs 70")
+    end)
+end)
+T("pick: an open box and an unreadable slot are not locked", function()
+    PickWorld({ ["90:1"] = 4634, ["90:2"] = 4634, ["90:3"] = nil }, { ["90:1"] = false, ["90:2"] = nil }, function()
+        falsy(LP.IsLockedItem(90, 1), "open box")
+        falsy(LP.IsLockedItem(90, 2), "tooltip not readable yet")
+        falsy(LP.IsLockedItem(90, 3), "empty slot")
+    end)
+end)
+T("pick: a box just picked counts as open for 3 seconds, then it is looked at again", function()
+    PickWorld({ ["90:15"] = 4634 }, { ["90:15"] = true }, function(w)
+        LP.MarkPicked(90, 15)
+        truthy(LP.RecentlyPicked(90, 15), "just now")
+        falsy(LP.IsLockedItem(90, 15), "locked tooltip is ignored right after the pick")
+        w.now = w.now + 2.9
+        truthy(LP.RecentlyPicked(90, 15), "2.9 s")
+        w.now = w.now + 0.2
+        falsy(LP.RecentlyPicked(90, 15), "3.1 s: over")
+        truthy(LP.IsLockedItem(90, 15), "and the box is checked again")
+    end)
+end)
+T("pick: an unknown item without a lock is not looked at again for 30 seconds", function()
+    local id = FreshID()
+    PickWorld({ ["90:20"] = id }, { ["90:20"] = false }, function(w)
+        falsy(LP.IsLockedItem(90, 20), "first look")
+        eq(w.calls, 1, "tooltip read once")
+        falsy(LP.IsLockedItem(90, 20), "second look")
+        eq(w.calls, 1, "answered from the cache")
+        w.now = w.now + 29
+        LP.IsLockedItem(90, 20)
+        eq(w.calls, 1, "29 s: still cached")
+        w.now = w.now + 2
+        LP.IsLockedItem(90, 20)
+        eq(w.calls, 2, "31 s: read again")
+    end)
+end)
+T("pick: an unknown item that showed 'Locked' once is always read again, and has no skill requirement", function()
+    local id = FreshID() + 1
+    local locks = { ["90:21"] = true }
+    PickWorld({ ["90:21"] = id }, locks, function(w)
+        local locked, req = LP.IsLockedItem(90, 21)
+        eq(locked, true, "locked")
+        eq(req, nil, "no known requirement")
+        locks["90:21"] = false
+        falsy(LP.IsLockedItem(90, 21), "picked now")
+        locks["90:21"] = true
+        truthy(LP.IsLockedItem(90, 21), "a second box of the same kind is read at once (no 30 s wait)")
+    end)
+end)
+T("pick: a known box is read every time, never cached as 'no lock'", function()
+    local locks = { ["90:22"] = false }
+    PickWorld({ ["90:22"] = 4634 }, locks, function(w)
+        falsy(LP.IsLockedItem(90, 22), "open")
+        locks["90:22"] = true
+        truthy(LP.IsLockedItem(90, 22), "locked at once")
+    end)
+end)
+T("pick: an unknown item whose tooltip is not readable yet is not cached as 'no lock'", function()
+    local id = FreshID() + 2
+    local locks = { ["90:40"] = nil }
+    PickWorld({ ["90:40"] = id }, locks, function()
+        falsy(LP.IsLockedItem(90, 40), "not readable")
+        locks["90:40"] = true
+        truthy(LP.IsLockedItem(90, 40), "readable a moment later: seen at once")
+    end)
+end)
