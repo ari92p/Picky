@@ -5,7 +5,9 @@
 Lockpicking for other players, made easier. Right-click a box, let Duty mode find customers in chat, and keep track of every request. Open all your boxes in your bags with one Button. Includes a leveling guide with map pins. For WoW Forever.
 
 ## Install
-Copy the `Picky` folder to:
+**CurseForge (recommended):** get Picky on [CurseForge](https://www.curseforge.com/projects/1820051) and install it with the CurseForge app. It then updates automatically.
+
+**Manual:** download the latest release and copy the `Picky` folder to:
 `World of Warcraft\_forever_\Interface\AddOns\`
 
 ## Use
