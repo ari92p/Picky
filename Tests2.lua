@@ -1436,3 +1436,86 @@ T("box list: a box needing exactly your skill is offered", function()
         eq(#LP.BoxList(), 0, "skill 124 is one short")
     end)
 end)
+
+-- 15) The box button itself: what one click is set up to do ----------------------------------------------------------------------------------------
+local function WithBoxButton(boxes, fn)   -- builds the window if needed (and puts it back as it was), sets LP.boxes, runs fn(button); restores everything
+    local before = _G.PickyFrame
+    local wasShown = before and before:IsShown()
+    local tab = LP.UITab()
+    local pos = LP.db.ui and LP.db.ui.winPos
+    local keepBoxes, keepHigh, keepTarget = LP.boxes, LP.boxesTooHigh, LP.lastPickTarget
+    local ok, err = pcall(function()
+        LP.ShowUI()
+        LP.boxes, LP.boxesTooHigh = boxes, 0
+        LP.ApplyBoxButton()
+        fn(_G.PickyBoxButton)
+    end)
+    LP.boxes, LP.boxesTooHigh, LP.lastPickTarget = keepBoxes, keepHigh, keepTarget
+    LP.ApplyBoxButton()
+    LP.UITab(tab)
+    local win = _G.PickyFrame
+    if win and not wasShown then win:Hide() end
+    if LP.db.ui then LP.db.ui.winPos = pos end
+    if not ok then error(err, 0) end
+end
+T("box button: a locked box is set up for Pick Lock on exactly that slot", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        eq(b:GetAttribute("type"), "spell", "type")
+        eq(b:GetAttribute("spell"), LP.PickName(), "spell")
+        eq(b:GetAttribute("target-bag"), 2, "bag")
+        eq(b:GetAttribute("target-slot"), 5, "slot")
+        eq(b:GetAttribute("item"), nil, "no item action")
+        truthy(b.glow:IsShown(), "ring is on")
+    end)
+end)
+T("box button: an open box is set up to be used, and the pick attributes are gone", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.boxes = { { bag = 1, slot = 3, id = 4634, action = "open", req = 70 } }
+        LP.ApplyBoxButton()
+        eq(b:GetAttribute("type"), "item", "type")
+        eq(b:GetAttribute("item"), "1 3", "item")
+        eq(b:GetAttribute("spell"), nil, "spell cleared")
+        eq(b:GetAttribute("target-bag"), nil, "bag cleared")
+        eq(b:GetAttribute("target-slot"), nil, "slot cleared")
+        LP.boxes = { { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }
+        LP.ApplyBoxButton()
+        eq(b:GetAttribute("type"), "spell", "and back to picking")
+        eq(b:GetAttribute("item"), nil, "item cleared")
+    end)
+end)
+T("box button: without boxes it does nothing and the ring is off", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.boxes = {}
+        LP.ApplyBoxButton()
+        eq(b:GetAttribute("type"), nil, "no action")
+        falsy(b.glow:IsShown(), "ring is off")
+        eq(b.count:GetText() or "", "", "no number")
+    end)
+end)
+T("box button: the number is the count of all boxes, shown from two on", function()
+    local one = { bag = 1, slot = 1, id = 4634, action = "pick", req = 70 }
+    WithBoxButton({ one }, function(b)
+        eq(b.count:GetText() or "", "", "one box: no number")
+        LP.boxes = { one, { bag = 1, slot = 2, id = 4634, action = "open", req = 70 }, { bag = 1, slot = 3, id = 4634, action = "pick", req = 70 } }
+        LP.ApplyBoxButton()
+        eq(b.count:GetText(), "3", "three boxes")
+    end)
+end)
+T("box button: a pick click remembers its target for the grace period, an open click does not", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.lastPickTarget = nil
+        b:GetScript("PreClick")(b, "LeftButton")
+        truthy(LP.lastPickTarget and LP.lastPickTarget.bag == 2 and LP.lastPickTarget.slot == 5, "target remembered")
+        LP.boxes = { { bag = 1, slot = 3, id = 4634, action = "open", req = 70 } }
+        LP.ApplyBoxButton()
+        LP.lastPickTarget = nil
+        b:GetScript("PreClick")(b, "LeftButton")
+        eq(LP.lastPickTarget, nil, "open: nothing remembered")
+    end)
+end)
+T("box button: it reacts to both mouse buttons", function()
+    WithBoxButton({}, function(b)
+        local clicks = rawget(b, "__clicks")   -- only the test runner records this; the real game has no way to read it back
+        if clicks then truthy(clicks:find("Any", 1, true), "any mouse button") end
+    end)
+end)

@@ -159,6 +159,18 @@ M = [
     ("boxes: just picked counts as open", "Pick.lua", "if LP.RecentlyPicked(bag, slot) then locked = false else", "if false then locked = false else"),
     ("boxes: unreadable slots are skipped", "Pick.lua", "if locked == false then\n                    list", "if not locked then\n                    list"),
     ("boxes: too-high count", "Pick.lua", "tooHigh = tooHigh + 1", "tooHigh = tooHigh"),
+    # --- the box button
+    ("button: right click works", "UI.lua", 'b:RegisterForClicks("AnyUp", "AnyDown")', 'b:RegisterForClicks("LeftButtonUp", "LeftButtonDown")'),
+    ("button: pick uses the spell", "UI.lua", 'b:SetAttribute("type", "spell")\n            b:SetAttribute("spell", LP.PickName())', 'b:SetAttribute("type", "item")\n            b:SetAttribute("spell", LP.PickName())'),
+    ("button: pick targets the slot", "UI.lua", 'b:SetAttribute("target-slot", e.slot)', 'b:SetAttribute("target-slot", e.bag)'),
+    ("button: pick targets the bag", "UI.lua", 'b:SetAttribute("target-bag", e.bag)', 'b:SetAttribute("target-bag", e.slot)'),
+    ("button: open uses bag and slot", "UI.lua", 'b:SetAttribute("item", e.bag .. " " .. e.slot)', 'b:SetAttribute("item", e.slot .. " " .. e.bag)'),
+    ("button: open clears the pick target", "UI.lua", '            b:SetAttribute("target-bag", nil)\n            b:SetAttribute("target-slot", nil)\n        end', '        end'),
+    ("button: pick clears the item", "UI.lua", 'b:SetAttribute("item", nil)\n        else', 'else'),
+    ("button: no box, no action", "UI.lua", '        b:SetAttribute("type", nil)\n        b.count:SetText("")', '        b.count:SetText("")'),
+    ("button: no box, ring off", "UI.lua", '        b.count:SetText("")\n        b.glow:Hide()', '        b.count:SetText("")'),
+    ("button: the number needs two boxes", "UI.lua", '#LP.boxes > 1 and #LP.boxes or ""', '#LP.boxes > 0 and #LP.boxes or ""'),
+    ("button: a pick click remembers its target", "UI.lua", 'if e and e.action == "pick" then\n            LP.lastPickTarget', 'if e then\n            LP.lastPickTarget'),
 ]
 
 

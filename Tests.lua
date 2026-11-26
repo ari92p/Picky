@@ -1084,7 +1084,7 @@ local VOLATILE_DB = { savedLog = true, savedFeed = true, itemNames = true }   --
 local LP_FIELDS = { "requests", "pending", "partner", "partnerSim", "pickedForPartner", "waitTradeClose", "forceDry", "InGroup", "GroupCount",
     "IsRogue", "PickLockKnown", "ReadSkillList", "skill", "skillEstimated", "skillNotLearned", "skillBase", "skillBonus", "skillMax",
     "skillSource", "feed", "recentMsgs", "lastAd", "lastAdSeen", "leaveAt", "leaveToken", "lastInviter", "quoteIndex",
-    "Invite", "Whisper", "SendChannel", "SendGuild", "Leave", "After" }
+    "Invite", "Whisper", "SendChannel", "SendGuild", "Leave", "After", "boxes", "boxesTooHigh", "lastPickTarget" }
 local function DeepCopy(v, top)
     if type(v) ~= "table" then return v end
     local c = {}
