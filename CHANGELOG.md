@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The skill bar in the window header is gone (it only repeated the numbers of the line above); the stats line moved up into its place.
 - Less work in the background: Picky only listens to your own spell events (before, the box button also woke up for every unit the client reports), the cooldown swipe refreshes once per burst, the box list no longer refreshes on every item pickup, and the chat word lists are matched with patterns built once.
 - New box button in the window header: one click does the next step on the next box in your bags. It picks a locked box, or opens one that is already picked (open boxes first, then the highest skill you can pick). The yellow ring shows there is something to do, the number is how many boxes you carry, and the swipe shows the cast and the global cooldown. It only changes outside combat.
 - The minimap button shows the number of boxes in your bags (inside, bottom right).
