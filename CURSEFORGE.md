@@ -4,7 +4,7 @@ CurseForge project page text for Picky. Paste the part below the line into the p
 Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
-Banner: assets/banner.webp (840x242 px) goes at the very top of the description, above the bold pitch line. It already shows the title.
+Banner: assets/banner.webp (840x258 px) goes at the very top of the description, above the bold pitch line. It already shows the title.
 Images in the description: all linked from the project gallery (media.forgecdn.net), nothing to upload.
 The three settings images sit side by side via an HTML <p><img width="32%"> block. If the editor shows that as raw text,
 use the markdown version (one image per line) or a collage image instead.
