@@ -1413,6 +1413,7 @@ local function UpdateTitle()
     local titles = { L["Requests"], "Guide", L["Settings"], L["Test mode"], "Developer" }
     local t = "Picky  ·  " .. (titles[currentTab] or "")
     if LP.db.debug and currentTab ~= 4 then t = t .. "  ·  |cffff5959" .. L["Test mode"] .. "|r" end
+    if LP.db.finder then t = t .. "  ·  " .. (LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or ("|cff9d9d9d" .. L["Off duty"] .. "|r")) end
     win:SetTitle(t)
 end
 
@@ -1566,9 +1567,6 @@ local function Build()
     win.bar = MakeSkillBar(win, 196, 12)
     win.bar:SetPoint("TOPLEFT", 78, -40)
 
-    win.dutyText = FS(win, "GameFontNormalSmall")   -- the duty state stays visible on every tab
-    win.dutyText:SetPoint("TOPRIGHT", -58, -37)
-    win.dutyText:SetJustifyH("RIGHT")
     win.box = MakeBoxButton(win)
     win.box:SetPoint("TOPRIGHT", -20, -28)
 
@@ -1624,7 +1622,7 @@ function LP.RefreshUI()
         win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, win.bar.info.reach, est))
     end
     local dutyLabel = LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"]
-    win.dutyText:SetText(dutyLabel)
+    UpdateTitle()
     if pages[1] and pages[1].duty then pages[1].duty:SetText(dutyLabel) end
     if currentTab == 1 then RefreshRequests()
     elseif currentTab == 2 then RefreshGuide()
