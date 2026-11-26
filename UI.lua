@@ -1483,7 +1483,9 @@ local function MakeBoxButton(parent)
             GameTooltip:SetBagItem(e.bag, e.slot)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("|cff00ccffPicky|r  |cff4de88a" .. (e.action == "pick" and L["Click: pick the next box"] or L["Click: open the next box"]) .. "|r")
-            if #LP.boxes > 1 then GameTooltip:AddLine(L["%d boxes in your bags"]:format(#LP.boxes), 0.8, 0.8, 0.8) end
+            local nPick, nOpen = 0, 0
+            for _, x in ipairs(LP.boxes) do if x.action == "pick" then nPick = nPick + 1 else nOpen = nOpen + 1 end end
+            GameTooltip:AddLine(L["%d to pick, %d to open"]:format(nPick, nOpen), 0.8, 0.8, 0.8)
         else
             GameTooltip:AddLine("Picky", 1, 0.82, 0)
             GameTooltip:AddLine(L["No box to pick or open in your bags"], 1, 1, 1)
@@ -1535,6 +1537,11 @@ function LP.ApplyBoxButton()
         b.glow:Hide()
     end
     UpdateBoxCooldown(b)
+    -- the tooltip is built when the mouse enters: build it again now, otherwise it still shows the box that was just handled
+    if GameTooltip:IsShown() and GameTooltip:GetOwner() == b then
+        local fn = b:GetScript("OnEnter")
+        if fn then fn(b) end
+    end
 end
 
 local function Build()
