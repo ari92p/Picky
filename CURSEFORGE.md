@@ -9,7 +9,8 @@ are the slots, put the image directly above each one:
   collage-requests-guide.webp -> above "Requests and leveling guide ..."
   collage-popups.webp         -> above "Pop-ups: ..."
   collage-settings.webp       -> above "Settings: ..."
-(The test mode image is already linked.)
+  test-mode-small.webp        -> above "Test mode: ..."
+All description images are at most 840 px wide.
 Gallery (carousel): the eight single images, cover = requests.webp. Captions:
   requests "Requests: every order with skill needed, time and tip"; guide "Leveling guide with spots, maps and boxes per skill range";
   toast-new-request "Pop-up for a new request: click to invite"; toast-trade-complete "Pop-up after a trade: click to thank and leave the group";
@@ -61,14 +62,12 @@ Settings
 
 Everything can be changed: what Duty does, which channels to listen and advertise in, sounds, pop-ups, window size and all message texts.
 
-_Settings: duty, channels, pop-ups, sounds, window size and message texts_
+_Settings: duty, channels, pop-ups, sounds and window size_
 
 Test mode
 ---------
 
 Try everything without sending a single real whisper or invite: simulate requests, joins, tips and picks, and copy the log if something looks wrong.
-
-![Picky test mode with simulated request and log](https://media.forgecdn.net/attachments/2279/707/test-mode-webp.webp)
 
 _Test mode: simulated requests with a copyable log_
 
