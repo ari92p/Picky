@@ -2,7 +2,7 @@
 CurseForge project page text for Picky. Paste the part below the line into the project description.
 
 Summary (short field, paste separately):
-Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
+Rogue lockpicking helper for WoW Forever: right-click to pick, find customers in chat, invite and thank them, keep an order history, plus a leveling guide with map pins.
 
 Banner: assets/banner.webp (840x258 px) goes at the very top of the description, above the bold pitch line. It already shows the title.
 Support buttons: the two links "Support: Ko-fi / Buy Me a Coffee" are plain text links and always work. Optional: upload
