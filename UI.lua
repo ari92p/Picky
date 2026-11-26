@@ -70,7 +70,7 @@ local function CreateWindow()
         if f.SetPortraitTextureSizeAndOffset then pcall(f.SetPortraitTextureSizeAndOffset, f, 62, -6, 9) end
         if f.Inset then   -- no button bar at the bottom: extend the dark area to the bottom
             f.Inset:ClearAllPoints()
-            f.Inset:SetPoint("TOPLEFT", 4, -60)
+            f.Inset:SetPoint("TOPLEFT", 4, -74)
             f.Inset:SetPoint("BOTTOMRIGHT", -6, 4)
         end
     else
