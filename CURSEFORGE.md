@@ -4,16 +4,17 @@ CurseForge project page text for Picky. Paste the part below the line into the p
 Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
-Images: the screenshots are in assets/screenshots/. Upload them to the project's Images page (turn the carousel on)
-in this order, with these captions. The description below shows them via their gallery URLs (media.forgecdn.net):
-  1. requests.webp            "Requests: every order with skill needed, time and tip"   (first = carousel cover)
-  2. toast-new-request.png    "Pop-up for a new request: click to invite"
-  3. toast-trade-complete.png "Pop-up after a trade: click to thank and leave the group"
-  4. guide.webp               "Leveling guide with spots, maps and boxes per skill range"
-  5. settings-duty.webp       "Settings: duty, channels and group behaviour"
-  6. settings-display.webp    "Settings: pop-ups, sounds and window size"
-  7. settings-messages.webp   "Settings: editable greeting, thanks and reply texts"
-  8. test-mode.webp           "Test mode: simulate requests safely, with a copyable log"
+Images (files in assets/screenshots/): upload these in the editor (image button) at the marked captions. The caption lines below
+are the slots, put the image directly above each one:
+  collage-requests-guide.webp -> above "Requests and leveling guide ..."
+  collage-popups.webp         -> above "Pop-ups: ..."
+  collage-settings.webp       -> above "Settings: ..."
+(The test mode image is already linked.)
+Gallery (carousel): the eight single images, cover = requests.webp. Captions:
+  requests "Requests: every order with skill needed, time and tip"; guide "Leveling guide with spots, maps and boxes per skill range";
+  toast-new-request "Pop-up for a new request: click to invite"; toast-trade-complete "Pop-up after a trade: click to thank and leave the group";
+  settings-duty "Settings: duty, channels and group behaviour"; settings-display "Settings: pop-ups, sounds and window size";
+  settings-messages "Settings: editable greeting, thanks and reply texts"; test-mode "Test mode: simulate requests safely, with a copyable log"
 -->
 
 Picky
@@ -21,9 +22,7 @@ Picky
 
 **Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
 
-![Picky requests window with open and finished orders](https://media.forgecdn.net/attachments/2279/703/requests-webp.webp)
-
-_Requests: every order with the skill needed, time and tip_
+_Requests and leveling guide: every order with skill needed, time and tip, and where to level lockpicking_
 
 Features
 --------
@@ -39,13 +38,7 @@ Features
 * English and German interface (follows your game client).
 * **Lightweight:** one small addon, no libraries, no other addons required.
 
-![Picky pop-up for a new request](https://media.forgecdn.net/attachments/2279/708/toast-new-request-png.png)
-
-_Pop-up for a new request: click to invite_
-
-![Picky pop-up after a completed trade](https://media.forgecdn.net/attachments/2279/709/toast-trade-complete-png.png)
-
-_Pop-up after a trade: click to thank and leave the group_
+_Pop-ups: a new request (click to invite) and a finished trade (click to thank and leave the group)_
 
 Getting started
 ---------------
@@ -53,10 +46,6 @@ Getting started
 1. Type `/picky` to open the window.
 2. Turn on **Duty**. That's it.
 3. To announce yourself, **Shift-click the minimap button** or press **Announce** in the window. The game only allows channel posts from a click, so there is no automatic timed announcement.
-
-![Lockpicking leveling guide with map buttons](https://media.forgecdn.net/attachments/2279/702/guide-webp.webp)
-
-_Leveling guide: spots, map buttons and the boxes for each skill range_
 
 Chat commands
 -------------
@@ -72,17 +61,8 @@ Settings
 
 Everything can be changed: what Duty does, which channels to listen and advertise in, sounds, pop-ups, window size and all message texts.
 
-![Picky settings for duty, channels and group](https://media.forgecdn.net/attachments/2279/705/settings-duty-webp.webp)
+_Settings: duty, channels, pop-ups, sounds, window size and message texts_
 
-_Duty, channels and group behaviour_
-
-![Picky settings for pop-ups, sounds and window size](https://media.forgecdn.net/attachments/2279/704/settings-display-webp.webp)
-
-_Pop-ups, sounds and window size_
-
-![Picky settings for greeting, thanks and reply texts](https://media.forgecdn.net/attachments/2279/706/settings-messages-webp.webp)
-
-_Editable greeting, thanks and reply texts_
 Test mode
 ---------
 
