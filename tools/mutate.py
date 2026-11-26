@@ -150,6 +150,15 @@ M = [
     ("pick: a locked unknown item is remembered", "Pick.lua", "        lockableID[id] = true\n", ""),
     ("pick: the requirement comes from the table", "Pick.lua", "local req = box and box[1]", "local req = nil"),
     ("pick: an unreadable slot is not locked", "Pick.lua", "if locked == nil then return false end", ""),
+    # --- the box list
+    ("boxes: open ones first", "Pick.lua", "if a.action ~= b.action then return a.action == \"open\" end", "if a.action ~= b.action then return a.action ~= \"open\" end"),
+    ("boxes: highest skill first", "Pick.lua", "if a.req ~= b.req then return a.req > b.req end", "if a.req ~= b.req then return a.req < b.req end"),
+    ("boxes: too high are not offered", "Pick.lua", "if LP.skillEstimated or skill >= box[1] then", "if true then"),
+    ("boxes: estimated skill offers all", "Pick.lua", "if LP.skillEstimated or skill >= box[1] then", "if skill >= box[1] then"),
+    ("boxes: skill equal is enough", "Pick.lua", "skill >= box[1] then", "skill > box[1] then"),
+    ("boxes: just picked counts as open", "Pick.lua", "if LP.RecentlyPicked(bag, slot) then locked = false else", "if false then locked = false else"),
+    ("boxes: unreadable slots are skipped", "Pick.lua", "if locked == false then\n                    list", "if not locked then\n                    list"),
+    ("boxes: too-high count", "Pick.lua", "tooHigh = tooHigh + 1", "tooHigh = tooHigh"),
 ]
 
 

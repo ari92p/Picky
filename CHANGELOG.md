@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- New box button in the window header: one click does the next step on the next box in your bags. It picks a locked box, or opens one that is already picked (open boxes first, then the highest skill you can pick). The yellow ring shows there is something to do, the number is how many boxes you carry, and the swipe shows the cast and the global cooldown. It only changes outside combat.
+- The duty switch moved to the Requests page, next to "Announce". The header shows the duty state as text.
+- The minimap button glows yellow and shows a number when boxes are in your bags.
+
 ## 1.1.3
 - Fixed: the click area on a box now hides itself when combat starts (secure state driver). Before, it stayed on the bag button in combat and Blizzard's bag code was blocked with "ADDON_ACTION_BLOCKED ... SetPassThroughButtons".
 - Developer tab: the separate "Copy all" button is gone. "Copy" now copies both logs (Test tab and developer output) in one list, sorted by time.

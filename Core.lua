@@ -27,6 +27,23 @@ LP.Game = {
         end
     end,
     -- Guide: faction, icons, zone names, map and pin. Everything is guarded: a client without a function simply returns nothing.
+    -- Box button: the cooldown of Pick Lock (GCD) and the current cast, for the swipe
+    PickCooldown = function()
+        local name = LP.PickName()
+        if C_Spell and C_Spell.GetSpellCooldown then
+            local ok, info = pcall(C_Spell.GetSpellCooldown, name)
+            if ok and type(info) == "table" then return info.startTime, info.duration end
+        end
+        if GetSpellCooldown then
+            local ok, start, dur = pcall(GetSpellCooldown, name)
+            if ok then return start, dur end
+        end
+    end,
+    CastTimes = function()
+        if not UnitCastingInfo then return end
+        local ok, _, _, _, st, en = pcall(UnitCastingInfo, "player")
+        if ok and type(st) == "number" and type(en) == "number" then return st / 1000, en / 1000 end
+    end,
     Faction = function() return UnitFactionGroup and (UnitFactionGroup("player")) or nil end,
     ItemIcon = function(id)
         if C_Item and C_Item.GetItemIconByID then

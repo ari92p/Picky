@@ -1310,7 +1310,8 @@ local function PickWorld(items, locks, fn)   -- items[bag..":"..slot] = id, lock
         SlotLocked = function(bag, slot) w.calls = w.calls + 1 return locks[bag .. ":" .. slot] end,
     }, function() fn(w) end)
 end
-local function FreshID() return 700000 + math.floor(GetTime() * 1000) % 100000 end
+local freshN = 0
+local function FreshID() freshN = freshN + 1 return math.floor(GetTime() * 1000) * 1000 + freshN end   -- never repeats, not even within one clock tick
 T("pick: a locked known box is reported with its required skill", function()
     PickWorld({ ["90:1"] = 4634 }, { ["90:1"] = true }, function()
         local locked, req = LP.IsLockedItem(90, 1)
@@ -1353,7 +1354,7 @@ T("pick: an unknown item without a lock is not looked at again for 30 seconds", 
     end)
 end)
 T("pick: an unknown item that showed 'Locked' once is always read again, and has no skill requirement", function()
-    local id = FreshID() + 1
+    local id = FreshID()
     local locks = { ["90:21"] = true }
     PickWorld({ ["90:21"] = id }, locks, function(w)
         local locked, req = LP.IsLockedItem(90, 21)
@@ -1374,11 +1375,64 @@ T("pick: a known box is read every time, never cached as 'no lock'", function()
     end)
 end)
 T("pick: an unknown item whose tooltip is not readable yet is not cached as 'no lock'", function()
-    local id = FreshID() + 2
+    local id = FreshID()
     local locks = { ["90:40"] = nil }
     PickWorld({ ["90:40"] = id }, locks, function()
         falsy(LP.IsLockedItem(90, 40), "not readable")
         locks["90:40"] = true
         truthy(LP.IsLockedItem(90, 40), "readable a moment later: seen at once")
+    end)
+end)
+
+-- 14) The box list behind the box button ------------------------------------------------------------------------------------------------------
+local function BoxWorld(items, locks, skill, fn)   -- items["bag:slot"] = id, locks["bag:slot"] = true/false/nil
+    local keepSkill, keepEst = LP.Skill, LP.skillEstimated
+    LP.Skill = function() return skill end
+    LP.skillEstimated = false
+    local ok, err = pcall(function()
+        PickWorld(items, locks, function(w)
+            WithGame({ BagSlots = function(bag) return bag == 0 and 8 or 0 end }, function() fn(w) end)
+        end)
+    end)
+    LP.Skill, LP.skillEstimated = keepSkill, keepEst
+    if not ok then error(err, 0) end
+end
+T("box list: open boxes first, then the highest skill you can pick, boxes that are too high only counted", function()
+    BoxWorld({ ["0:1"] = 4634, ["0:2"] = 4637, ["0:3"] = 4636, ["0:4"] = 4638, ["0:5"] = 2589, ["0:6"] = 4633 },
+        { ["0:1"] = true, ["0:2"] = true, ["0:3"] = true, ["0:4"] = true, ["0:5"] = true, ["0:6"] = false }, 150, function()
+        local list, high = LP.BoxList()
+        eq(#list, 3, "the open heavy bronze box, and iron and 125 that can be picked; cloth is no box")
+        eq(high, 2, "175 and 225 need more than 150")
+        eq(list[1].action, "open", "the open box comes first")
+        eq(list[1].slot, 6, "and it is the right one")
+        eq(list[2].req, 125, "then the highest skill that can be picked")
+        eq(list[3].req, 70, "then lower")
+    end)
+end)
+T("box list: unreadable tooltips are skipped, and a just-picked box counts as open", function()
+    BoxWorld({ ["0:7"] = 4634, ["0:8"] = 4634 }, { ["0:7"] = nil, ["0:8"] = true }, 300, function()
+        local list = LP.BoxList()
+        eq(#list, 1, "the unreadable slot is skipped")
+        LP.MarkPicked(0, 8)
+        list = LP.BoxList()
+        eq(list[1].action, "open", "just picked: open")
+    end)
+end)
+T("box list: with an estimated skill every locked box is offered", function()
+    BoxWorld({ ["0:1"] = 4638 }, { ["0:1"] = true }, 10, function()
+        eq(#LP.BoxList(), 0, "skill 10 is not enough for 225")
+        local keep = LP.skillEstimated
+        LP.skillEstimated = true
+        local list = LP.BoxList()
+        LP.skillEstimated = keep
+        eq(#list, 1, "estimated skill: offered")
+    end)
+end)
+T("box list: a box needing exactly your skill is offered", function()
+    BoxWorld({ ["0:3"] = 4636 }, { ["0:3"] = true }, 125, function()
+        eq(#LP.BoxList(), 1, "skill 125, box needs 125")
+    end)
+    BoxWorld({ ["0:3"] = 4636 }, { ["0:3"] = true }, 124, function()
+        eq(#LP.BoxList(), 0, "skill 124 is one short")
     end)
 end)

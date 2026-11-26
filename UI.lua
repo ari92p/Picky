@@ -219,6 +219,10 @@ local function BuildRequests(p)
     p.ad:SetScript("OnClick", function() LP.PostAd(true) end)
 
     p.ad:SetSize(110, 24)   -- the channel choices are in the settings (Channels)
+    p.duty = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")   -- the duty switch (it used to sit in the window header)
+    p.duty:SetSize(100, 24)
+    p.duty:SetPoint("TOPRIGHT", -112, 0)
+    p.duty:SetScript("OnClick", function() LP.SetFinder(not LP.db.finder.enabled, true) end)
     p.leave = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.leave:SetSize(70, 20)
     p.leave:SetPoint("TOPRIGHT", 0, -28)
@@ -1435,6 +1439,103 @@ function LP.RefreshDevTab()
     if not LP.db.dev and currentTab == 5 then SelectTab(1) end
 end
 
+-- The box button (window header): one click does the next step on the next box in your bags: pick it or, once it is open, open it.
+-- It is a secure button, so it can only be set up outside combat; the list behind it is LP.boxes (Pick.lua).
+local ICON_CHEST = "Interface\\Icons\\INV_Misc_Bag_09"
+local function UpdateBoxCooldown(b)
+    local start, dur
+    local cs, ce = LP.Game.CastTimes()
+    if cs and ce and ce > cs then start, dur = cs, ce - cs else start, dur = LP.Game.PickCooldown() end
+    if start and dur and dur > 0 then b.cd:SetCooldown(start, dur) else b.cd:Clear() end
+end
+local function MakeBoxButton(parent)
+    local b = CreateFrame("Button", "PickyBoxButton", parent, "SecureActionButtonTemplate")
+    b:SetSize(38, 38)
+    b:RegisterForClicks("LeftButtonUp", "LeftButtonDown")   -- the trigger depends on the client setting (down/up)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints()
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.icon:SetTexture(ICON_CHEST)
+    b.glow = b:CreateTexture(nil, "OVERLAY")   -- yellow ring: there is something to do
+    b.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    b.glow:SetBlendMode("ADD")
+    b.glow:SetVertexColor(1, 0.85, 0.2)
+    b.glow:SetPoint("CENTER")
+    b.glow:SetSize(38 * 1.8, 38 * 1.8)
+    b.glow:Hide()
+    b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    b.count:SetPoint("BOTTOMRIGHT", -2, 2)
+    b.cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
+    b.cd:SetAllPoints()
+    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+    b:HookScript("PreClick", function(self)
+        local e = self.entry
+        if e and e.action == "pick" then
+            LP.lastPickTarget = { bag = e.bag, slot = e.slot, t = GetTime() }   -- grace period after the pick (see Pick.lua)
+        end
+    end)
+    b:HookScript("PostClick", function() LP.RefreshBoxes() end)
+    b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        local e = self.entry
+        if e then
+            GameTooltip:SetBagItem(e.bag, e.slot)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cff00ccffPicky|r  |cff4de88a" .. (e.action == "pick" and L["Click: pick the next box"] or L["Click: open the next box"]) .. "|r")
+            if #LP.boxes > 1 then GameTooltip:AddLine(L["%d boxes in your bags"]:format(#LP.boxes), 0.8, 0.8, 0.8) end
+        else
+            GameTooltip:AddLine("Picky", 1, 0.82, 0)
+            GameTooltip:AddLine(L["No box to pick or open in your bags"], 1, 1, 1)
+        end
+        if (LP.boxesTooHigh or 0) > 0 then GameTooltip:AddLine(L["%d need more skill"]:format(LP.boxesTooHigh), 1, 0.5, 0.3) end
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnUpdate", function(self)
+        if self.glow:IsShown() then self.glow:SetAlpha(0.55 + 0.45 * math.sin(GetTime() * 3)) end
+    end)
+    for _, ev in ipairs({ "SPELL_UPDATE_COOLDOWN", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED",
+        "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }) do
+        LP.On(ev, function(_, unit) if (not unit or unit == "player") and win and win.box == b then UpdateBoxCooldown(b) end end)
+    end
+    return b
+end
+
+-- Set the box button up for the first box of the list (out of combat only: a secure button cannot be changed in combat).
+function LP.ApplyBoxButton()
+    local b = win and win.box
+    if not b or InCombatLockdown() then return end
+    b:SetShown(LP.IsRogue() and true or false)
+    local e = LP.boxes and LP.boxes[1]
+    b.entry = e
+    if e then
+        b.icon:SetTexture(LP.Game.ItemIcon(e.id) or ICON_CHEST)
+        b.icon:SetDesaturated(false)
+        if e.action == "pick" then
+            b:SetAttribute("type", "spell")
+            b:SetAttribute("spell", LP.PickName())
+            b:SetAttribute("target-bag", e.bag)
+            b:SetAttribute("target-slot", e.slot)
+            b:SetAttribute("item", nil)
+        else
+            b:SetAttribute("type", "item")
+            b:SetAttribute("item", e.bag .. " " .. e.slot)
+            b:SetAttribute("spell", nil)
+            b:SetAttribute("target-bag", nil)
+            b:SetAttribute("target-slot", nil)
+        end
+        b.count:SetText(#LP.boxes > 1 and #LP.boxes or "")
+        b.glow:Show()
+    else
+        b.icon:SetTexture(ICON_CHEST)
+        b.icon:SetDesaturated(true)
+        b:SetAttribute("type", nil)
+        b.count:SetText("")
+        b.glow:Hide()
+    end
+    UpdateBoxCooldown(b)
+end
+
 local function Build()
     if win then return end
     win = CreateWindow()
@@ -1448,7 +1549,7 @@ local function Build()
     win:SetScale((LP.db.ui.scale or 100) / 100)
     win:SetFrameStrata("DIALOG")
     win:SetToplevel(true)
-    win:HookScript("OnShow", function(self) self:Raise() LP.RefreshSkill() LP.RefreshUI() end)
+    win:HookScript("OnShow", function(self) self:Raise() LP.RefreshSkill() LP.RefreshUI() LP.RefreshBoxes() end)
     tinsert(UISpecialFrames, "PickyFrame")
     win:EnableMouse(true)
     win:SetMovable(true)
@@ -1465,10 +1566,11 @@ local function Build()
     win.bar = MakeSkillBar(win, 196, 12)
     win.bar:SetPoint("TOPLEFT", 78, -40)
 
-    win.finder = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
-    win.finder:SetSize(104, 26)
-    win.finder:SetPoint("TOPRIGHT", -16, -30)
-    win.finder:SetScript("OnClick", function() LP.SetFinder(not LP.db.finder.enabled, true) end)
+    win.dutyText = FS(win, "GameFontNormalSmall")   -- the duty state stays visible on every tab
+    win.dutyText:SetPoint("TOPRIGHT", -62, -37)
+    win.dutyText:SetJustifyH("RIGHT")
+    win.box = MakeBoxButton(win)
+    win.box:SetPoint("TOPRIGHT", -18, -24)
 
     pages[1], pages[2], pages[3], pages[4], pages[5] = NewPage(), NewPage(), NewPage(), NewPage(), NewPage()
     BuildRequests(pages[1])
@@ -1521,7 +1623,9 @@ function LP.RefreshUI()
     else
         win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, win.bar.info.reach, est))
     end
-    win.finder:SetText(LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"])
+    local dutyLabel = LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"]
+    win.dutyText:SetText(dutyLabel)
+    if pages[1] and pages[1].duty then pages[1].duty:SetText(dutyLabel) end
     if currentTab == 1 then RefreshRequests()
     elseif currentTab == 2 then RefreshGuide()
     elseif currentTab == 3 then RefreshSettings()
@@ -1618,6 +1722,9 @@ function LP.UpdateMinimapState()
         mm.icon:SetVertexColor(1, 1, 1)
     end
     mm.badge:SetText(st.waiting > 0 and st.waiting or "")
+    local n = LP.boxes and #LP.boxes or 0
+    mm.boxBadge:SetText(n > 0 and n or "")
+    mm.glow:SetShown(n > 0)
 end
 
 local function MinimapTooltip(self)
@@ -1631,6 +1738,7 @@ local function MinimapTooltip(self)
         GameTooltip:AddLine(L["Invited"] .. ": " .. st.current.name, 1, 1, 1)
     end
     if st.waiting > 0 then GameTooltip:AddLine(L["Queue"] .. ": " .. st.waiting, 1, 1, 1) end
+    if LP.boxes and #LP.boxes > 0 then GameTooltip:AddLine("|cffffd100" .. L["%d boxes in your bags"]:format(#LP.boxes) .. "|r", 1, 1, 1) end
     GameTooltip:AddLine(L["Picked %d  ·  Tips %s"]:format(st.picked or 0, LP.Money(st.tips or 0)), 0.7, 0.7, 0.7)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("|cffffd100" .. L["Click"] .. "|r " .. L["open window"], 1, 1, 1)
@@ -1660,6 +1768,17 @@ function LP.BuildMinimap()
     ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     ring:SetSize(50, 50)
     ring:SetPoint("TOPLEFT")
+    mm.glow = mm:CreateTexture(nil, "OVERLAY")   -- round yellow glow: boxes in the bags
+    mm.glow:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    mm.glow:SetBlendMode("ADD")
+    mm.glow:SetVertexColor(1, 0.85, 0.1)
+    mm.glow:SetAllPoints()
+    mm.glow:Hide()
+    mm.pulse = CreateFrame("Frame", nil, mm)   -- (the button's own OnUpdate is used while it is dragged)
+    mm.pulse:SetScript("OnUpdate", function() if mm.glow:IsShown() then mm.glow:SetAlpha(0.5 + 0.5 * math.sin(GetTime() * 3)) end end)
+    mm.boxBadge = mm:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mm.boxBadge:SetPoint("TOPRIGHT", 2, -2)
+    mm.boxBadge:SetTextColor(1, 0.9, 0.3)
     mm.badge = mm:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mm.badge:SetPoint("BOTTOMRIGHT", 2, 0)
     mm.badge:SetTextColor(1, 0.82, 0)

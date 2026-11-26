@@ -402,6 +402,62 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
     end
 end)
 
+-- 5) The box list: which boxes are in the bags, and what comes next --------------------------------------------------------------
+-- One entry per known box: action "open" (already picked, a normal use opens it) or "pick" (locked and your skill is enough).
+-- Boxes that need more skill are only counted. Open boxes come first, then the highest skill you can pick (the best chance to rise).
+LP.Game.BagSlots = function(bag)
+    if C_Container and C_Container.GetContainerNumSlots then return C_Container.GetContainerNumSlots(bag) or 0 end
+    return (GetContainerNumSlots and GetContainerNumSlots(bag)) or 0
+end
+function LP.BoxList()
+    local list, tooHigh = {}, 0
+    local skill = LP.Skill()
+    for bag = 0, 5 do
+        for slot = 1, LP.Game.BagSlots(bag) do
+            local id = LP.Game.ContainerItemID(bag, slot)
+            local box = id and LP.BOXES[id]
+            if box then
+                local locked
+                if LP.RecentlyPicked(bag, slot) then locked = false else locked = LP.Game.SlotLocked(bag, slot) end
+                if locked == false then
+                    list[#list + 1] = { bag = bag, slot = slot, id = id, action = "open", req = box[1] }
+                elseif locked then
+                    if LP.skillEstimated or skill >= box[1] then
+                        list[#list + 1] = { bag = bag, slot = slot, id = id, action = "pick", req = box[1] }
+                    else
+                        tooHigh = tooHigh + 1
+                    end
+                end
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.action ~= b.action then return a.action == "open" end
+        if a.req ~= b.req then return a.req > b.req end
+        if a.bag ~= b.bag then return a.bag < b.bag end
+        return a.slot < b.slot
+    end)
+    return list, tooHigh
+end
+
+-- Refresh the stored list (LP.boxes, LP.boxesTooHigh) a moment after anything in the bags or the cast changed, then tell the UI.
+local boxPending = false
+function LP.RefreshBoxes()
+    if boxPending then return end
+    boxPending = true
+    LP.After(0.2, function()
+        boxPending = false
+        if not LP.db or not LP.IsRogue() then LP.boxes, LP.boxesTooHigh = {}, 0 else LP.boxes, LP.boxesTooHigh = LP.BoxList() end
+        if LP.ApplyBoxButton then LP.ApplyBoxButton() end
+        if LP.UpdateMinimapState then LP.UpdateMinimapState() end
+    end)
+end
+LP.boxes, LP.boxesTooHigh = {}, 0
+for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "ITEM_LOCK_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "SKILL_LINES_CHANGED" }) do
+    LP.On(ev, function() LP.RefreshBoxes() end)
+end
+LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit) if unit == "player" then LP.RefreshBoxes() end end)
+
 function LP.OnLogin()
     if LP.BuildMinimap then LP.BuildMinimap() end
 end
