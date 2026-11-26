@@ -1197,7 +1197,7 @@ end)
 local TOAST = LP.Toast
 local function ToastFrame() return _G.PickyToast end
 local function Field(f, k) return rawget(f, k) end
-local function ToastText(f) return f.title.__text, f.line.__text, f.hint.__text end
+local function ToastText(f) return f.title:GetText(), f.line:GetText(), f.hint:GetText() end
 T("toast: a pushed toast shows its texts and is replaced by the next one", function()
     TOAST.Push({ key = "a", title = "One", line = "first", hint = "h1" })
     local f = ToastFrame()
@@ -1206,8 +1206,8 @@ T("toast: a pushed toast shows its texts and is replaced by the next one", funct
     eq(ti, "One", "title"); eq(li, "first", "line"); eq(hi, "h1", "hint")
     TOAST.Push({ key = "b", title = "Two", line = "second" })
     eq(Field(f, "key"), "b", "the newest wins")
-    eq(f.title.__text, "Two", "title replaced")
-    eq(f.hint.__text, "", "missing hint is cleared")
+    eq(f.title:GetText(), "Two", "title replaced")
+    eq(f.hint:GetText(), "", "missing hint is cleared")
     TOAST.Dismiss()
     falsy(f:IsShown(), "dismissed")
     eq(Field(f, "key"), nil, "state cleared")
@@ -1250,7 +1250,7 @@ T("toast: a click runs the action once and closes the toast", function()
     local n = 0
     TOAST.Push({ key = "c", title = "t", onClick = function() n = n + 1 end })
     local f = ToastFrame()
-    f.__scripts.OnClick(f)
+    f:GetScript("OnClick")(f)
     eq(n, 1, "action ran")
     falsy(f:IsShown(), "closed")
 end)
@@ -1264,12 +1264,12 @@ T("toast: request toasts per status", function()
         end
         Show("new")
         local f = ToastFrame()
-        eq(f.hint.__text, LP.L["Click: invite"], "new: click invites")
+        eq(f.hint:GetText(), LP.L["Click: invite"], "new: click invites")
         truthy(Field(f, "onClick"), "new: has an action")
         Show("queued")
-        eq(f.hint.__text, LP.L["Waiting - click: invite now"], "queued")
+        eq(f.hint:GetText(), LP.L["Waiting - click: invite now"], "queued")
         Show("invited")
-        eq(f.hint.__text, LP.L["Will be invited automatically"], "invited")
+        eq(f.hint:GetText(), LP.L["Will be invited automatically"], "invited")
         eq(Field(f, "onClick"), nil, "invited: no action")
         eq(Field(f, "maxAge"), 60, "invited: limited age")
         Show("grouped")
@@ -1293,8 +1293,8 @@ T("toast: a tip from the customer in the group becomes the trade toast", functio
         truthy(Field(ToastFrame(), "key"):find("trade:", 1, true) == 1, "trade toast")
         LP.partner = nil
         TOAST.Tip("Fremder", 500, "later")
-        eq(ToastFrame().title.__text, LP.L["Tip"], "plain tip toast")
-        eq(ToastFrame().hint.__text, LP.L["Thank-you follows when you leave"], "hint 'later'")
+        eq(ToastFrame().title:GetText(), LP.L["Tip"], "plain tip toast")
+        eq(ToastFrame().hint:GetText(), LP.L["Thank-you follows when you leave"], "hint 'later'")
         LP.partner = keep
         TOAST.Dismiss()
     end)
