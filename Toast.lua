@@ -133,6 +133,7 @@ function T.Push(item)
     f.hint:SetText(item.hint or "")
     f.onClick, f.key, f.reqName = item.onClick, item.key, item.reqName
     f.valid, f.maxAge, f.shownAt = item.valid, item.maxAge, GetTime()
+    lastCheck = 0   -- a new toast is checked at the next update, not up to half a second later
     if not f:IsShown() then
         f:SetAlpha(0)
         f:Show()

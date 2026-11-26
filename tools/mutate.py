@@ -130,6 +130,17 @@ M = [
     ("data: reach is limited by the rank", "Data.lua", "math.min(rank, cap)", "cap"),
     ("tests: chat output muted during the self tests", "Tests.lua", "LP.selfTesting = true    --", "LP.selfTesting = false    --"),
     ("data: guide stage borders", "Data.lua", "from = 100, to = 150", "from = 100, to = 160"),
+    # --- toast (the small popup)
+    ("toast: a new toast is checked at once", "Toast.lua", "    lastCheck = 0   -- a new toast", "    -- a new toast"),
+    ("toast: too old closes it", "Toast.lua", "now - frame.shownAt > frame.maxAge", "now - frame.shownAt < frame.maxAge"),
+    ("toast: invalid closes it", "Toast.lua", "if ok and not res then Finish() end", "if false then Finish() end"),
+    ("toast: DismissKey checks the prefix", "Toast.lua", 'frame.key:find(prefix, 1, true) == 1', "true"),
+    ("toast: DismissRequest checks the player", "Toast.lua", "frame.reqName and name and LP.SameName(frame.reqName, name)", "frame.reqName"),
+    ("toast: a click closes before it acts", "Toast.lua", "        T.Dismiss()\n        if fn then fn() end", "        if fn then fn() end"),
+    ("toast: too-high requests get no popup", "Toast.lua", "        return   -- nothing to do about it: no popup", "        item.hint = \"\""),
+    ("toast: invited toast age", "Toast.lua", "item.maxAge = 60", "item.maxAge = 600"),
+    ("toast: grouped toast age", "Toast.lua", "item.maxAge = 8", "item.maxAge = 80"),
+    ("toast: tip of the customer in the group", "Toast.lua", "if LP.partner and LP.SameName(name, LP.partner) then return T.Trade(name, copper) end", ""),
 ]
 
 

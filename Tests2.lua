@@ -281,6 +281,19 @@ local CHAT2 = {
     { "any rogue available to open a lockbox?", false, true },
     { "need a rogue to hire for my chests pls", false, true },
     { "anyone offering lockpicking? I need a chest opened", false, false },   -- 'offering' stays an unconditional ad word   -- whispers are a direct message: still a request
+    -- more real-life phrasings (added as a safety net for later changes to the word lists)
+    { "need a rogue to pick this lockbox pls", false, true },
+    { "rogue wanted for lockbox", false, true },
+    { "LF rogue unlock box", false, true },
+    { "Schurke zum Kistenöffnen gesucht", false, true },
+    { "Suche Schurken für Truhe", false, true },
+    { "Schurke bitte Kiste öffnen", false, true },
+    { "selling lockboxes 10s each", false, false },
+    { "Rogue LFG BRD", false, false },
+    { "LFM rogue for lockbox farm run", false, false },
+    { "Verkaufe Kisten", false, false },
+    { "Rogue pls", false, false },
+    { "LF rogue", false, false },
     -- whispers (a box or an open request is enough)
     { "can you open my box", true, true },
     { "Hi, do you open lockboxes?", true, true },
@@ -1177,5 +1190,112 @@ T("state: only waiting requests can be invited, the oldest first", function()
         eq(LP.NextInvitable().name, "neu1", "the oldest waiting request")
         LP.requests = { Request("zuhoch", "toohigh"), Request("fertig", "done"), Request("eingeladen", "invited"), Request("zeit", "timeout") }
         eq(LP.NextInvitable(), nil, "nobody who can be invited")
+    end)
+end)
+
+-- 12) Toast (the small popup): what it shows, when it goes away, what a click does ----------------------------------------------------------
+local TOAST = LP.Toast
+local function ToastFrame() return _G.PickyToast end
+local function Field(f, k) return rawget(f, k) end
+local function ToastText(f) return f.title.__text, f.line.__text, f.hint.__text end
+T("toast: a pushed toast shows its texts and is replaced by the next one", function()
+    TOAST.Push({ key = "a", title = "One", line = "first", hint = "h1" })
+    local f = ToastFrame()
+    truthy(f:IsShown(), "shown")
+    local ti, li, hi = ToastText(f)
+    eq(ti, "One", "title"); eq(li, "first", "line"); eq(hi, "h1", "hint")
+    TOAST.Push({ key = "b", title = "Two", line = "second" })
+    eq(Field(f, "key"), "b", "the newest wins")
+    eq(f.title.__text, "Two", "title replaced")
+    eq(f.hint.__text, "", "missing hint is cleared")
+    TOAST.Dismiss()
+    falsy(f:IsShown(), "dismissed")
+    eq(Field(f, "key"), nil, "state cleared")
+end)
+T("toast: DismissKey only closes a toast whose key starts with the prefix", function()
+    TOAST.Push({ key = "trade:Anna", title = "t" })
+    TOAST.DismissKey("req:")
+    truthy(ToastFrame():IsShown(), "other prefix: stays")
+    TOAST.DismissKey("trade:")
+    falsy(ToastFrame():IsShown(), "same prefix: closed")
+end)
+T("toast: DismissRequest only closes the toast of that player", function()
+    TOAST.Push({ key = "req:Anna", reqName = "Anna", title = "t" })
+    TOAST.DismissRequest("Berta")
+    truthy(ToastFrame():IsShown(), "another player: stays")
+    TOAST.DismissRequest("Anna")
+    falsy(ToastFrame():IsShown(), "same player: closed")
+end)
+T("toast: a toast with maxAge goes away on its own once it is too old", function()
+    TOAST.Push({ key = "old", title = "t", maxAge = 10 })
+    local f = ToastFrame()
+    f.shownAt = GetTime() - 11
+    TOAST.OnUpdate()
+    falsy(f:IsShown(), "expired")
+end)
+T("toast: a young toast stays, and an invalid one goes", function()
+    TOAST.Push({ key = "young", title = "t", maxAge = 10 })
+    local f = ToastFrame()
+    f.shownAt = GetTime() - 5
+    TOAST.OnUpdate()
+    truthy(f:IsShown(), "young: stays")
+    TOAST.Dismiss()
+    local valid = true
+    TOAST.Push({ key = "v", title = "t", valid = function() return valid end })
+    valid = false
+    TOAST.OnUpdate()
+    falsy(f:IsShown(), "no longer valid: closed")
+end)
+T("toast: a click runs the action once and closes the toast", function()
+    local n = 0
+    TOAST.Push({ key = "c", title = "t", onClick = function() n = n + 1 end })
+    local f = ToastFrame()
+    f.__scripts.OnClick(f)
+    eq(n, 1, "action ran")
+    falsy(f:IsShown(), "closed")
+end)
+T("toast: request toasts per status", function()
+    Sandbox(nil, function()
+        local function Show(status)
+            local r = Request("Kunde", status, { req = 70 })
+            LP.requests = { r }
+            TOAST.Request(r)
+            return r
+        end
+        Show("new")
+        local f = ToastFrame()
+        eq(f.hint.__text, LP.L["Click: invite"], "new: click invites")
+        truthy(Field(f, "onClick"), "new: has an action")
+        Show("queued")
+        eq(f.hint.__text, LP.L["Waiting - click: invite now"], "queued")
+        Show("invited")
+        eq(f.hint.__text, LP.L["Will be invited automatically"], "invited")
+        eq(Field(f, "onClick"), nil, "invited: no action")
+        eq(Field(f, "maxAge"), 60, "invited: limited age")
+        Show("grouped")
+        eq(Field(f, "maxAge"), 8, "grouped: limited age")
+        TOAST.Dismiss()
+        Show("toohigh")
+        falsy(f:IsShown(), "too high: no popup")
+        Show("new")
+        eq(Field(f, "reqName"), "Kunde", "knows its player")
+        LP.requests = {}
+        TOAST.OnUpdate()
+        falsy(f:IsShown(), "gone from the list: toast closes")
+        TOAST.Dismiss()
+    end)
+end)
+T("toast: a tip from the customer in the group becomes the trade toast", function()
+    Sandbox(nil, function()
+        local keep = LP.partner
+        LP.partner = "Kunde"
+        TOAST.Tip("Kunde", 500)
+        truthy(Field(ToastFrame(), "key"):find("trade:", 1, true) == 1, "trade toast")
+        LP.partner = nil
+        TOAST.Tip("Fremder", 500, "later")
+        eq(ToastFrame().title.__text, LP.L["Tip"], "plain tip toast")
+        eq(ToastFrame().hint.__text, LP.L["Thank-you follows when you leave"], "hint 'later'")
+        LP.partner = keep
+        TOAST.Dismiss()
     end)
 end)

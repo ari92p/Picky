@@ -28,7 +28,7 @@ def main():
     for path in sorted(glob.glob(os.path.join(ROOT, "*.lua"))):
         name = os.path.basename(path)
         is_test = name.startswith("Tests")
-        out = subprocess.run(["luajit", "-bl", path], capture_output=True, text=True).stdout
+        out = subprocess.run(["luajit", "-bl", path], capture_output=True).stdout.decode("utf-8", errors="replace")   # bytecode listings can hold any bytes
         for g in sorted(set(re.findall(r'GSET.*?;\s*"([^"]+)"', out))):
             if is_test or g not in ALLOWED_GSET:
                 problems.append(f"{name}: assigns the global {g}")

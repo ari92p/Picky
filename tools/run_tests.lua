@@ -35,7 +35,7 @@ local frames = {}
 local function NewFrame(name)
     local f = { __scripts = {}, __events = {}, __name = name, __shown = false, __text = "" }
     setmetatable(f, { __index = function(t, k)
-        if type(k) ~= "string" then return nil end
+        if type(k) ~= "string" or not k:find("^%u") then return nil end   -- methods are CamelCase; a lowercase name is a plain field (nil when unset, as in the game)
         if NUMERIC[k] then return function() return NUMERIC[k] end end
         if FALSY[k] then return function(self) if k == "IsShown" or k == "IsVisible" then return self.__shown end return false end end
         return function(self, ...)
