@@ -5,6 +5,9 @@ Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
 Banner: assets/banner.webp (840x258 px) goes at the very top of the description, above the bold pitch line. It already shows the title.
+Support buttons: the two links "Support: Ko-fi / Buy Me a Coffee" are plain text links and always work. Optional: upload
+assets/buttons/kofi.png and assets/buttons/buymeacoffee.png (40 px high) in the editor and link them to the same URLs.
+(External image hosts like ko-fi.com or github are not shown on CurseForge, only uploaded images.)
 Images in the description: all linked from the project gallery (media.forgecdn.net), nothing to upload.
 The three settings images sit side by side via an HTML <p><img width="32%"> block. If the editor shows that as raw text,
 use the markdown version (one image per line) or a collage image instead.
@@ -17,10 +20,7 @@ Gallery (carousel): the eight single images, cover = requests.webp. Captions:
 
 **Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
 
-<p>
-  <a href="https://ko-fi.com/ari92p"><img alt="Support me on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg" height="36"></a>
-  <a href="https://buymeacoffee.com/ari92p"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="36"></a>
-</p>
+**Support:** [Ko-fi](https://ko-fi.com/ari92p) · [Buy Me a Coffee](https://buymeacoffee.com/ari92p)
 
 ![Picky requests window with open and finished orders](https://media.forgecdn.net/attachments/2279/703/requests-webp.webp)
 
@@ -109,9 +109,6 @@ Source code and bug reports: https://github.com/ari92p/Picky
 
 If Picky saves you time, you can buy me a coffee:
 
-<p>
-  <a href="https://ko-fi.com/ari92p"><img alt="Support me on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg" height="36"></a>
-  <a href="https://buymeacoffee.com/ari92p"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="36"></a>
-</p>
+**Support:** [Ko-fi](https://ko-fi.com/ari92p) · [Buy Me a Coffee](https://buymeacoffee.com/ari92p)
 
 **AI disclosure:** Claude helped write the code. I designed, test and maintain the addon.
