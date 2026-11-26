@@ -214,15 +214,11 @@ end
 local function BuildRequests(p)
     p.ad = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.ad:SetSize(110, 24)
-    p.ad:SetPoint("TOPRIGHT", -104, 0)
+    p.ad:SetPoint("TOPRIGHT", 0, 0)
     p.ad:SetText(L["Announce"])
     p.ad:SetScript("OnClick", function() LP.PostAd(true) end)
 
     p.ad:SetSize(110, 24)   -- the channel choices are in the settings (Channels)
-    p.duty = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")   -- the duty switch (it used to sit in the window header)
-    p.duty:SetSize(100, 24)
-    p.duty:SetPoint("TOPRIGHT", 0, 0)
-    p.duty:SetScript("OnClick", function() LP.SetFinder(not LP.db.finder.enabled, true) end)
     p.leave = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     p.leave:SetSize(70, 20)
     p.leave:SetPoint("TOPRIGHT", 0, -28)
@@ -1413,7 +1409,7 @@ local function UpdateTitle()
     local titles = { L["Requests"], "Guide", L["Settings"], L["Test mode"], "Developer" }
     local t = "Picky  ·  " .. (titles[currentTab] or "")
     if LP.db.debug and currentTab ~= 4 then t = t .. "  ·  |cffff5959" .. L["Test mode"] .. "|r" end
-    if LP.db.finder then t = t .. "  ·  " .. (LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or ("|cff9d9d9d" .. L["Off duty"] .. "|r")) end
+    if LP.db.finder and LP.db.finder.enabled then t = t .. "  ·  |cff4de88a" .. L["On duty"] .. "|r" end
     win:SetTitle(t)
 end
 
@@ -1572,6 +1568,10 @@ local function Build()
     win.bar = MakeSkillBar(win, 196, 12)
     win.bar:SetPoint("TOPLEFT", 78, -40)
 
+    win.finder = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
+    win.finder:SetSize(100, 26)
+    win.finder:SetPoint("TOPRIGHT", -58, -30)
+    win.finder:SetScript("OnClick", function() LP.SetFinder(not LP.db.finder.enabled, true) end)
     win.box = MakeBoxButton(win)
     win.box:SetPoint("TOPRIGHT", -20, -28)
 
@@ -1627,8 +1627,8 @@ function LP.RefreshUI()
         win.skillText:SetText(L["Lockpicking %d%s / %d%s"]:format(LP.skillBase or skill, bonus, win.bar.info.reach, est))
     end
     local dutyLabel = LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"]
+    win.finder:SetText(dutyLabel)
     UpdateTitle()
-    if pages[1] and pages[1].duty then pages[1].duty:SetText(dutyLabel) end
     if currentTab == 1 then RefreshRequests()
     elseif currentTab == 2 then RefreshGuide()
     elseif currentTab == 3 then RefreshSettings()
@@ -1727,7 +1727,6 @@ function LP.UpdateMinimapState()
     mm.badge:SetText(st.waiting > 0 and st.waiting or "")
     local n = LP.boxes and #LP.boxes or 0
     mm.boxBadge:SetText(n > 0 and n or "")
-    mm.glow:SetShown(n > 0)
 end
 
 local function MinimapTooltip(self)
@@ -1771,17 +1770,8 @@ function LP.BuildMinimap()
     ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     ring:SetSize(50, 50)
     ring:SetPoint("TOPLEFT")
-    mm.glow = mm:CreateTexture(nil, "OVERLAY")   -- round yellow glow: boxes in the bags
-    mm.glow:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-    mm.glow:SetBlendMode("ADD")
-    mm.glow:SetVertexColor(1, 0.85, 0.1)
-    mm.glow:SetSize(58, 58)
-    mm.glow:SetPoint("CENTER", mm, "TOPLEFT", 16, -16)   -- the round part of the button sits in the top left of its frame
-    mm.glow:Hide()
-    mm.pulse = CreateFrame("Frame", nil, mm)   -- (the button's own OnUpdate is used while it is dragged)
-    mm.pulse:SetScript("OnUpdate", function() if mm.glow:IsShown() then mm.glow:SetAlpha(0.5 + 0.5 * math.sin(GetTime() * 3)) end end)
     mm.boxBadge = mm:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    mm.boxBadge:SetPoint("TOPRIGHT", 2, -2)
+    mm.boxBadge:SetPoint("BOTTOMRIGHT", mm, "TOPLEFT", 25, -22)   -- inside the round part of the button
     mm.boxBadge:SetTextColor(1, 0.9, 0.3)
     mm.badge = mm:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mm.badge:SetPoint("BOTTOMRIGHT", 2, 0)
