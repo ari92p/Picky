@@ -6,7 +6,7 @@ Lockpicking for other players, made fast. Right-click boxes, find customers in c
 
 Banner: assets/banner.webp (840x258 px) goes at the very top of the description, above the bold pitch line. It already shows the title.
 Support buttons: the two links "Support: Ko-fi / Buy Me a Coffee" are plain text links and always work. Optional: upload
-assets/buttons/kofi.png and assets/buttons/buymeacoffee.png (40 px high) in the editor and link them to the same URLs.
+assets/buttons/kofi.png and assets/buttons/buymeacoffee.png (36 px high) in the editor and link them to the same URLs.
 (External image hosts like ko-fi.com or github are not shown on CurseForge, only uploaded images.)
 Images in the description: all linked from the project gallery (media.forgecdn.net), nothing to upload.
 The three settings images sit side by side via an HTML <p><img width="32%"> block. If the editor shows that as raw text,
