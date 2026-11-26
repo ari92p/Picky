@@ -70,7 +70,7 @@ local function CreateWindow()
         if f.SetPortraitTextureSizeAndOffset then pcall(f.SetPortraitTextureSizeAndOffset, f, 62, -6, 9) end
         if f.Inset then   -- no button bar at the bottom: extend the dark area to the bottom
             f.Inset:ClearAllPoints()
-            f.Inset:SetPoint("TOPLEFT", 4, -74)
+            f.Inset:SetPoint("TOPLEFT", 4, -60)
             f.Inset:SetPoint("BOTTOMRIGHT", -6, 4)
         end
     else
@@ -123,7 +123,7 @@ end
 
 local function NewPage()
     local p = CreateFrame("Frame", nil, win)
-    p:SetPoint("TOPLEFT", win, "TOPLEFT", 16, -82)
+    p:SetPoint("TOPLEFT", win, "TOPLEFT", 16, -68)
     p:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -16, 14)
     p:Hide()
     return p
@@ -1553,7 +1553,7 @@ end
 local function Build()
     if win then return end
     win = CreateWindow()
-    win:SetSize(440, 534)
+    win:SetSize(440, 520)
     local pos = LP.db.ui.winPos
     if type(pos) == "table" and pos.point and pos.x and pos.y then
         win:SetPoint(pos.point, UIParent, pos.point, pos.x, pos.y)
@@ -1576,9 +1576,10 @@ local function Build()
     win.skillText = FS(win, "GameFontHighlight")
     win.skillText:SetPoint("TOPLEFT", 76, -27)
     win.stats = FS(win, "GameFontNormalSmall")
-    win.stats:SetPoint("TOPLEFT", 78, -58)
+    win.stats:SetPoint("TOPLEFT", 78, -46)
     win.bar = MakeSkillBar(win, 196, 12)
     win.bar:SetPoint("TOPLEFT", 78, -40)
+    win.bar:Hide()   -- TRIAL: the bar only repeated the numbers of the line above; it is still updated (its info gives the reach)
 
     win.finder = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
     win.finder:SetSize(100, 26)
