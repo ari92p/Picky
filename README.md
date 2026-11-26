@@ -1,8 +1,8 @@
+<img width="840" height="258" alt="banner" src="https://github.com/user-attachments/assets/f039c387-97e8-4c71-9a74-2a774ab08cab" />
+
 # Picky - Lockpick Assistant
 
-Rogue lockpicking helper for WoW Forever.
-
-Languages: English, German (automatic, by game client language).
+Lockpicking for other players, made easier. Right-click a box, let Duty mode find customers in chat, and keep track of every request. Open all your boxes in your bags with one Button. Includes a leveling guide with map pins. For WoW Forever.
 
 ## Install
 Copy the `Picky` folder to:
