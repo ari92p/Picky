@@ -56,6 +56,7 @@ local function NewFrame(name)
             if k == "SetText" then self.__text = tostring((...)) return end
             if k == "GetText" then return self.__text end
             if k == "GetName" then return self.__name end
+            if k == "GetParent" and rawget(self, "__parent") then return rawget(self, "__parent") end
             if k == "CreateTexture" or k == "CreateFontString" or k == "CreateAnimationGroup" or k == "CreateAnimation" or k == "GetParent"
                 or k == "GetNormalTexture" or k == "GetHighlightTexture" or k == "GetPushedTexture" or k == "GetFontString" or k == "GetThumbTexture"
                 or k == "GetScrollChild" or k == "GetRegions" or k == "GetChildren" then
@@ -73,6 +74,7 @@ end
 function CreateFrame(kind, name, parent, template)
     if template == "ButtonFrameTemplate" or template == "LargeSideTabButtonTemplate" then error("template not available in the test runner") end   -- the addon has fallbacks
     local f = NewFrame(name)
+    rawset(f, "__parent", parent)
     if name then _G[name] = f end
     frames[#frames + 1] = f
     return f

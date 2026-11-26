@@ -162,6 +162,7 @@ M = [
     ("boxes: unreadable slots are skipped", "Pick.lua", "if locked == false then\n                    list", "if not locked then\n                    list"),
     ("boxes: too-high count", "Pick.lua", "tooHigh = tooHigh + 1", "tooHigh = tooHigh"),
     # --- the box button
+    ("button: not a child of the window", "UI.lua", 'CreateFrame("Button", "PickyBoxButton", UIParent,', 'CreateFrame("Button", "PickyBoxButton", parent,'),
     ("button: right click works", "UI.lua", 'b:RegisterForClicks("AnyUp", "AnyDown")', 'b:RegisterForClicks("LeftButtonUp", "LeftButtonDown")'),
     ("button: pick uses the spell", "UI.lua", 'b:SetAttribute("type", "spell")\n            b:SetAttribute("spell", LP.PickName())', 'b:SetAttribute("type", "macro")\n            b:SetAttribute("spell", LP.PickName())'),
     ("button: pick targets the slot", "UI.lua", 'b:SetAttribute("target-slot", e.slot)', 'b:SetAttribute("target-slot", e.bag)'),

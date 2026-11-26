@@ -122,8 +122,25 @@ overlay:HookScript("PreClick", function(self, button)
     end
 end)
 
+-- Put the click area over a frame WITHOUT parenting or anchoring it to that frame: a protected frame that hangs on a Blizzard bag
+-- button makes the button protected, and in combat Blizzard's own bag code is then blocked ("SetPassThroughButtons").
+-- So the area stays on UIParent and is placed by screen position and scale. Returns false when the frame has no position yet.
+local function PlaceOverlay(focus)
+    local l, b, w, h = focus:GetRect()
+    if not (l and b and w and h) then return false end
+    local fs, ps = focus:GetEffectiveScale(), UIParent:GetEffectiveScale()
+    overlay.target = focus
+    overlay:SetParent(UIParent)
+    overlay:SetScale((fs and ps and ps > 0) and fs / ps or 1)
+    overlay:ClearAllPoints()
+    overlay:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", l, b)
+    overlay:SetSize(w, h)
+    return true
+end
+
 local function HideOverlay()
     if not InCombatLockdown() and overlay:IsShown() then overlay:Hide() end
+    if not InCombatLockdown() then overlay.target = nil end
 end
 
 local function GetMouseFocusCompat()
@@ -192,11 +209,9 @@ local function CheckOverlayRaw(focus)
     local pname = SafeName(parent)
     if fname:find("TradeRecipientItem7") or pname:find("TradeRecipientItem7") then
         if TradeSlotLocked() then
-            if overlay:IsShown() and overlay.isTrade and overlay:GetParent() == focus then return end   -- already there, do not set anything again
+            if overlay:IsShown() and overlay.isTrade and overlay.target == focus then return end   -- already there, do not set anything again
             overlay.isTrade, overlay.bag, overlay.slot = true, nil, nil
-            overlay:SetParent(focus)
-            overlay:ClearAllPoints()
-            overlay:SetAllPoints(focus)
+            if not PlaceOverlay(focus) then HideOverlay() return end
             overlay:SetFrameLevel(focus:GetFrameLevel() + 5)
             overlay:SetAttribute("type", "macro")
             overlay:SetAttribute("macrotext", "/cast " .. LP.PickName() .. "\n/run ClickTargetTradeButton(7)")
@@ -228,11 +243,9 @@ local function CheckOverlayRaw(focus)
         if locked then
             local ok = (not req) or LP.skillEstimated or LP.Skill() >= req
             if ok then
-                if overlay:IsShown() and overlay.bag == bag and overlay.slot == slot and overlay:GetParent() == focus then return end   -- already there
+                if overlay:IsShown() and overlay.bag == bag and overlay.slot == slot and overlay.target == focus then return end   -- already there
                 overlay.isTrade, overlay.bag, overlay.slot = nil, bag, slot
-                overlay:SetParent(focus)
-                overlay:ClearAllPoints()
-                overlay:SetAllPoints(focus)
+                if not PlaceOverlay(focus) then HideOverlay() return end
                 overlay:SetFrameLevel(focus:GetFrameLevel() + 5)
                 overlay:SetAttribute("type", "spell")
                 overlay:SetAttribute("spell", LP.PickName())

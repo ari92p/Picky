@@ -957,12 +957,64 @@ local function SlotHint(tt, req)
     end
 end
 
+-- Secure buttons must NOT be descendants of (or anchored to) the window: a protected child makes the whole window protected, and in
+-- combat Blizzard's own code (Esc, window management) is then blocked ("PickyFrame:Hide()", "SetPassThroughButtons"). So a secure button
+-- lives on UIParent and floats over an invisible placeholder frame inside the window; it is placed by screen position and scale.
+-- A state driver hides it in combat (code cannot); afterwards PLAYER_REGEN_ENABLED and the timer below put it back.
+local floaters = {}
+local function PlaceFloater(b)
+    local h = b.holder
+    local l, bt, w, ht = h:GetRect()
+    if not (l and bt and w and ht) then return false end
+    local fs, ps = h:GetEffectiveScale(), UIParent:GetEffectiveScale()
+    b:SetScale((fs and ps and ps > 0) and fs / ps or 1)
+    b:ClearAllPoints()
+    b:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", l, bt)
+    b:SetSize(w, ht)
+    -- one strata above the window: levels inside the window change all the time (Raise, drag), a higher strata always stays on top
+    local up = { BACKGROUND = "LOW", LOW = "MEDIUM", MEDIUM = "HIGH", HIGH = "DIALOG", DIALOG = "FULLSCREEN", FULLSCREEN = "FULLSCREEN_DIALOG" }
+    b:SetFrameStrata(up[h:GetFrameStrata()] or "FULLSCREEN_DIALOG")
+    b:SetFrameLevel(10)
+    return true
+end
+local function SyncFloater(b)
+    local want = b.wanted and b.holder:IsVisible() and true or false
+    b:SetAlpha(want and 1 or 0)   -- allowed in combat; the state driver may show the button at any time, so it must also be invisible then
+    if InCombatLockdown() then return end
+    if want and PlaceFloater(b) then b:Show() else b:SetAlpha(0) b:Hide() end
+end
+local function SyncFloaters()
+    for b in pairs(floaters) do SyncFloater(b) end
+end
+LP.SyncFloaters = SyncFloaters
+local function Float(b, holder)
+    b.holder, b.wanted = holder, true
+    floaters[b] = true
+    if RegisterStateDriver then pcall(RegisterStateDriver, b, "visibility", "[combat] hide; show") end
+    b:HookScript("OnShow", function() SyncFloater(b) end)   -- right after the state driver shows it: hide it again if nothing wants it
+    holder:HookScript("OnShow", function() SyncFloater(b) end)
+    holder:HookScript("OnHide", function() SyncFloater(b) end)
+    SyncFloater(b)
+end
+do
+    local t, tick = 0, CreateFrame("Frame")
+    tick:SetScript("OnUpdate", function(_, dt)
+        t = t + dt
+        if t < 0.1 then return end
+        t = 0
+        SyncFloaters()
+    end)
+end
+LP.On("PLAYER_REGEN_ENABLED", SyncFloaters)
+
 local function GetRealSlot(p, i)
     local b = testSlots[i]
     if b then return b end
-    b = CreateFrame("Button", nil, p, "SecureActionButtonTemplate")   -- same mechanism as the click area in the inventory
+    local holder = CreateFrame("Frame", nil, p)
+    holder:SetSize(36, 36)
+    holder:SetPoint("TOPLEFT", 44 * i, -164)
+    b = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate")   -- same mechanism as the click area in the inventory
     b:SetSize(36, 36)
-    b:SetPoint("TOPLEFT", 44 * i, -164)
     b:RegisterForClicks("RightButtonUp", "RightButtonDown")
     b:SetAttribute("type", "spell")
     b:HookScript("PreClick", function(self, button)   -- also remember here what is picked (grace period after success)
@@ -983,6 +1035,8 @@ local function GetRealSlot(p, i)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    Float(b, holder)
+    b.wanted = false
     b:Hide()
     testSlots[i] = b
     return b
@@ -992,7 +1046,7 @@ local function RefreshTestSlots()
     local p = pages[4]
     if not p or not p.testHint or InCombatLockdown() then return end   -- only change secure buttons outside combat
     if not LP.db.debug then   -- test area only in test mode
-        for i = 1, MAX_REAL do local b = testSlots[i] if b then b:Hide() end end
+        for i = 1, MAX_REAL do local b = testSlots[i] if b then b.wanted = false SyncFloater(b) end end
         p.testHint:SetText(L["Turn on the test mode to use the test area."])
         return
     end
@@ -1019,12 +1073,14 @@ local function RefreshTestSlots()
                 icon = info and info.iconFileID
             end
             b.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-            b:Show()
+            b.wanted = true
+            SyncFloater(b)
         else
             b.bag, b.slot, b.req = nil, nil, nil
             b:SetAttribute("target-bag", nil)
             b:SetAttribute("target-slot", nil)
-            b:Hide()
+            b.wanted = false
+            SyncFloater(b)
         end
     end
     p.testHint:SetText(#list == 0 and L["No locked boxes in your bags - only the simulated box is available."]
@@ -1462,8 +1518,11 @@ local function UpdateBoxCooldown(b)
 end
 local function MakeBoxButton(parent)
     local cdPending = false
-    local b = CreateFrame("Button", "PickyBoxButton", parent, "SecureActionButtonTemplate")
+    local holder = CreateFrame("Frame", nil, parent)   -- the button itself floats over this (see Float)
+    holder:SetSize(30, 30)
+    local b = CreateFrame("Button", "PickyBoxButton", UIParent, "SecureActionButtonTemplate")
     b:SetSize(30, 30)
+    Float(b, holder)
     b:RegisterForClicks("AnyUp", "AnyDown")   -- the trigger depends on the client setting (down/up)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetAllPoints()
@@ -1525,7 +1584,8 @@ end
 function LP.ApplyBoxButton()
     local b = win and win.box
     if not b or InCombatLockdown() then return end
-    b:SetShown(LP.IsRogue() and true or false)
+    b.wanted = LP.IsRogue() and true or false
+    SyncFloater(b)
     local e = LP.boxes and LP.boxes[1]
     b.entry = e
     if e then
@@ -1598,7 +1658,7 @@ local function Build()
     win.finder:SetPoint("TOPRIGHT", -58, -30)
     win.finder:SetScript("OnClick", function() LP.SetFinder(not LP.db.finder.enabled, true) end)
     win.box = MakeBoxButton(win)
-    win.box:SetPoint("TOPRIGHT", -20, -28)
+    win.box.holder:SetPoint("TOPRIGHT", -20, -28)
 
     pages[1], pages[2], pages[3], pages[4], pages[5] = NewPage(), NewPage(), NewPage(), NewPage(), NewPage()
     BuildRequests(pages[1])

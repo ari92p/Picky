@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+- Fixed: "ADDON_ACTION_BLOCKED ... PickyFrame:Hide()" and "SetPassThroughButtons" in combat. The protected buttons (box button, test slots) were children of the Picky window and made the whole window protected, so Blizzard's own code was blocked in combat. They now live outside the window and float over an invisible placeholder; the box button is hidden in combat.
+- The right-click pick area on a bag item no longer hangs on the bag button either (same cause).
+
 ## 1.2.1
 - Fixed: the box button no longer causes the Lua error "bad argument #1 to '?' (Usage: local result = C_Item.IsEquippableItem(itemInfo))" when it opens a box. It now uses a /use macro for that step.
 - A number right before "lockbox" or "junkbox" now counts as the required skill, so "Suche Schurke für 175 Lockbox" is recognised as skill 175 (before, such a request had no known skill and ended up as "Manual" even if it was too high for you).
