@@ -1409,7 +1409,6 @@ local function UpdateTitle()
     local titles = { L["Requests"], "Guide", L["Settings"], L["Test mode"], "Developer" }
     local t = "Picky  ·  " .. (titles[currentTab] or "")
     if LP.db.debug and currentTab ~= 4 then t = t .. "  ·  |cffff5959" .. L["Test mode"] .. "|r" end
-    if LP.db.finder and LP.db.finder.enabled then t = t .. "  ·  |cff4de88a" .. L["On duty"] .. "|r" end
     win:SetTitle(t)
 end
 
@@ -1628,7 +1627,6 @@ function LP.RefreshUI()
     end
     local dutyLabel = LP.db.finder.enabled and ("|cff4de88a" .. L["On duty"] .. "|r") or L["Off duty"]
     win.finder:SetText(dutyLabel)
-    UpdateTitle()
     if currentTab == 1 then RefreshRequests()
     elseif currentTab == 2 then RefreshGuide()
     elseif currentTab == 3 then RefreshSettings()
