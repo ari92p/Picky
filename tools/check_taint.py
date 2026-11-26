@@ -34,6 +34,14 @@ def main():
                 problems.append(f"{name}: assigns the global {g}")
         src = strip(open(path, encoding="utf-8").read())
         for lineno, line in enumerate(src.split("\n"), 1):
+            if not is_test:
+                # A state driver showed our own click area again about once a second, over boxes that were already picked.
+                if re.search(r'\bRegister(State|Attribute)Driver\b', line):
+                    problems.append(f"{name}:{lineno}: state drivers are not allowed (they show frames again by themselves)")
+                # A protected child makes its parent protected: Blizzard's own code is then blocked in combat ("PickyFrame:Hide()").
+                m2 = re.search(r'CreateFrame\(\s*"[^"]*"\s*,\s*[^,]+,\s*([^,]+),\s*"[^"]*Secure\w*Template', line)
+                if m2 and m2.group(1).strip() != "UIParent":
+                    problems.append(f"{name}:{lineno}: a secure frame must be created on UIParent, not on {m2.group(1).strip()}")
             for m in re.finditer(r'\b_G(\.\w+|\[[^\]]+\])\s*=[^=]', line):
                 target = "_G" + m.group(1)
                 if is_test or not ALLOWED_G.match(target):

@@ -961,7 +961,8 @@ end
 -- Secure buttons must NOT be descendants of (or anchored to) the window: a protected child makes the whole window protected, and in
 -- combat Blizzard's own code (Esc, window management) is then blocked ("PickyFrame:Hide()", "SetPassThroughButtons"). So a secure button
 -- lives on UIParent and floats over an invisible placeholder frame inside the window; it is placed by screen position and scale.
--- A state driver hides it in combat (code cannot); afterwards PLAYER_REGEN_ENABLED and the timer below put it back.
+-- In combat code cannot hide it, so it is made invisible (alpha); the frame update below puts it right afterwards. No state driver:
+-- it showed the button again by itself.
 local floaters = {}
 local function PlaceFloater(b)
     local h = b.holder
@@ -994,7 +995,6 @@ LP.SyncFloaters = SyncFloaters
 local function Float(b, holder)
     b.holder, b.wanted = holder, true
     floaters[b] = true
-    if RegisterStateDriver then pcall(RegisterStateDriver, b, "visibility", "[combat] hide; show") end
     b:HookScript("OnShow", function() SyncFloater(b) end)   -- right after the state driver shows it: hide it again if nothing wants it
     holder:HookScript("OnShow", function() SyncFloater(b) end)
     holder:HookScript("OnHide", function() SyncFloater(b) end)

@@ -56,6 +56,7 @@ local function NewFrame(name)
             if k == "SetText" then self.__text = tostring((...)) return end
             if k == "GetText" then return self.__text end
             if k == "GetName" then return self.__name end
+            if k == "IsProtected" then return false, false end
             if k == "GetParent" and rawget(self, "__parent") then return rawget(self, "__parent") end
             if k == "CreateTexture" or k == "CreateFontString" or k == "CreateAnimationGroup" or k == "CreateAnimation" or k == "GetParent"
                 or k == "GetNormalTexture" or k == "GetHighlightTexture" or k == "GetPushedTexture" or k == "GetFontString" or k == "GetThumbTexture"

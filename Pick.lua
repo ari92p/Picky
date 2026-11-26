@@ -45,6 +45,16 @@ local function SlotLocked(bag, slot)
     return locked
 end
 
+-- Diagnosis: the text lines the client gives for a bag slot (what the lock check reads)
+function LP.SlotLines(bag, slot)
+    if not (C_TooltipInfo and C_TooltipInfo.GetBagItem) then return "no C_TooltipInfo" end
+    local d = C_TooltipInfo.GetBagItem(bag, slot)
+    if not d or not d.lines then return "no data" end
+    local t = {}
+    for _, line in ipairs(d.lines) do t[#t + 1] = tostring(line.leftText) end
+    return table.concat(t, " | ")
+end
+
 -- Seams for the self tests (see LP.Game in Core.lua): tests replace these fields, never a game function
 LP.Game.ContainerItemID = ContainerItemID
 LP.Game.SlotLocked = SlotLocked
@@ -109,10 +119,9 @@ overlay:RegisterForClicks("RightButtonUp", "RightButtonDown")   -- trigger depen
 overlay:SetFrameStrata("DIALOG")
 overlay:EnableMouse(true)
 overlay:Hide()
--- The click area sits on a bag button, which makes that button protected too. Hiding it with our own code is impossible in combat,
--- so Blizzard's bag code was blocked there ("ADDON_ACTION_BLOCKED ... SetPassThroughButtons"). A secure state driver hides it
--- the moment combat starts, without any addon code running. After combat the checks below put it back where it belongs.
-if RegisterStateDriver then pcall(RegisterStateDriver, overlay, "visibility", "[combat] hide; show") end
+-- The click area hangs on UIParent (see PlaceOverlay), not on a bag button, so it needs no state driver. (A "visibility" state driver
+-- showed it again about once a second after our own Hide(): the area came back over boxes that were already picked and swallowed
+-- every right-click on them.)
 
 -- Remember WHAT was last picked via right-click (for the grace period after success)
 overlay:HookScript("PreClick", function(self, button)
@@ -125,6 +134,26 @@ end)
 -- Put the click area over a frame WITHOUT parenting or anchoring it to that frame: a protected frame that hangs on a Blizzard bag
 -- button makes the button protected, and in combat Blizzard's own bag code is then blocked ("SetPassThroughButtons").
 -- So the area stays on UIParent and is placed by screen position and scale. Returns false when the frame has no position yet.
+-- Diagnosis: what happened after a click on the click area (the secure action runs after PreClick). Red game errors and failed casts
+-- right after a click are logged too, so "nothing happens" can be explained.
+overlay:HookScript("PostClick", function(self, button)
+    if button ~= "RightButton" then return end
+    LP.lastClickAt = GetTime()
+    LP.DevDebug("pick", "after click: type=%s spell=%s bag=%s slot=%s casting=%s targeting=%s", tostring(self:GetAttribute("type")),
+        tostring(self:GetAttribute("spell")), tostring(self:GetAttribute("target-bag")), tostring(self:GetAttribute("target-slot")),
+        tostring(UnitCastingInfo and UnitCastingInfo("player") ~= nil), tostring(SpellIsTargeting and SpellIsTargeting()))
+end)
+LP.On("UI_ERROR_MESSAGE", function(_, _, msg)
+    if LP.lastClickAt and GetTime() - LP.lastClickAt < 2 then LP.DevDebug("pick", "game message right after the click: %s", tostring(msg)) end
+end)
+for _, ev in ipairs({ "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_START" }) do
+    LP.On(ev, function(e, unit, _, spellId)
+        if unit == "player" and LP.lastClickAt and GetTime() - LP.lastClickAt < 5 then
+            LP.DevDebug("pick", "%s spell=%s", e, tostring(spellId))
+        end
+    end)
+end
+
 local function PlaceOverlay(focus)
     local l, b, w, h = focus:GetRect()
     if not (l and b and w and h) then return false end
@@ -139,8 +168,31 @@ local function PlaceOverlay(focus)
 end
 
 local function HideOverlay()
-    if not InCombatLockdown() and overlay:IsShown() then overlay:Hide() end
+    if not InCombatLockdown() and overlay:IsShown() then
+        LP.DevDebug("pick", "click area hidden (bag %s slot %s)", tostring(overlay.bag), tostring(overlay.slot))
+        overlay:Hide()
+    end
     if not InCombatLockdown() then overlay.target = nil end
+end
+
+-- The area no longer hangs on the bag button, so it does not disappear with it any more: while it is shown, check a few times a second
+-- that the frame under it is still visible and that this very box is still locked; otherwise hide it (a right-click on a box that is
+-- already picked would do nothing at all).
+do
+    local acc = 0
+    overlay:HookScript("OnUpdate", function(self, dt)
+        acc = acc + dt
+        if acc < 0.2 then return end
+        acc = 0
+        if InCombatLockdown() or not self:IsShown() then return end
+        local t = self.target
+        if not t or not t:IsVisible() then HideOverlay() return end
+        if self.bag and self.slot and not self.isTrade then
+            if LP.Game.ContainerItemID(self.bag, self.slot) == nil or not LP.IsLockedItem(self.bag, self.slot) then HideOverlay() end
+        elseif self.isTrade and not TradeSlotLocked() then
+            HideOverlay()
+        end
+    end)
 end
 
 local function GetMouseFocusCompat()
@@ -253,7 +305,8 @@ local function CheckOverlayRaw(focus)
                 overlay:SetAttribute("target-slot", slot)
                 overlay:SetAttribute("macrotext", nil)
                 overlay:Show()
-                LP.DevDebug("pick", "click area on bag %d slot %d (needs %s, skill %d)", bag, slot, req, LP.Skill())
+                LP.DevDebug("pick", "click area on bag %d slot %d (needs %s, skill %d, item %s) tooltip lines: %s", bag, slot, req, LP.Skill(),
+                    tostring(LP.Game.ContainerItemID(bag, slot)), LP.SlotLines and LP.SlotLines(bag, slot) or "?")
                 return
             else
                 LP.Debug("pick", "bag %d slot %d is locked but your skill is too low (needs %s, skill %d)", bag, slot, req, LP.Skill())
@@ -277,7 +330,9 @@ overlay:SetScript("OnEnter", function(self)
     elseif self.bag and self.slot then
         GameTooltip:SetBagItem(self.bag, self.slot)
     end
-    if LP.db and LP.db.pick.hint then
+    -- the hint only while this very box is still locked (a picked box must not say "right-click to pick")
+    local stillLocked = self.isTrade or (self.bag and self.slot and LP.IsLockedItem(self.bag, self.slot))
+    if stillLocked and LP.db and LP.db.pick.hint then
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cff00ccffPicky|r  |cff4de88a" .. L["Right-click to pick"] .. "|r")
     end
@@ -410,6 +465,8 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
             if t.trade then LP.tradePickedAt = GetTime() end
             LP.DevDebug("pick", "marked as picked: %s (no click area for %ds)", t.trade and "trade slot" or ("bag " .. tostring(t.bag) .. " slot " .. tostring(t.slot)), PICK_GRACE)
             LP.lastPickTarget = nil
+            HideOverlay()   -- the box is open now: the click area must go and the tooltip must lose its hint
+            LP.After(0.3, function() if RefreshTooltip then RefreshTooltip() end end)
         end
         if LP.OnPickSuccess then LP.OnPickSuccess() end
     end

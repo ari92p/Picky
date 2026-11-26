@@ -1157,6 +1157,34 @@ end
 
 -- Run -------------------------------------------------------------------------------------------------------------------
 -- opts.seed: run the tests in a shuffled order (a test that only passes in the usual order depends on another one)
+-- Checks that need real time (only meaningful in the game; the offline runner queues timers without running them). The result comes about
+-- 3 seconds after the tests and goes to the chat and the log like a test result. Out of combat only.
+-- 1) A hidden click area must STAY hidden (a state driver once showed it again every second, over boxes already picked).
+-- 2) With the window closed the box button must not be visible (alpha 0 counts as hidden).
+function LP.LiveChecks()
+    if InCombatLockdown and InCombatLockdown() then return end
+    local overlay, box, win = _G.PickyOverlay, _G.PickyBoxButton, _G.PickyFrame
+    if not overlay then return end
+    pcall(overlay.Hide, overlay)
+    LP.After(3, function()
+        if InCombatLockdown and InCombatLockdown() then return end
+        local bad = {}
+        if overlay:IsShown() then bad[#bad + 1] = "the click area came back by itself after it was hidden" end
+        if box and win and not win:IsShown() and box:IsShown() and (box:GetAlpha() or 0) > 0 then
+            bad[#bad + 1] = "the box button is visible although the window is closed"
+        end
+        if #bad == 0 then
+            LP.Print("|cff4de88aLive checks passed|r (click area stays hidden, box button follows the window)")
+            LP.Debug("test", "live checks passed")
+        else
+            for _, m in ipairs(bad) do
+                LP.Print("|cffff5959FAIL|r live check - " .. m)
+                LP.Debug("test", "FAIL live check - %s", m)
+            end
+        end
+    end)
+end
+
 function LP.RunTests(opts)
     opts = opts or {}
     local pass, failed, warned = 0, 0, 0
@@ -1208,6 +1236,7 @@ function LP.RunTests(opts)
         LP.Debug("test", "%s %s - %s", o[1]:upper(), o[2], o[3])
     end
     if LP.OnTestsDone then LP.OnTestsDone(LP.lastTests) end
+    if LP.LiveChecks then LP.LiveChecks() end
     return LP.lastTests
 end
 

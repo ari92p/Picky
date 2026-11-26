@@ -723,6 +723,9 @@ LP.On("PLAYER_LOGOUT", function()
     local log = {}
     for i, line in ipairs(LP.debugLog) do log[i] = Clean(line) end
     LP.db.savedLog = log
+    local dev = {}   -- the Developer log too, so it can be read from the saved file after a /reload
+    for i, line in ipairs(LP.devLog or {}) do dev[i] = Clean(line) end
+    LP.db.savedDevLog = dev
     -- do not save simulated orders
     local orders = LP.db.orders
     if type(orders) == "table" then

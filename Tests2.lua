@@ -1495,6 +1495,28 @@ T("box button: it floats over a placeholder in the window and is not a child of 
         truthy(b.holder:GetParent() == _G.PickyFrame, "the placeholder is in the window")
     end)
 end)
+-- Protected (secure) frames must stay out of the window: a protected child makes the window protected, and Blizzard's own code is then
+-- blocked in combat ("PickyFrame:Hide()", "SetPassThroughButtons"). These run in the game too, against the real frames.
+local function Ancestors(f)
+    local list, n = {}, 0
+    local p = f.GetParent and f:GetParent()
+    while p and n < 20 do list[#list + 1] = p p = p.GetParent and p:GetParent() n = n + 1 end
+    return list
+end
+T("protection: the window itself is not protected, and no secure frame is its descendant", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        local win = _G.PickyFrame
+        truthy(win, "window exists")
+        falsy(win:IsProtected(), "the window is protected (a secure child hangs in it)")
+        for _, name in ipairs({ "PickyBoxButton", "PickyOverlay" }) do
+            local f = _G[name]
+            if f then
+                for _, a in ipairs(Ancestors(f)) do truthy(a ~= win, name .. " is a descendant of the window") end
+                falsy(f.GetParent and f:GetParent() ~= UIParent, name .. " does not hang on UIParent")
+            end
+        end
+    end)
+end)
 T("box button: without boxes it does nothing and the ring is off", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
         LP.boxes = {}
