@@ -4,6 +4,7 @@ CurseForge project page text for Picky. Paste the part below the line into the p
 Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
+Banner: assets/banner.webp (840 px wide) goes at the very top of the description, above the bold pitch line. It already shows the title.
 Images in the description: all linked from the project gallery (media.forgecdn.net), nothing to upload.
 The three settings images sit side by side via an HTML <p><img width="32%"> block. If the editor shows that as raw text,
 use the markdown version (one image per line) or a collage image instead.
@@ -13,9 +14,6 @@ Gallery (carousel): the eight single images, cover = requests.webp. Captions:
   settings-duty "Settings: duty, channels and group behaviour"; settings-display "Settings: pop-ups, sounds and window size";
   settings-messages "Settings: editable greeting, thanks and reply texts"; test-mode "Test mode: simulate requests safely, with a copyable log"
 -->
-
-Picky
-=====
 
 **Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
 
