@@ -1037,8 +1037,8 @@ local function RefreshTestSlots()
 end
 
 -- Buttons that fit their text: a row of buttons (same y) is laid out again from its first button, each one as wide as its text needs
--- (never narrower than the width given), the next one 4 pixels behind it. German texts are longer than the English ones.
-local function FitButtonRows(list)
+-- (at least the width given, unless the row would stick out), the next one 4 pixels behind it. German texts are longer than the English ones.
+local function FitButtonRows(list, maxRight)
     local rows = {}
     for _, e in ipairs(list) do
         local key = tostring(e.y)
@@ -1047,15 +1047,26 @@ local function FitButtonRows(list)
     end
     for _, row in pairs(rows) do
         table.sort(row, function(a, b) return a.x < b.x end)
-        local cur = row[1].x
-        for _, e in ipairs(row) do
+        local widths, floors, total = {}, {}, 0
+        for i, e in ipairs(row) do
             local fs = e.b.GetFontString and e.b:GetFontString()
             local tw = fs and fs.GetStringWidth and fs:GetStringWidth()
-            local w = (type(tw) == "number") and math.max(e.w, math.ceil(tw) + 22) or e.w
-            e.b:SetWidth(w)
+            widths[i] = (type(tw) == "number") and math.max(e.w, math.ceil(tw) + 22) or e.w
+            floors[i] = (type(tw) == "number") and (math.ceil(tw) + 12) or math.floor(e.w * 0.8)   -- narrowest that still shows the whole text
+            total = total + widths[i] + 4
+        end
+        -- a row that would stick out of the window: take the extra width evenly from every button (never below what its text needs)
+        local over = maxRight and (row[1].x + total - 4 - maxRight) or 0
+        if over > 0 then
+            local cut = math.ceil(over / #row)
+            for i = 1, #row do widths[i] = math.max(floors[i], widths[i] - cut) end
+        end
+        local cur = row[1].x
+        for i, e in ipairs(row) do
+            e.b:SetWidth(widths[i])
             e.b:ClearAllPoints()
             e.b:SetPoint("TOPLEFT", cur, e.y)
-            cur = cur + w + 4
+            cur = cur + widths[i] + 4
         end
     end
 end
@@ -1205,7 +1216,7 @@ local function BuildDebug(p)
     LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit)
         if unit == "player" and pages[4] and pages[4]:IsShown() then LP.After(0.3, RefreshTestSlots) end
     end)
-    for _, list in pairs(fitList) do FitButtonRows(list) end
+    for _, list in pairs(fitList) do FitButtonRows(list, 404) end
 end
 
 local function RefreshDebug()
