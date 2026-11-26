@@ -324,6 +324,10 @@ local REQ2 = {
     { "need rogue 150 lockpicking", false, 150 },
     { "need rogue skill 225+ lockbox", false, 225 },
     { "need rogue lockbox skill 200+", false, 200 },
+    { "Suche Schurke für 175 Lockbox", false, 175 },              -- real case: the number stands before "lockbox"
+    { "LF rogue for 225+ lockboxes", false, 225 },
+    { "LF rogue for 150 junkbox", false, 150 },
+    { "LF rogue for 3 lockboxes", false, nil },                   -- an amount, below 20
     { "Suche Schurke Schlossknacken 150", false, 150 },
     { "LF rogue iron lockbox lockpick 70", false, 125 },          -- a lower number never wins over the keyword
     { "LF rogue steel lockbox lockpicking 100", false, 225 },
@@ -1464,7 +1468,7 @@ T("box button: a locked box is set up for Pick Lock on exactly that slot", funct
         eq(b:GetAttribute("spell"), LP.PickName(), "spell")
         eq(b:GetAttribute("target-bag"), 2, "bag")
         eq(b:GetAttribute("target-slot"), 5, "slot")
-        eq(b:GetAttribute("item"), nil, "no item action")
+        eq(b:GetAttribute("macrotext"), nil, "no macro")
         truthy(b.glow:IsShown(), "ring is on")
     end)
 end)
@@ -1472,15 +1476,15 @@ T("box button: an open box is set up to be used, and the pick attributes are gon
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
         LP.boxes = { { bag = 1, slot = 3, id = 4634, action = "open", req = 70 } }
         LP.ApplyBoxButton()
-        eq(b:GetAttribute("type"), "item", "type")
-        eq(b:GetAttribute("item"), "1 3", "item")
+        eq(b:GetAttribute("type"), "macro", "type")
+        eq(b:GetAttribute("macrotext"), "/use 1 3", "macro")
         eq(b:GetAttribute("spell"), nil, "spell cleared")
         eq(b:GetAttribute("target-bag"), nil, "bag cleared")
         eq(b:GetAttribute("target-slot"), nil, "slot cleared")
         LP.boxes = { { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }
         LP.ApplyBoxButton()
         eq(b:GetAttribute("type"), "spell", "and back to picking")
-        eq(b:GetAttribute("item"), nil, "item cleared")
+        eq(b:GetAttribute("macrotext"), nil, "macro cleared")
     end)
 end)
 T("box button: without boxes it does nothing and the ring is off", function()

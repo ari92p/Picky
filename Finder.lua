@@ -78,6 +78,7 @@ local SKILL_PATTERNS = {
     "%f[%a]skill%s*:?%s*(%d+)", "(%d+)%+?%s*skill",
     "schlossknack%a*%s*:?%s*(%d+)", "(%d+)%+?%s*schlossknack",
     "%f[%a]knacken%s*:?%s*(%d+)", "(%d+)%+?%s*knacken",
+    "(%d+)%+?%s*lockbox", "(%d+)%+?%s*junkbox",   -- "Suche Schurke für 175 Lockbox": the number names the box
 }
 local function ExplicitSkill(s)
     local best
