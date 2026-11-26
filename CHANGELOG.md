@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+- Fixed: the box button no longer causes the Lua error "bad argument #1 to '?' (Usage: local result = C_Item.IsEquippableItem(itemInfo))" when it opens a box. It now uses a /use macro for that step.
+- A number right before "lockbox" or "junkbox" now counts as the required skill, so "Suche Schurke für 175 Lockbox" is recognised as skill 175 (before, such a request had no known skill and ended up as "Manual" even if it was too high for you).
+
 ## 1.2.0
 - New box button in the window header: one click does the next step on the next box in your bags. It picks a locked box, or opens one that is already picked (open boxes first, then the highest skill you can pick). The yellow ring shows there is something to do, the number is how many boxes you carry, and the swipe shows the cast and the global cooldown. It only changes outside combat.
 - The tooltip of the box button updates after every step and tells how many boxes are left to pick and to open.
