@@ -4,13 +4,11 @@ CurseForge project page text for Picky. Paste the part below the line into the p
 Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
-Images (files in assets/screenshots/): upload these in the editor (image button) at the marked captions. The caption lines below
-are the slots, put the image directly above each one:
-  collage-requests-guide.webp -> above "Requests and leveling guide ..."
-  collage-popups.webp         -> above "Pop-ups: ..."
-  collage-settings.webp       -> above "Settings: ..."
-  test-mode-small.webp        -> above "Test mode: ..."
-All description images are at most 840 px wide.
+Images in the description (files in assets/screenshots/, all under 850 px wide): upload them in the editor (image button),
+each directly above its italic caption line:
+  requests-small.webp         -> above "Requests: ..."
+  toast-new-request-small.webp -> above "Pop-up: ..."
+  settings-duty-small.webp    -> above "Settings: ..."
 Gallery (carousel): the eight single images, cover = requests.webp. Captions:
   requests "Requests: every order with skill needed, time and tip"; guide "Leveling guide with spots, maps and boxes per skill range";
   toast-new-request "Pop-up for a new request: click to invite"; toast-trade-complete "Pop-up after a trade: click to thank and leave the group";
@@ -23,7 +21,7 @@ Picky
 
 **Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
 
-_Requests and leveling guide: every order with skill needed, time and tip, and where to level lockpicking_
+_Requests: every order with the skill needed, time and tip_
 
 Features
 --------
@@ -39,7 +37,7 @@ Features
 * English and German interface (follows your game client).
 * **Lightweight:** one small addon, no libraries, no other addons required.
 
-_Pop-ups: a new request (click to invite) and a finished trade (click to thank and leave the group)_
+_Pop-up for a new request: click to invite_
 
 Getting started
 ---------------
@@ -62,14 +60,12 @@ Settings
 
 Everything can be changed: what Duty does, which channels to listen and advertise in, sounds, pop-ups, window size and all message texts.
 
-_Settings: duty, channels, pop-ups, sounds and window size_
+_Settings: duty, channels and group behaviour_
 
 Test mode
 ---------
 
 Try everything without sending a single real whisper or invite: simulate requests, joins, tips and picks, and copy the log if something looks wrong.
-
-_Test mode: simulated requests with a copyable log_
 
 Good to know
 ------------
