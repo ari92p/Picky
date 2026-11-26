@@ -5,8 +5,7 @@ Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
 Images: the screenshots are in assets/screenshots/. Upload them to the project's Images page (turn the carousel on)
-in this order, with these captions. The description below already shows them via raw.githubusercontent.com URLs
-(files must stay on main in assets/screenshots/):
+in this order, with these captions. The description below shows them via their gallery URLs (media.forgecdn.net):
   1. requests.webp            "Requests: every order with skill needed, time and tip"   (first = carousel cover)
   2. toast-new-request.png    "Pop-up for a new request: click to invite"
   3. toast-trade-complete.png "Pop-up after a trade: click to thank and leave the group"
@@ -22,7 +21,7 @@ Picky
 
 **Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
 
-![Picky requests window with open and finished orders](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/requests.webp)
+![Picky requests window with open and finished orders](https://media.forgecdn.net/attachments/2279/703/requests-webp.webp)
 
 _Requests: every order with the skill needed, time and tip_
 
@@ -40,11 +39,11 @@ Features
 * English and German interface (follows your game client).
 * **Lightweight:** one small addon, no libraries, no other addons required.
 
-![Picky pop-up for a new request](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/toast-new-request.png)
+![Picky pop-up for a new request](https://media.forgecdn.net/attachments/2279/708/toast-new-request-png.png)
 
 _Pop-up for a new request: click to invite_
 
-![Picky pop-up after a completed trade](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/toast-trade-complete.png)
+![Picky pop-up after a completed trade](https://media.forgecdn.net/attachments/2279/709/toast-trade-complete-png.png)
 
 _Pop-up after a trade: click to thank and leave the group_
 
@@ -55,7 +54,7 @@ Getting started
 2. Turn on **Duty**. That's it.
 3. To announce yourself, **Shift-click the minimap button** or press **Announce** in the window. The game only allows channel posts from a click, so there is no automatic timed announcement.
 
-![Lockpicking leveling guide with map buttons](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/guide.webp)
+![Lockpicking leveling guide with map buttons](https://media.forgecdn.net/attachments/2279/702/guide-webp.webp)
 
 _Leveling guide: spots, map buttons and the boxes for each skill range_
 
@@ -73,15 +72,15 @@ Settings
 
 Everything can be changed: what Duty does, which channels to listen and advertise in, sounds, pop-ups, window size and all message texts.
 
-![Picky settings for duty, channels and group](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/settings-duty.webp)
+![Picky settings for duty, channels and group](https://media.forgecdn.net/attachments/2279/705/settings-duty-webp.webp)
 
 _Duty, channels and group behaviour_
 
-![Picky settings for pop-ups, sounds and window size](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/settings-display.webp)
+![Picky settings for pop-ups, sounds and window size](https://media.forgecdn.net/attachments/2279/704/settings-display-webp.webp)
 
 _Pop-ups, sounds and window size_
 
-![Picky settings for greeting, thanks and reply texts](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/settings-messages.webp)
+![Picky settings for greeting, thanks and reply texts](https://media.forgecdn.net/attachments/2279/706/settings-messages-webp.webp)
 
 _Editable greeting, thanks and reply texts_
 Test mode
@@ -89,7 +88,7 @@ Test mode
 
 Try everything without sending a single real whisper or invite: simulate requests, joins, tips and picks, and copy the log if something looks wrong.
 
-![Picky test mode with simulated request and log](https://raw.githubusercontent.com/ari92p/Picky/main/assets/screenshots/test-mode.webp)
+![Picky test mode with simulated request and log](https://media.forgecdn.net/attachments/2279/707/test-mode-webp.webp)
 
 _Test mode: simulated requests with a copyable log_
 
