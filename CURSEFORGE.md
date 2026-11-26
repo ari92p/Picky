@@ -17,6 +17,8 @@ Gallery (carousel): the eight single images, cover = requests.webp. Captions:
 
 **Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
 
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ari92p)
+
 ![Picky requests window with open and finished orders](https://media.forgecdn.net/attachments/2279/703/requests-webp.webp)
 
 _Requests: every order with the skill needed, time and tip_
@@ -102,6 +104,8 @@ Found a bug or have an idea? Leave a comment here or open an issue on GitHub. Pl
 
 Source code and bug reports: https://github.com/ari92p/Picky
 
-If Picky saves you time, you can support me on Ko-fi: https://ko-fi.com/ari92p
+If Picky saves you time, you can buy me a coffee:
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ari92p)
 
 **AI disclosure:** Claude helped write the code. I designed, test and maintain the addon.
