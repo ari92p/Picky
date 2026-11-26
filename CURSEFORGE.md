@@ -18,7 +18,7 @@ Gallery (carousel): the eight single images, cover = requests.webp. Captions:
   settings-messages "Settings: editable greeting, thanks and reply texts"; test-mode "Test mode: simulate requests safely, with a copyable log"
 -->
 
-**Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
+**Lockpicking for other players, made easier. Right-click a box, let Duty mode find customers in chat, and keep track of every request. Included leveling Guide with Map pins. For WoW Forever.**
 
 **Support:** [Ko-fi](https://ko-fi.com/ari92p) · [Buy Me a Coffee](https://buymeacoffee.com/ari92p)
 
