@@ -123,7 +123,7 @@ end
 
 local function NewPage()
     local p = CreateFrame("Frame", nil, win)
-    p:SetPoint("TOPLEFT", win, "TOPLEFT", 16, -68)
+    p:SetPoint("TOPLEFT", win, "TOPLEFT", 16, -82)
     p:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -16, 14)
     p:Hide()
     return p
@@ -1553,7 +1553,7 @@ end
 local function Build()
     if win then return end
     win = CreateWindow()
-    win:SetSize(440, 520)
+    win:SetSize(440, 534)
     local pos = LP.db.ui.winPos
     if type(pos) == "table" and pos.point and pos.x and pos.y then
         win:SetPoint(pos.point, UIParent, pos.point, pos.x, pos.y)
@@ -1576,7 +1576,7 @@ local function Build()
     win.skillText = FS(win, "GameFontHighlight")
     win.skillText:SetPoint("TOPLEFT", 76, -27)
     win.stats = FS(win, "GameFontNormalSmall")
-    win.stats:SetPoint("TOPLEFT", 78, -54)
+    win.stats:SetPoint("TOPLEFT", 78, -58)
     win.bar = MakeSkillBar(win, 196, 12)
     win.bar:SetPoint("TOPLEFT", 78, -40)
 
