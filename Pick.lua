@@ -109,6 +109,10 @@ overlay:RegisterForClicks("RightButtonUp", "RightButtonDown")   -- trigger depen
 overlay:SetFrameStrata("DIALOG")
 overlay:EnableMouse(true)
 overlay:Hide()
+-- The click area sits on a bag button, which makes that button protected too. Hiding it with our own code is impossible in combat,
+-- so Blizzard's bag code was blocked there ("ADDON_ACTION_BLOCKED ... SetPassThroughButtons"). A secure state driver hides it
+-- the moment combat starts, without any addon code running. After combat the checks below put it back where it belongs.
+if RegisterStateDriver then pcall(RegisterStateDriver, overlay, "visibility", "[combat] hide; show") end
 
 -- Remember WHAT was last picked via right-click (for the grace period after success)
 overlay:HookScript("PreClick", function(self, button)
@@ -285,6 +289,7 @@ LP.On("MODIFIER_STATE_CHANGED", function()
     if IsShiftKeyDown() then HideOverlay() else CheckOverlay(GetMouseFocusCompat()) end
 end)
 LP.On("TRADE_CLOSED", HideOverlay)
+LP.On("PLAYER_ENTERING_WORLD", HideOverlay)   -- the state driver shows the area once at login: nothing to click yet
 -- A vendor/bank/mail/auction window just opened: the click area must not stay on a box under the mouse
 for _, ev in ipairs({ "MERCHANT_SHOW", "BANKFRAME_OPENED", "MAIL_SHOW", "AUCTION_HOUSE_SHOW", "GUILDBANKFRAME_OPENED" }) do
     LP.On(ev, HideOverlay)

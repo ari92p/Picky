@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fixed: the click area on a box now hides itself when combat starts (secure state driver). Before, it stayed on the bag button in combat and Blizzard's bag code was blocked with "ADDON_ACTION_BLOCKED ... SetPassThroughButtons".
 - Developer tab: the separate "Copy all" button is gone. "Copy" now copies both logs (Test tab and developer output) in one list, sorted by time.
 
 ## 1.1.2
