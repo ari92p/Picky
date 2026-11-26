@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.2.3
 - Leveling guide reordered to follow the Warcraft Tavern WoW Forever route: stages 1-110, 110-150, 150-200, 200-250, 250-300. Stage 1 now ends with the Waterlogged Footlockers (Lake Everstill / Zoram Strand). 150-200 starts at Sar'theris Strand (underwater, no climb to Angor needed at level 30-35), then the Temple of Atal'Hakkar and Angor Fortress. Azshara and Tanaris were added as alternatives for 200-250, Blackrock Depths is a tip for 250-265, Tyr's Hand from 265.
+- Burg Durnholde (upper Battered Footlockers) is now the first spot for 150-200: very easy and still gives a point per box after 150.
+- Each guide stage shows its level range (for example "Level 30-40").
+- Fixed: the guide warned "your level limits your skill" when only the gear bonus reached the cap. The level limit counts the base skill.
 
 ## 1.2.2
 - Fixed: "ADDON_ACTION_BLOCKED ... PickyFrame:Hide()" and "SetPassThroughButtons" in combat. The protected buttons (box button, test slots) were children of the Picky window and made the whole window protected, so Blizzard's own code was blocked in combat. They now live outside the window and float over an invisible placeholder; the box button is hidden in combat.
