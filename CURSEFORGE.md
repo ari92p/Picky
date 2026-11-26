@@ -4,11 +4,8 @@ CurseForge project page text for Picky. Paste the part below the line into the p
 Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
-Images in the description (files in assets/screenshots/, all under 850 px wide): upload them in the editor (image button),
-each directly above its italic caption line:
-  requests-small.webp         -> above "Requests: ..."
-  toast-new-request-small.webp -> above "Pop-up: ..."
-  settings-duty-small.webp    -> above "Settings: ..."
+Images in the description: the three below are linked from the project gallery (media.forgecdn.net), nothing to upload.
+(Resized 600-720 px versions for uploading in the editor are in assets/screenshots/*-small.webp, if the linked ones are too big.)
 Gallery (carousel): the eight single images, cover = requests.webp. Captions:
   requests "Requests: every order with skill needed, time and tip"; guide "Leveling guide with spots, maps and boxes per skill range";
   toast-new-request "Pop-up for a new request: click to invite"; toast-trade-complete "Pop-up after a trade: click to thank and leave the group";
@@ -20,6 +17,8 @@ Picky
 =====
 
 **Lockpicking for other players, made fast. Right-click a box, let Duty mode find customers in chat, and keep track of every order. For WoW Forever.**
+
+![Picky requests window with open and finished orders](https://media.forgecdn.net/attachments/2279/703/requests-webp.webp)
 
 _Requests: every order with the skill needed, time and tip_
 
@@ -36,6 +35,8 @@ Features
 * **Test mode:** a full simulation with a copyable log, so you can try everything without sending a single real whisper or invite.
 * English and German interface (follows your game client).
 * **Lightweight:** one small addon, no libraries, no other addons required.
+
+![Picky pop-up for a new request](https://media.forgecdn.net/attachments/2279/743/toast-new-request-png.png)
 
 _Pop-up for a new request: click to invite_
 
@@ -59,6 +60,8 @@ Settings
 --------
 
 Everything can be changed: what Duty does, which channels to listen and advertise in, sounds, pop-ups, window size and all message texts.
+
+![Picky settings for duty, channels and group](https://media.forgecdn.net/attachments/2279/705/settings-duty-webp.webp)
 
 _Settings: duty, channels and group behaviour_
 
