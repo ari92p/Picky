@@ -2,7 +2,7 @@
 
 ## Unreleased
 - New box button in the window header: one click does the next step on the next box in your bags. It picks a locked box, or opens one that is already picked (open boxes first, then the highest skill you can pick). The yellow ring shows there is something to do, the number is how many boxes you carry, and the swipe shows the cast and the global cooldown. It only changes outside combat.
-- The duty switch moved to the Requests page, next to "Announce". The header shows the duty state as text.
+- The duty switch moved to the Requests page, next to "Announce". The window title shows the duty state (green when on).
 - The minimap button glows yellow and shows a number when boxes are in your bags.
 
 ## 1.1.3

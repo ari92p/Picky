@@ -1444,10 +1444,15 @@ end
 -- It is a secure button, so it can only be set up outside combat; the list behind it is LP.boxes (Pick.lua).
 local ICON_CHEST = "Interface\\Icons\\INV_Misc_Bag_09"
 local function UpdateBoxCooldown(b)
-    local start, dur
-    local cs, ce = LP.Game.CastTimes()
-    if cs and ce and ce > cs then start, dur = cs, ce - cs else start, dur = LP.Game.PickCooldown() end
-    if start and dur and dur > 0 then b.cd:SetCooldown(start, dur) else b.cd:Clear() end
+    -- In combat the client hands out "secret" numbers for cooldowns and casts: comparing them is an error (and the call comes from a
+    -- tainted path). So nothing is read in combat, and anything that still goes wrong is swallowed. After combat the swipe is refreshed.
+    if InCombatLockdown() then return end
+    pcall(function()
+        local start, dur
+        local cs, ce = LP.Game.CastTimes()
+        if cs and ce and ce > cs then start, dur = cs, ce - cs else start, dur = LP.Game.PickCooldown() end
+        if start and dur and dur > 0 then b.cd:SetCooldown(start, dur) else b.cd:Clear() end
+    end)
 end
 local function MakeBoxButton(parent)
     local b = CreateFrame("Button", "PickyBoxButton", parent, "SecureActionButtonTemplate")
