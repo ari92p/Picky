@@ -46,21 +46,21 @@ local function Ensure()
 
     frame.line = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     frame.line:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -3)
-    frame.line:SetPoint("RIGHT", frame, "RIGHT", -88, 0)
+    frame.line:SetPoint("RIGHT", frame, "RIGHT", -108, 0)
     frame.line:SetJustifyH("LEFT")
     frame.line:SetWordWrap(false)
 
     frame.hint = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.hint:SetPoint("TOPLEFT", frame.line, "BOTTOMLEFT", 0, -2)
-    frame.hint:SetPoint("RIGHT", frame, "RIGHT", -88, 0)
+    frame.hint:SetPoint("RIGHT", frame, "RIGHT", -108, 0)
     frame.hint:SetJustifyH("LEFT")
     frame.hint:SetWordWrap(false)
 
     -- fixed button: open the Picky window
     local open = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    open:SetSize(72, 24)
+    open:SetSize(92, 24)
     open:SetPoint("BOTTOMRIGHT", -10, 10)
-    open:SetText(L["Window"])
+    open:SetText(L["Open Picky"])
     open:SetScript("OnClick", function() LP.ShowUI() T.Dismiss() end)
     frame.open = open
 

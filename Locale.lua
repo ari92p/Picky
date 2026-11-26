@@ -72,7 +72,7 @@ local DE = {
     ["Tip from %s: |cffffd100%s|r"] = "Trinkgeld von %s: |cffffd100%s|r",
 
     -- Toast
-    ["Window"] = "Fenster",
+    ["Open Picky"] = "Picky öffnen",
     ["Box, skill %d"] = "Kiste, Skill %d",
     ["Box unknown"] = "Kiste unbekannt",
     ["New request"] = "Neue Anfrage",
