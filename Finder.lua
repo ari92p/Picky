@@ -50,9 +50,12 @@ local AD_NOSEEK = { "for tips", "for a tip", "for tip", "tip if", "tips if", "ti
 -- "pm me / whisper me": contact phrases. They only mark an ad when nobody is being SEARCHED ("lf rogue ..., whisper me" is a customer).
 local CONTACT_SUB = { "pm me", "pm for", "pm if", "pm to", "whisper me", "whisper for", "whisper if", "pst me", "dm me", "msg me", "message me", "/w me", "w/ me" }
 
+local tokPattern = {}   -- word -> pattern, built once (this runs for every chat message: no string building per call)
 local function HasTok(s, list)
     for _, w in ipairs(list) do
-        if s:find("%f[%w]" .. w .. "%f[%W]") then return true end
+        local pat = tokPattern[w]
+        if not pat then pat = "%f[%w]" .. w .. "%f[%W]" tokPattern[w] = pat end
+        if s:find(pat) then return true end
     end
     return false
 end

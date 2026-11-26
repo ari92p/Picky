@@ -1450,6 +1450,7 @@ local function UpdateBoxCooldown(b)
     end)
 end
 local function MakeBoxButton(parent)
+    local cdPending = false
     local b = CreateFrame("Button", "PickyBoxButton", parent, "SecureActionButtonTemplate")
     b:SetSize(30, 30)
     b:RegisterForClicks("AnyUp", "AnyDown")   -- the trigger depends on the client setting (down/up)
@@ -1499,7 +1500,12 @@ local function MakeBoxButton(parent)
     end)
     for _, ev in ipairs({ "SPELL_UPDATE_COOLDOWN", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED",
         "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }) do
-        LP.On(ev, function(_, unit) if (not unit or unit == "player") and win and win.box == b then UpdateBoxCooldown(b) end end)
+        LP.On(ev, function(_, unit)
+            -- SPELL_UPDATE_COOLDOWN comes in bursts: refresh the swipe once per burst
+            if cdPending or (unit and unit ~= "player") or not (win and win.box == b) then return end
+            cdPending = true
+            LP.After(0.05, function() cdPending = false UpdateBoxCooldown(b) end)
+        end)
     end
     return b
 end

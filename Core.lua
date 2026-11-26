@@ -150,8 +150,8 @@ local handlers = {}
 function LP.On(event, fn)
     if not handlers[event] then
         handlers[event] = {}
-        if event == "UNIT_SPELLCAST_SUCCEEDED" and frame.RegisterUnitEvent then
-            pcall(frame.RegisterUnitEvent, frame, event, "player")   -- only own spells, not those of all players in the raid
+        if event:find("^UNIT_SPELLCAST_") and frame.RegisterUnitEvent then
+            pcall(frame.RegisterUnitEvent, frame, event, "player")   -- only own spells, not those of every unit the client reports (raid, party, nameplates)
         else
             pcall(frame.RegisterEvent, frame, event)
         end

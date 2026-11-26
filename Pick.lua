@@ -453,7 +453,8 @@ function LP.RefreshBoxes()
     end)
 end
 LP.boxes, LP.boxesTooHigh = {}, 0
-for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "ITEM_LOCK_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "SKILL_LINES_CHANGED" }) do
+-- (not ITEM_LOCK_CHANGED: it fires for every item picked up or dragged and changes nothing about a box)
+for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "SKILL_LINES_CHANGED" }) do
     LP.On(ev, function() LP.RefreshBoxes() end)
 end
 LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit) if unit == "player" then LP.RefreshBoxes() end end)

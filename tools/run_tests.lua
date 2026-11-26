@@ -2,7 +2,7 @@
 --   luajit tools/run_tests.lua [-v]
 -- The WoW API is replaced by a tiny mock: frames accept every call and do nothing, units/channels/spells are fixed values.
 -- This checks the LOGIC (chat detection, data, migration, flows). It does not show the real UI and not how the real client behaves.
-local verbose, seed, repeats, coverage, dataFile, inspect = false, nil, 1, false, nil, false
+local verbose, seed, repeats, coverage, dataFile, inspect, bench = false, nil, 1, false, nil, false, false
 do
     local i = 1
     local args = arg or {}
@@ -13,7 +13,8 @@ do
         elseif a == "--repeat" then i = i + 1 repeats = tonumber(args[i]) or 1
         elseif a == "--coverage" then coverage = true
         elseif a == "--data" then i = i + 1 dataFile = args[i]
-        elseif a == "--inspect" then inspect = true end
+        elseif a == "--inspect" then inspect = true
+        elseif a == "--bench" then bench = true end
         i = i + 1
     end
 end
@@ -256,6 +257,46 @@ if inspect then   -- print what the addon made of the loaded data (used by tools
     table.sort(ch)
     P("ad_channels", table.concat(ch, ","))
     P("welcomeText", db.finder and db.finder.welcomeText ~= nil and db.finder.welcomeText ~= "")
+    os.exit(0)
+end
+
+if bench then   -- timing of the hot paths (use "luajit -joff tools/run_tests.lua --bench": the game runs plain Lua 5.1 without a JIT)
+    local function Time(name, n, fn)
+        collectgarbage() collectgarbage()
+        local m0 = collectgarbage("count")
+        local t0 = os.clock()
+        for _ = 1, n do fn() end
+        local dt = os.clock() - t0
+        local m1 = collectgarbage("count")
+        print(("%-46s %9.2f us/call   (%d calls, heap %+.0f KB)"):format(name, dt / n * 1e6, n, m1 - m0))
+    end
+    local chat = {
+        "WTS [Linen Cloth] x20 cheap, pm me", "LFM BRD need tank and healer", "anyone know where the Defias hideout is?",
+        "LF rogue to open my lockbox", "Rogue 300 lockpicking, PM me for lockboxes", "Suche Schurke fuer Kiste, bezahle Trinkgeld",
+        "hi guys how is everyone doing today, the weather is nice", "Verkaufe Eisenerz, 5 Stack, Preis VB", "GM can you please ban the gold sellers",
+    }
+    local i = 0
+    Time("Analyze (public chat, mixed messages)", 20000, function() i = i % #chat + 1 LP.Analyze(chat[i], false) end)
+    Time("Analyze (unrelated chatter)", 20000, function() LP.Analyze(chat[7], false) end)
+    LP.db.finder.enabled = false
+    Time("OnChat, Finder off (cheapest exit)", 100000, function() LP.OnChat("CHAT_MSG_CHANNEL", chat[7], "Someone-Realm", nil, "2. Trade - City", "Trade") end)
+    LP.db.finder.enabled = true
+    local keepDry = LP.forceDry
+    Time("OnChat, Finder on, unrelated chatter", 20000, function() i = i % #chat + 1 LP.OnChat("CHAT_MSG_CHANNEL", chat[i], "Spieler" .. i .. "-Realm", true and nil, "2. Trade - City", "Trade") end)
+    LP.forceDry = keepDry
+    -- bags: 5 bags with 20 slots, 12 of them are boxes
+    local ids = { 4634, 4637, 4636, 4638, 2589, 6356 }
+    Time("  LP.Short", 100000, function() LP.Short("Spieler1-Realm") end)
+    Time("  LP.IsIgnored", 100000, function() LP.IsIgnored("Spieler1") end)
+    Time("  LP.ChatAllowed", 100000, function() LP.ChatAllowed("CHAT_MSG_CHANNEL", "2. Trade - City", "Trade") end)
+    Time("  LP.IsRogue", 100000, function() LP.IsRogue() end)
+    Time("  LP.SameName", 100000, function() LP.SameName("Spieler1", "Tester") end)
+    LP.Game.BagSlots = function(bag) return bag < 5 and 20 or 0 end
+    LP.Game.ContainerItemID = function(bag, slot) if slot % 2 == 0 then return ids[(slot / 2) % #ids + 1] end end
+    LP.Game.SlotLocked = function(bag, slot) return slot % 4 == 0 end
+    Time("LP.BoxList (100 slots, boxes among them)", 2000, function() LP.BoxList() end)
+    LP.Game.BagSlots = function() return 0 end
+    Time("LP.RefreshBoxes + ApplyBoxButton (empty bags)", 5000, function() LP.BoxList() end)
     os.exit(0)
 end
 
