@@ -4,8 +4,9 @@ CurseForge project page text for Picky. Paste the part below the line into the p
 Summary (short field, paste separately):
 Lockpicking for other players, made fast. Right-click boxes, find customers in chat, invite, thank and leave the group - all from one small window. For WoW Forever.
 
-Images in the description: the three below are linked from the project gallery (media.forgecdn.net), nothing to upload.
-(Resized 600-720 px versions for uploading in the editor are in assets/screenshots/*-small.webp, if the linked ones are too big.)
+Images in the description: all linked from the project gallery (media.forgecdn.net), nothing to upload.
+The three settings images sit side by side via an HTML <p><img width="32%"> block. If the editor shows that as raw text,
+use the markdown version (one image per line) or a collage image instead.
 Gallery (carousel): the eight single images, cover = requests.webp. Captions:
   requests "Requests: every order with skill needed, time and tip"; guide "Leveling guide with spots, maps and boxes per skill range";
   toast-new-request "Pop-up for a new request: click to invite"; toast-trade-complete "Pop-up after a trade: click to thank and leave the group";
@@ -40,6 +41,10 @@ Features
 
 _Pop-up for a new request: click to invite_
 
+![Picky pop-up after a completed trade](https://media.forgecdn.net/attachments/2279/744/toast-trade-complete-png.png)
+
+_Pop-up after a trade: click to thank and leave the group_
+
 Getting started
 ---------------
 
@@ -56,14 +61,27 @@ Chat commands
 | `/picky duty` | Turns Duty mode on or off |
 | `/picky stats` | Prints your totals (orders, boxes, tips) |
 
+Leveling guide
+--------------
+
+Picky shows you where to level lockpicking for your current skill: the best spots, map buttons and the boxes you can open there.
+
+![Lockpicking leveling guide with map buttons](https://media.forgecdn.net/attachments/2279/702/guide-webp.webp)
+
+_Leveling guide: spots, map buttons and the boxes for each skill range_
+
 Settings
 --------
 
 Everything can be changed: what Duty does, which channels to listen and advertise in, sounds, pop-ups, window size and all message texts.
 
-![Picky settings for duty, channels and group](https://media.forgecdn.net/attachments/2279/705/settings-duty-webp.webp)
+<p>
+<img src="https://media.forgecdn.net/attachments/2279/705/settings-duty-webp.webp" alt="Picky settings for duty, channels and group" width="32%">
+<img src="https://media.forgecdn.net/attachments/2279/704/settings-display-webp.webp" alt="Picky settings for pop-ups, sounds and window size" width="32%">
+<img src="https://media.forgecdn.net/attachments/2279/706/settings-messages-webp.webp" alt="Picky settings for greeting, thanks and reply texts" width="32%">
+</p>
 
-_Settings: duty, channels and group behaviour_
+_Settings: duty, channels and group (left), pop-ups, sounds and window size (middle), editable message texts (right)_
 
 Test mode
 ---------
