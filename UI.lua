@@ -1265,7 +1265,7 @@ local function BuildDev(p)
     for _, line in ipairs(LP.devLog) do out:AddMessage(line) end
     LP.OnDevLine = function(line) out:AddMessage(line) end
     -- Everything printed into the output field (self test result, diagnostics, errors) is also kept in LP.devLog with a time,
-    -- so that Copy / Copy all contain exactly what you see.
+    -- so that Copy contains exactly what you see.
     local function Out(line)
         out:AddMessage(line)
         local log = LP.devLog
@@ -1318,7 +1318,7 @@ local function BuildDev(p)
     local oh = FS(p, "GameFontNormalSmall", "Output")
     oh:SetPoint("TOPLEFT", 2, -244)
     Btn("Clear output", 110, 298, -238, function() out:Clear() wipe(LP.devLog) end)
-    Btn("Copy all", 94, 108, -238, function()   -- Test-tab log + developer output in one list, sorted by time
+    Btn("Copy", 90, 204, -238, function()   -- Test-tab log + developer output in one list, sorted by time
         local function Clean(l) return (tostring(l):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
         local a, b, lines = LP.debugLog, LP.devLog, {}
         local i, j = 1, 1
@@ -1328,13 +1328,6 @@ local function BuildDev(p)
             else lines[#lines + 1] = Clean(b[j]) j = j + 1 end
         end
         ShowCopyBox(#lines > 0 and table.concat(lines, "\n") or "(both logs are empty)")
-    end)
-    Btn("Copy", 90, 204, -238, function()
-        local lines = {}
-        for i, line in ipairs(LP.devLog) do
-            lines[i] = (tostring(line):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
-        end
-        ShowCopyBox(#lines > 0 and table.concat(lines, "\n") or "(developer log is empty)")
     end)
     local live = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
     live:SetSize(24, 24)
