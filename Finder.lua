@@ -878,10 +878,17 @@ function LP.AdTest()
     LP.Print("adtest: posting the announcement from a timer in 3 seconds ...")
     LP.After(3, function()
         LP.lastAd = nil   -- ignore the 60 s limit for this test
+        -- The game reports a blocked call as the event ADDON_ACTION_BLOCKED, and events arrive AFTER the sending call has returned.
+        -- So the verdict has to wait a moment, otherwise a blocked post is reported as "posted".
+        local before = LP.blockCount or 0
         local res = LP.PostAd(false)
-        if res == "sent" then LP.Print("adtest: |cff4de88aposted|r - timer posts are allowed.")
-        elseif res == "blocked" then LP.Print("adtest: |cffff5959BLOCKED|r by the game - timer posts are not allowed, announcing needs a click.")
-        else LP.Print("adtest: nothing posted (no matching channel - tick channels with the Channels button).") end
+        LP.After(1, function()
+            if res == "blocked" or (LP.blockCount or 0) > before then
+                LP.lastAd = nil   -- nothing was posted: do not count it for the 60 s limit or the 10 minute "recently announced" check
+                LP.Print("adtest: |cffff5959BLOCKED|r by the game - timer posts are not allowed, announcing needs a click.")
+            elseif res == "sent" then LP.Print("adtest: |cff4de88aposted|r - timer posts are allowed.")
+            else LP.Print("adtest: nothing posted (no matching channel - tick channels with the Channels button).") end
+        end)
     end)
 end
 
