@@ -1207,7 +1207,7 @@ T("toast: a pushed toast shows its texts and is replaced by the next one", funct
     TOAST.Push({ key = "b", title = "Two", line = "second" })
     eq(Field(f, "key"), "b", "the newest wins")
     eq(f.title:GetText(), "Two", "title replaced")
-    eq(f.hint:GetText(), "", "missing hint is cleared")
+    eq(f.hint:GetText() or "", "", "missing hint is cleared")   -- the game answers nil for an empty text
     TOAST.Dismiss()
     falsy(f:IsShown(), "dismissed")
     eq(Field(f, "key"), nil, "state cleared")
