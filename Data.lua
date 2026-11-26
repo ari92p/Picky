@@ -106,57 +106,66 @@ LP.OnLanguage(function()
     local SCARLET     = Obj(L["Scarlet Footlocker"], 5760, nil, L["Found in Tyr's Hand, which is full of level 55-60 elites."])
     local HEAVYJUNK   = { name = L["Heavy Junkbox"], item = 16885, skill = 250, hint = L["Comes from pickpocketing level 51-60 humanoids."] }
 
+    -- Route and order follow the Warcraft Tavern WoW Forever lockpicking guide (warcrafttavern.com/forever/guides/lockpicking).
+    -- Stage ends are skill / 5 = character level (levelReq). Stages 250-265 (Blackrock Depths) is a tip, not a map spot.
     LP.GUIDE = {
         {
-            from = 1, to = 100, title = "1 - 100", levelReq = 20,
+            from = 1, to = 110, title = "1 - 110", levelReq = 22,
             spots = {
                 { zone = 1413, x = 65.0, y = 45.5, faction = "H", best = true, where = L["Ship south of Ratchet"],
-                  note = L["Inside the ship. Fast respawn, two rogues can skill up together."], boxes = { STRONGBOX } },
+                  note = L["Inside the ship. Fast respawn, two rogues can skill up together."] .. " " .. L["Then go to Zoram Strand (Ashenvale) for the Waterlogged Footlockers: they take you to 110."], boxes = { STRONGBOX, WATERLOGGED } },
                 { zone = 1433, x = 46.6, y = 45.0, faction = "A", best = true, where = L["Alther's Mill"],
-                  note = L["Practice Lockboxes also stand north of Lake Everstill. They respawn very fast."], boxes = { PRACTICE } },
+                  note = L["Practice Lockboxes also stand north of Lake Everstill. They respawn very fast."] .. " " .. L["Then go inside Lake Everstill for the Waterlogged Footlockers: they take you to 110."], boxes = { PRACTICE, WATERLOGGED } },
             },
             tips = {
-                { "tip", L["Skill points come slower after about 65. Move on by 100 at the latest."] },
+                { "info", L["Quests from level 16: Alliance 'Redridge Rendezvous' then 'Alther's Mill', Horde 'Wrenix of Ratchet' then 'Plundering the Plunders'. They give the Thieves' Tools."] },
+                { "tip", L["Pick the Practice Lockboxes up to at least 80, then move on to the Waterlogged Footlockers."] },
                 { "warn", L["Keep Thieves' Tools in your bags, or Pick Lock will not work."] },
             },
         },
         {
-            from = 100, to = 150, title = "100 - 150", levelReq = 30,
+            from = 110, to = 150, title = "110 - 150", levelReq = 30,
             spots = {
-                { zone = 1440, x = 11.3, y = 21.7, faction = "H", best = true, where = L["Zoram Strand"],
-                  note = L["Along the shore. Without competition you can reach about 150 here."], boxes = { WATERLOGGED } },
-                { zone = 1442, x = 67.5, y = 51.5, faction = "H", where = L["Windshear Crag"],
-                  note = L["The higher boxes are further inside and higher up (Windshear Mine)."], boxes = { BATTERED_LO, WATERLOGGED } },
-                { zone = 1437, x = 18.7, y = 35.6, faction = "A", where = L["Murloc camps"],
-                  note = L["The higher boxes are in the inner camps."], boxes = { BATTERED_LO, WATERLOGGED } },
+                { zone = 1442, x = 67.5, y = 51.5, faction = "H", best = true, where = L["Windshear Crag"],
+                  note = L["The higher boxes are further inside and higher up (Windshear Mine)."], boxes = { BATTERED_LO } },
                 { zone = 1424, x = 78.8, y = 43.4, where = L["Durnholde Keep"],
-                  note = L["The higher boxes are on the upper ring."], boxes = { BATTERED_LO, WATERLOGGED } },
-                { zone = 1433, x = 40.5, y = 60.0, faction = "A", where = L["Lake Everstill"],
-                  note = L["The boxes are underwater."] .. " " .. L["Bring Water Breathing for underwater boxes."], boxes = { WATERLOGGED } },
+                  note = L["The higher boxes are on the upper ring."], boxes = { BATTERED_LO } },
+                { zone = 1437, x = 18.7, y = 35.6, faction = "A", best = true, where = L["Murloc camps"],
+                  note = L["Northeast of Menethil Harbor."] .. " " .. L["The higher boxes are in the inner camps."], boxes = { BATTERED_LO } },
             },
         },
         {
-            from = 150, to = 225, title = "150 - 225", levelReq = 45,
+            from = 150, to = 200, title = "150 - 200", levelReq = 40,
             spots = {
-                { zone = 1418, x = 41.5, y = 28.5, best = true, where = L["Angor Fortress"],
-                  note = L["Battered upstairs, Dented downstairs."] .. " " .. L["The Dented Footlockers downstairs give a point every time until skill 215. You can stay here until 225."] .. " " .. L["Other rogues often camp at Angor Fortress."] .. " " .. L["Do not pickpocket here: the boxes are too low to give skill."], boxes = { BATTERED, DENTED_175 } },
+                { zone = 1424, x = 78.8, y = 43.4, best = true, where = L["Durnholde Keep"],
+                  note = L["Very easy, tested from 160 to 170: only the upper Battered Footlockers still give points after 150, one point each. The lower ones are green and give nothing. The boxes respawn slowly. A good choice while your level holds you back."], boxes = { BATTERED_LO } },
                 { zone = 1443, x = 36.7, y = 22.5, where = L["Sar'theris Strand"],
-                  note = L["Underwater. A quiet alternative if Angor Fortress is crowded."] .. " " .. L["Bring Water Breathing for underwater boxes."], boxes = { WATERLOGGED } },
-                { zone = 1443, x = 34.5, y = 12.8, where = L["North coast of Desolace"],
-                  note = L["Many Mossy Footlockers."], boxes = { DENTED_175, MOSSY } },
-                { zone = 1435, x = 65.3, y = 53.8, where = L["Pool of Tears"],
-                  note = L["Underwater. Only two Mossy Footlockers here."] .. " " .. L["Bring Water Breathing for underwater boxes."], boxes = { DENTED_175, MOSSY } },
+                  note = L["Deep below the water on the coast of the Veiled Sea. You can reach 200 here."] .. " " .. L["Underwater mobs and a short breath bar: bring Water Breathing."], boxes = { WATERLOGGED } },
+                { zone = 1435, where = L["Temple of Atal'Hakkar"],
+                  note = L["Swamp of Sorrows. From 175 you can open the Mossy Footlockers; they give points up to 200."], boxes = { MOSSY } },
+                { zone = 1418, x = 41.5, y = 28.5, where = L["Angor Fortress"],
+                  note = L["Battered upstairs from 150 to 175, then Dented downstairs up to 200."] .. " " .. L["Other rogues often camp at Angor Fortress."], boxes = { BATTERED, DENTED_175 } },
             },
         },
         {
-            from = 225, to = 300, title = "225 - 300", levelReq = 60,
+            from = 200, to = 250, title = "200 - 250", levelReq = 50,
             spots = {
                 { zone = 1427, x = 42.0, y = 38.0, best = true, where = L["The Slag Pit"],
-                  note = L["The cave in the middle of Searing Gorge. Lower ones need 200, upper ones 225."] .. " " .. L["The upper ones stay yellow until 290, so the last 10 points are slower."] .. " " .. L["Pickpocketing here is not worth it."], boxes = { DENTED_LOW, DENTED_UP } },
+                  note = L["The cave in the middle of Searing Gorge. Lower ones need 200, upper ones 225."] .. " " .. L["Circle the area until 225, then work the upper levels to reach 250."] .. " " .. L["You can also pickpocket mobs here for extra boxes."], boxes = { DENTED_LOW, DENTED_UP } },
+                { zone = 1447, where = L["Bay of Storms"],
+                  note = L["Azshara. Mossy Footlockers from 225 up to 250. Harder, but handy when Searing Gorge is crowded."], boxes = { MOSSY } },
                 { zone = 1446, x = 72.2, y = 46.0, where = L["Lost Rigger Cove"],
-                  note = L["Pirate camp on the east coast of Tanaris. The same boxes as the upper Slag Pit: come here when the Slag Pit is crowded."], boxes = { DENTED_UP, MOSSY } },
-                { zone = 1423, x = 79.0, y = 75.0, where = L["Tyr's Hand"],
-                  note = L["For the last points, from 250. The boxes respawn slowly."] .. " " .. L["Tyr's Hand is full of level 55-60 elites. Only go if you can handle them."], boxes = { SCARLET, HEAVYJUNK } },
+                  note = L["Tanaris, east of the Caverns of Time. Dented Footlockers from 225, slower than the Slag Pit."], boxes = { DENTED_UP } },
+            },
+        },
+        {
+            from = 250, to = 300, title = "250 - 300", levelReq = 60,
+            spots = {
+                { zone = 1423, x = 79.0, y = 75.0, best = true, where = L["Tyr's Hand"],
+                  note = L["Scarlet Footlockers from 265. You can spam them up to 300. The boxes respawn slowly."] .. " " .. L["Tyr's Hand is full of level 55-60 elites. Only go if you can handle them."], boxes = { SCARLET, HEAVYJUNK } },
+            },
+            tips = {
+                { "tip", L["250 to 265: the Shadowforge Lock in Blackrock Depths. It only works until 265; reset the instance to get back to it."] },
             },
         },
     }

@@ -71,7 +71,7 @@ T("data: keyword estimates are never below the cheapest box of that metal", func
 end)
 T("data: the guide stages cover skill 1-300 without gaps", function()
     local g = LP.GUIDE
-    eq(#g, 4, "number of stages")
+    eq(#g, 5, "number of stages")
     eq(g[1].from, 1, "starts at 1")
     eq(g[#g].to, 300, "ends at 300")
     for i, s in ipairs(g) do

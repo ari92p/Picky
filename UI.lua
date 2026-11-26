@@ -373,7 +373,7 @@ end
 -- Page 2: Guide ------------------------------------------------------------------------------------
 -- Tabs: 1-4 = the skill stages, 5 = all boxes by skill. Content sits in a scroll frame made of pooled pieces:
 -- spot cards (zone, coordinates, Map button, box icons with tooltip), callouts (red warning, green tip, blue info), box rows.
-local GUIDE_TABS = 5
+local GUIDE_TABS = 6
 local GUIDE_W = 376
 local guideFaction            -- "Alliance" | "Horde" | nil = both (faction unknown): the guide shows the places of your own faction
 local guidePool = { cards = {}, callouts = {}, rows = {} }
@@ -540,7 +540,7 @@ local function BuildGuide(p)
     -- The last button is the list of all boxes. Clicking a stage shows its places.
     p.chips = {}
     local gap = 4
-    local stageW = 78
+    local stageW = 64
     for i = 1, GUIDE_TABS do
         local w = (i <= #LP.GUIDE) and stageW or (408 - #LP.GUIDE * (stageW + gap))
         local x = (i <= #LP.GUIDE) and (i - 1) * (stageW + gap) or #LP.GUIDE * (stageW + gap)
@@ -671,16 +671,17 @@ local function RefreshGuide()
     local y = -2
     local st = LP.GUIDE[guideStage]
     if st then
-        local kind, advice = LP.GuideAdvice(skill, LP.Game.UnitLevel())
+        local kind, advice = LP.GuideAdvice(LP.skillBase or skill, LP.Game.UnitLevel())   -- the level limit counts the base skill, gear bonus does not
         if kind then y = PlaceCallout(y, kind, advice) end
-        y = PlaceCallout(y, "info", L["Skill %d needs level %d."]:format(st.to, st.levelReq))
+        local lvFrom = math.max(1, math.ceil(st.from / 5))
+        y = PlaceCallout(y, "info", L["Level %d-%d"]:format(lvFrom, st.levelReq))
         for _, t in ipairs(st.tips or {}) do y = PlaceCallout(y, t[1], t[2]) end
         for _, spot in ipairs(st.spots) do
             if (not guideFaction) or (not spot.faction) or (spot.faction == (guideFaction == "Alliance" and "A" or "H")) then
                 y = PlaceCard(y, spot)
             end
         end
-    elseif guideStage == 5 then
+    elseif guideStage == #LP.GUIDE + 1 then
         y = PlaceCallout(y, "info", L["Boxes by required skill. Hover for details."])
         for _, e in ipairs(SortedBoxes()) do y = PlaceRow(y, e) end
     end
@@ -967,6 +968,9 @@ local function PlaceFloater(b)
     local l, bt, w, ht = h:GetRect()
     if not (l and bt and w and ht) then return false end
     local fs, ps = h:GetEffectiveScale(), UIParent:GetEffectiveScale()
+    local c = b.placed
+    if c and c.l == l and c.b == bt and c.w == w and c.h == ht and c.fs == fs and c.ps == ps then return true end   -- nothing moved
+    b.placed = { l = l, b = bt, w = w, h = ht, fs = fs, ps = ps }
     b:SetScale((fs and ps and ps > 0) and fs / ps or 1)
     b:ClearAllPoints()
     b:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", l, bt)
@@ -997,13 +1001,8 @@ local function Float(b, holder)
     SyncFloater(b)
 end
 do
-    local t, tick = 0, CreateFrame("Frame")
-    tick:SetScript("OnUpdate", function(_, dt)
-        t = t + dt
-        if t < 0.1 then return end
-        t = 0
-        SyncFloaters()
-    end)
+    local tick = CreateFrame("Frame")
+    tick:SetScript("OnUpdate", SyncFloaters)   -- every frame, so the button follows a dragged window without lag (placing is skipped when nothing moved)
 end
 LP.On("PLAYER_REGEN_ENABLED", SyncFloaters)
 
