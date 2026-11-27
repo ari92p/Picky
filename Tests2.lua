@@ -1454,6 +1454,60 @@ local function WithFloater(fn)   -- a secure button and a placeholder frame (as 
     LP.SyncFloaters()
     if not ok then error(err, 0) end
 end
+-- 15) The box button itself: what one click is set up to do ----------------------------------------------------------------------------------------
+local function WithBoxButton(boxes, fn)   -- builds the window if needed (and puts it back as it was), sets LP.boxes, runs fn(button); restores everything
+    local before = _G.PickyFrame
+    local wasShown = before and before:IsShown()
+    local tab = LP.UITab()
+    local pos = LP.db.ui and LP.db.ui.winPos
+    local keepBoxes, keepHigh, keepTarget = LP.boxes, LP.boxesTooHigh, LP.lastPickTarget
+    local ok, err = pcall(function()
+        LP.ShowUI()
+        LP.boxes, LP.boxesTooHigh = boxes, 0
+        LP.ApplyBoxButton()
+        fn(_G.PickyBoxButton)
+    end)
+    LP.boxes, LP.boxesTooHigh, LP.lastPickTarget = keepBoxes, keepHigh, keepTarget
+    LP.ApplyBoxButton()
+    LP.UITab(tab)
+    local win = _G.PickyFrame
+    if win and not wasShown then win:Hide() end
+    if LP.db.ui then LP.db.ui.winPos = pos end
+    if not ok then error(err, 0) end
+end
+T("box button: a locked box is set up for Pick Lock on exactly that slot", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        eq(b:GetAttribute("type"), "spell", "type")
+        eq(b:GetAttribute("spell"), LP.PickName(), "spell")
+        eq(b:GetAttribute("target-bag"), 2, "bag")
+        eq(b:GetAttribute("target-slot"), 5, "slot")
+        eq(b:GetAttribute("macrotext"), nil, "no macro")
+        truthy(b.glow:IsShown(), "ring is on")
+    end)
+end)
+T("box button: an open box is set up to be used, and the pick attributes are gone", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.boxes = { { bag = 1, slot = 3, id = 4634, action = "open", req = 70 } }
+        LP.ApplyBoxButton()
+        eq(b:GetAttribute("type"), "macro", "type")
+        eq(b:GetAttribute("macrotext"), "/use 1 3", "macro")
+        eq(b:GetAttribute("spell"), nil, "spell cleared")
+        eq(b:GetAttribute("target-bag"), nil, "bag cleared")
+        eq(b:GetAttribute("target-slot"), nil, "slot cleared")
+        LP.boxes = { { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }
+        LP.ApplyBoxButton()
+        eq(b:GetAttribute("type"), "spell", "and back to picking")
+        eq(b:GetAttribute("macrotext"), nil, "macro cleared")
+    end)
+end)
+T("box button: it floats over a placeholder in the window and is not a child of the window", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        truthy(b.holder, "has a placeholder in the window")
+        truthy(b.holder ~= b, "placeholder is another frame")
+        truthy(b:GetParent() == UIParent, "the secure button hangs on UIParent")
+        truthy(b.holder:GetParent() == _G.PickyFrame, "the placeholder is in the window")
+    end)
+end)
 -- Protected (secure) frames must stay out of the window: a protected child makes the window protected, and Blizzard's own code is then
 -- blocked in combat ("PickyFrame:Hide()", "SetPassThroughButtons"). These run in the game too, against the real frames.
 local function Ancestors(f)
@@ -1477,7 +1531,11 @@ T("protection: the window itself is not protected, and no secure frame is its de
             for _, a in ipairs(Ancestors(f)) do truthy(a ~= win, "the click area is a descendant of the window") end
             truthy(f:GetParent() == UIParent, "the click area does not hang on UIParent")
         end
-        falsy(_G.PickyBoxButton, "the box button is back")
+        local bb = _G.PickyBoxButton
+        if bb then
+            for _, a in ipairs(Ancestors(bb)) do truthy(a ~= win, "the box button is a descendant of the window") end
+            truthy(bb:GetParent() == UIParent, "the box button does not hang on UIParent")
+        end
     end)
     LP.UITab(tab)
     local win = _G.PickyFrame
@@ -1679,6 +1737,168 @@ T("floating button: it is placed over the placeholder, outside the window", func
         LP.SyncFloaters()
         truthy(b.placed and b.placed.w > 0 and math.abs(b.placed.w - b.placed.h) < 0.01, "size of the placeholder")
         truthy(b:GetParent() == UIParent, "parent")
+    end)
+end)
+
+T("box button: without boxes it does nothing and the ring is off", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.boxes = {}
+        LP.ApplyBoxButton()
+        eq(b:GetAttribute("type"), nil, "no action")
+        falsy(b.glow:IsShown(), "ring is off")
+        eq(b.count:GetText() or "", "", "no number")
+    end)
+end)
+T("box button: the number is the count of all boxes, shown from two on", function()
+    local one = { bag = 1, slot = 1, id = 4634, action = "pick", req = 70 }
+    WithBoxButton({ one }, function(b)
+        eq(b.count:GetText() or "", "", "one box: no number")
+        LP.boxes = { one, { bag = 1, slot = 2, id = 4634, action = "open", req = 70 }, { bag = 1, slot = 3, id = 4634, action = "pick", req = 70 } }
+        LP.ApplyBoxButton()
+        eq(b.count:GetText(), "3", "three boxes")
+    end)
+end)
+T("box button: a pick click remembers its target for the grace period, an open click does not", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.lastPickTarget = nil
+        b:GetScript("PreClick")(b, "LeftButton")
+        truthy(LP.lastPickTarget and LP.lastPickTarget.bag == 2 and LP.lastPickTarget.slot == 5, "target remembered")
+        LP.boxes = { { bag = 1, slot = 3, id = 4634, action = "open", req = 70 } }
+        LP.ApplyBoxButton()
+        LP.lastPickTarget = nil
+        b:GetScript("PreClick")(b, "LeftButton")
+        eq(LP.lastPickTarget, nil, "open: nothing remembered")
+    end)
+end)
+T("box button: it reacts to both mouse buttons", function()
+    WithBoxButton({}, function(b)
+        local clicks = rawget(b, "__clicks")   -- only the test runner records this; the real game has no way to read it back
+        if clicks then truthy(clicks:find("Any", 1, true), "any mouse button") end
+    end)
+end)
+
+-- ===== Test switches (Developer tab): parts of Picky that can be switched off to find the cause of blocked actions =====
+local function WithOff(name, fn)
+    local keep = LP.db.off
+    LP.db.off = { [name] = true }
+    local ok, err = pcall(fn)
+    LP.db.off = keep
+    if not ok then error(err, 0) end
+end
+T("test switches: all off by default, each one is reported by name", function()
+    local keep = LP.db.off
+    LP.db.off = {}
+    local ok, err = pcall(function()
+        for _, n in ipairs({ "tooltip", "area", "count", "box" }) do falsy(LP.Off(n), n .. " is off by default") end
+        eq(#LP.OffList(), 0, "list")
+        LP.db.off = { area = true, box = true }
+        truthy(LP.Off("area") and LP.Off("box"), "switched on")
+        falsy(LP.Off("count"), "count is not on")
+        eq(table.concat(LP.OffList(), ","), "area,box", "list")
+    end)
+    LP.db.off = keep
+    if not ok then error(err, 0) end
+end)
+T("test switches: area off = no click area on a locked box in the bags", function()
+    WithOff("area", function()
+        WithArea({ locked = true }, function(focus, area)
+            LP.CheckOverlayRaw(focus)
+            falsy(area:IsShown(), "shown although switched off")
+        end)
+    end)
+end)
+T("test switches: count off = no boxes counted (and counted when on)", function()
+    local keepBoxes, keepHigh = LP.boxes, LP.boxesTooHigh
+    local ok, err = pcall(function()
+        BoxWorld({ ["0:1"] = 4634, ["0:2"] = 4636 }, { ["0:1"] = true, ["0:2"] = true }, 100, function()
+            LP.RecountBoxes()
+            eq(#LP.boxes, 1, "the pickable box is counted when on")
+            eq(LP.boxesTooHigh, 1, "the one that needs more skill is counted when on")
+            WithOff("count", function() LP.RecountBoxes() end)
+            eq(#LP.boxes, 0, "boxes counted although switched off")
+            eq(LP.boxesTooHigh, 0, "too-high boxes counted")
+        end)
+    end)
+    LP.boxes, LP.boxesTooHigh = keepBoxes, keepHigh
+    if not ok then error(err, 0) end
+end)
+T("test switches: box off = the box button is not wanted", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.ApplyBoxButton()
+        truthy(b.wanted, "not wanted when on")
+        WithOff("box", function() LP.ApplyBoxButton() end)
+        falsy(b.wanted, "wanted although switched off")
+    end)
+end)
+T("test switches: tooltip off = the hook is not wanted at login", function()
+    truthy(LP.TooltipHookWanted(), "not wanted by default")
+    WithOff("tooltip", function() falsy(LP.TooltipHookWanted(), "wanted although switched off") end)
+end)
+
+T("click area: left click and drag go through to the bag button (a pickable box can be moved), only the right button is ours", function()
+    local pass = rawget(LP.Overlay, "__pass")   -- only the test runner records this; the real game has no way to read it back
+    if pass then
+        truthy(pass:find("LeftButton", 1, true), "left button does not pass through: a box cannot be moved or dragged")
+        falsy(pass:find("RightButton", 1, true), "the right button must stay with the click area")
+    end
+    local clicks = rawget(LP.Overlay, "__clicks")
+    if clicks then truthy(clicks:find("RightButton", 1, true), "right button") end
+end)
+
+-- ===== Combat probe (Developer tab): attributes blocked actions to the step that was running =====
+T("combat probe: every step runs without an error (outside combat)", function()
+    local before = _G.PickyFrame
+    local wasShown = before and before:IsShown()
+    local tab = LP.UITab()
+    local pos = LP.db.ui and LP.db.ui.winPos
+    local keepBoxes, keepHigh = LP.boxes, LP.boxesTooHigh
+    local ok, err = pcall(function()
+        truthy(#LP.ProbeSteps() >= 8, "too few steps")
+        for _, st in ipairs(LP.ProbeSteps()) do
+            local good, e = pcall(st[2])
+            truthy(good, "step '" .. st[1] .. "' failed: " .. tostring(e))
+        end
+    end)
+    LP.boxes, LP.boxesTooHigh = keepBoxes, keepHigh
+    LP.UITab(tab)
+    local win = _G.PickyFrame
+    if win and not wasShown then win:Hide() end
+    if win and wasShown then win:Show() end   -- the step 'close the window' hid it
+    if LP.db.ui then LP.db.ui.winPos = pos end
+    if not ok then error(err, 0) end
+end)
+T("combat probe: a blocked action is attributed to the running step, or to 'no step running'", function()
+    local was = LP.ProbeIsArmed()
+    Sandbox(nil, function()
+        LP.ProbeArm(true)
+        local ok, err = pcall(function()
+            LP.ProbeStep("count the boxes")
+            FireEvent("ADDON_ACTION_BLOCKED", "Picky", "Foo:Bar()")
+            LP.ProbeStep(nil)
+            FireEvent("ADDON_ACTION_FORBIDDEN", "Picky", "Baz:Qux()")
+            local h = LP.ProbeHits()
+            eq(#h, 2, "number of hits")
+            eq(h[1].step, "count the boxes", "first hit")
+            truthy(h[1].what:find("Foo:Bar()", 1, true), "first hit names the function")
+            eq(h[2].step, "(no step running)", "second hit")
+            truthy(h[2].what:find("ADDON_ACTION_FORBIDDEN", 1, true), "second hit names the event")
+        end)
+        LP.ProbeArm(was)   -- a probe you armed before the tests stays armed
+        if not ok then error(err, 0) end
+    end)
+end)
+T("combat probe: switched off, it notes nothing; arming clears the old result", function()
+    local was = LP.ProbeIsArmed()
+    Sandbox(nil, function()
+        LP.ProbeArm(false)
+        FireEvent("ADDON_ACTION_BLOCKED", "Picky", "Foo:Bar()")
+        eq(#LP.ProbeHits(), 0, "noted while off")
+        LP.ProbeArm(true)
+        FireEvent("ADDON_ACTION_BLOCKED", "Picky", "Foo:Bar()")
+        eq(#LP.ProbeHits(), 1, "not noted while armed")
+        LP.ProbeArm(true)
+        eq(#LP.ProbeHits(), 0, "old result kept after arming again")
+        LP.ProbeArm(was)
     end)
 end)
 

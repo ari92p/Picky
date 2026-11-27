@@ -134,6 +134,7 @@ LP.defaults = {
     debugChat = false,   -- also write log lines to chat
     dev = false,         -- Developer tab (only visible via /picky dev)
     logLive = false,     -- keep the log in normal operation too (Developer tab)
+    off = {},            -- test switches (Developer tab): parts of Picky that are switched off to find the cause of blocked actions (tooltip, area, count, box)
 }
 
 local function Merge(dst, src)

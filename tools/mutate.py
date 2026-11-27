@@ -177,15 +177,40 @@ M = [
     ("area: hint also for a picked box", "Pick.lua", "if StillLocked(self) and LP.db and LP.db.pick.hint then", "if LP.db and LP.db.pick.hint then"),
     ("area: hint ignores the setting", "Pick.lua", "if StillLocked(self) and LP.db and LP.db.pick.hint then", "if StillLocked(self) then"),
     ("area: hangs on the bag button again", "Pick.lua", "    overlay:SetParent(UIParent)\n", "    overlay:SetParent(focus)\n"),
-    ("area: set up in combat", "Pick.lua", "if LP.Game.InCombat() or not LP.db or not LP.IsRogue() then return end\n    if not focus", "if not LP.db or not LP.IsRogue() then return end\n    if not focus"),
+    ("area: set up in combat", "Pick.lua", "if LP.Game.InCombat() or not LP.db or not LP.IsRogue() then return end\n    if LP.Off(\"area\")", "if not LP.db or not LP.IsRogue() then return end\n    if LP.Off(\"area\")"),
     ("area: hidden in combat (impossible)", "Pick.lua", "    if not LP.Game.InCombat() and overlay:IsShown() then\n        LP.DevDebug", "    if overlay:IsShown() then\n        LP.DevDebug"),
     ("area: grace period ignored", "Pick.lua", "    if LP.RecentlyPicked(bag, slot) then return false end   -- just picked: counts as open (see above)\n    local box", "    local box"),
+    # --- test switches
+    ("switch: off list misses one", "Pick.lua", 'for _, n in ipairs({ "tooltip", "area", "count", "box" })', 'for _, n in ipairs({ "tooltip", "area", "count" })'),
+    ("switch: area ignored", "Pick.lua", '    if LP.Off("area") then HideOverlay() return end\n', ''),
+    ("switch: count ignored", "Pick.lua", 'or LP.Off("count") then LP.boxes', 'then LP.boxes'),
+    ("switch: box ignored", "UI.lua", 'LP.IsRogue() and not LP.Off("box") and true or false', 'LP.IsRogue() and true or false'),
+    ("switch: tooltip ignored", "Pick.lua", 'function LP.TooltipHookWanted() return not LP.Off("tooltip") end', 'function LP.TooltipHookWanted() return true end'),
+    # --- combat probe
+    ("probe: no step name", "Tests.lua", 'local name = probe.step or "(no step running)"', 'local name = "(no step running)"'),
+    ("probe: notes while off", "Tests.lua", "        if not probe.armed then return end\n        local name", "        local name"),
+    ("probe: arming keeps old hits", "Tests.lua", "        probe.step, probe.hits, probe.ran = nil, {}, {}\n        if on then", "        probe.step = nil\n        if on then"),
+    ("area: left click does not pass through", "Pick.lua", 'overlay:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5")', 'overlay:SetPassThroughButtons("MiddleButton", "Button4", "Button5")'),
+    ("area: right button passes through", "Pick.lua", 'overlay:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5")', 'overlay:SetPassThroughButtons("LeftButton", "RightButton")'),
     # --- floating secure buttons
     ("floater: stays visible over a closed window", "UI.lua", "if want and PlaceFloater(b) then b:Show() else b:SetAlpha(0) b:Hide() end", "if PlaceFloater(b) then b:Show() end"),
     ("floater: alpha not set", "UI.lua", "b:SetAlpha(want and 1 or 0)", "b:SetAlpha(1)"),
     ("floater: the game's own Show is not undone", "UI.lua", "    b:HookScript(\"OnShow\", function() SyncFloater(b) end)", "    -- no OnShow hook"),
     ("floater: wants nothing but follows the window", "UI.lua", "local want = b.wanted and b.holder:IsVisible() and true or false", "local want = b.wanted and true or false"),
     ("floater: hidden in combat (impossible)", "UI.lua", "    if LP.Game.InCombat() then return end\n    if want", "    if want"),
+    # --- the box button
+    ("button: not a child of the window", "UI.lua", 'CreateFrame("Button", "PickyBoxButton", UIParent,', 'CreateFrame("Button", "PickyBoxButton", parent,'),
+    ("button: right click works", "UI.lua", 'b:RegisterForClicks("AnyUp", "AnyDown")', 'b:RegisterForClicks("LeftButtonUp", "LeftButtonDown")'),
+    ("button: pick uses the spell", "UI.lua", 'b:SetAttribute("type", "spell")\n            b:SetAttribute("spell", LP.PickName())', 'b:SetAttribute("type", "macro")\n            b:SetAttribute("spell", LP.PickName())'),
+    ("button: pick targets the slot", "UI.lua", 'b:SetAttribute("target-slot", e.slot)', 'b:SetAttribute("target-slot", e.bag)'),
+    ("button: pick targets the bag", "UI.lua", 'b:SetAttribute("target-bag", e.bag)', 'b:SetAttribute("target-bag", e.slot)'),
+    ("button: open uses bag and slot", "UI.lua", '"/use " .. e.bag .. " " .. e.slot', '"/use " .. e.slot .. " " .. e.bag'),
+    ("button: open clears the pick target", "UI.lua", '            b:SetAttribute("target-bag", nil)\n            b:SetAttribute("target-slot", nil)\n        end', '        end'),
+    ("button: pick clears the item", "UI.lua", 'b:SetAttribute("macrotext", nil)\n        else', 'else'),
+    ("button: no box, no action", "UI.lua", '        b:SetAttribute("type", nil)\n        b.count:SetText("")', '        b.count:SetText("")'),
+    ("button: no box, ring off", "UI.lua", '        b.count:SetText("")\n        b.glow:Hide()', '        b.count:SetText("")'),
+    ("button: the number needs two boxes", "UI.lua", '#LP.boxes > 1 and #LP.boxes or ""', '#LP.boxes > 0 and #LP.boxes or ""'),
+    ("button: a pick click remembers its target", "UI.lua", 'if e and e.action == "pick" then\n            LP.lastPickTarget', 'if e then\n            LP.lastPickTarget'),
 ]
 
 

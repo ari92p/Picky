@@ -1157,20 +1157,132 @@ end
 
 -- Run -------------------------------------------------------------------------------------------------------------------
 -- opts.seed: run the tests in a shuffled order (a test that only passes in the usual order depends on another one)
+-- Combat probe (Developer tab): looks for the cause of "ADDON_ACTION_BLOCKED" messages. Only real combat can show them (InCombatLockdown),
+-- so the probe waits until you are in a fight, then runs Picky's own code paths one after the other, 1.5 s apart, and notes which step was
+-- running when the game reported a blocked action. Your own actions during the fight (hovering, clicking) show up as "(no step running)".
+do
+    local probe = { armed = false, step = nil, hits = {}, ran = {}, t0 = 0, token = 0 }
+    local function FireOwn(event, ...) local f = LP.frame f:GetScript("OnEvent")(f, event, ...) end
+    local function Focus()
+        if GetMouseFoci then local f = GetMouseFoci() return f and f[1] end
+        return GetMouseFocus and GetMouseFocus()
+    end
+    local STEPS = {
+        { "open the window", function() LP.ShowUI() end },
+        { "switch the tabs", function() for i = 1, 4 do LP.UITab(i) end LP.UITab(1) end },
+        { "refresh the window", function() LP.RefreshUI() end },
+        { "count the boxes", function() LP.BoxList() LP.RefreshBoxes() end },
+        { "box button", function() if LP.ApplyBoxButton then LP.ApplyBoxButton() end end },
+        { "minimap button", function() if LP.UpdateMinimapState then LP.UpdateMinimapState() end end },
+        { "event: bags changed", function() FireOwn("BAG_UPDATE_DELAYED") end },
+        { "event: item lock changed", function() FireOwn("ITEM_LOCK_CHANGED") end },
+        { "event: modifier key", function() FireOwn("MODIFIER_STATE_CHANGED") end },
+        { "event: own spell cast", function() FireOwn("UNIT_SPELLCAST_SUCCEEDED", "player", "probe", 1) end },
+        { "hover check on what is under the mouse", function() local f = Focus() if f then LP.CheckOverlayRaw(f) end end },
+        { "close the window", function() if _G.PickyFrame then _G.PickyFrame:Hide() end end },
+    }
+    local function Now() return GetTime() - probe.t0 end
+    local function Say(msg)   -- chat AND the Developer output (the output only shows what goes through the developer log)
+        LP.Print(msg)
+        LP.DevDebug("probe", "%s", (msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")))
+    end
+    local function Hit(event, addon, func)
+        if not probe.armed then return end
+        local name = probe.step or "(no step running)"
+        probe.hits[#probe.hits + 1] = { step = name, t = Now(), what = tostring(event) .. ": " .. tostring(addon) .. " " .. tostring(func) }
+        Say(("|cffff5959probe|r %s while: %s"):format(tostring(func), name))
+        LP.DevDebug("probe", "%.1fs %s %s %s while: %s", Now(), tostring(event), tostring(addon), tostring(func), name)
+    end
+    LP.On("ADDON_ACTION_BLOCKED", function(e, addon, func) Hit(e, addon, func) end)
+    LP.On("ADDON_ACTION_FORBIDDEN", function(e, addon, func) Hit(e, addon, func) end)
+
+    function LP.ProbeSummary()
+        local n = {}
+        for _, h in ipairs(probe.hits) do n[h.step] = (n[h.step] or 0) + 1 end
+        local lines = {}
+        for _, st in ipairs(probe.ran) do lines[#lines + 1] = ("%s: %s"):format(st, n[st] and (n[st] .. " blocked") or "ok") end
+        if n["(no step running)"] then lines[#lines + 1] = ("(no step running): %d blocked (your own actions or something else)"):format(n["(no step running)"]) end
+        return lines
+    end
+    local function Report()
+        Say("combat probe finished. " .. #probe.hits .. " blocked action(s).")
+        for _, l in ipairs(LP.ProbeSummary()) do
+            Say("  " .. l)
+        end
+    end
+    local function RunFrom(i, token)
+        if token ~= probe.token or not probe.armed then return end
+        if not LP.Game.InCombat() then return end   -- the fight is over: the regen event reports
+        local st = STEPS[i]
+        if not st then probe.step = nil return end
+        probe.step = st[1]
+        probe.ran[#probe.ran + 1] = st[1]
+        local ok, err = pcall(st[2])
+        if not ok then
+            Say("|cffff5959probe|r step '" .. st[1] .. "' failed: " .. tostring(err))
+            LP.DevDebug("probe", "step %s failed: %s", st[1], tostring(err))
+        end
+        LP.After(1.5, function()
+            if token ~= probe.token then return end
+            probe.step = nil   -- late reactions of this step still count for it until the next one starts
+            RunFrom(i + 1, token)
+        end)
+    end
+    function LP.ProbeArm(on)
+        probe.armed = on and true or false
+        probe.token = probe.token + 1
+        probe.step, probe.hits, probe.ran = nil, {}, {}
+        if on then
+            LP.Print("combat probe armed: go into a fight. It starts 3 s after combat begins and reports when combat ends.")
+        else
+            LP.Print("combat probe off")
+        end
+        return probe.armed
+    end
+    function LP.ProbeIsArmed() return probe.armed end
+    function LP.ProbeStep(name) probe.step = name end   -- seam for the self tests
+    function LP.ProbeHits() return probe.hits end        -- seam for the self tests
+    function LP.ProbeSteps() return STEPS end
+    LP.On("PLAYER_REGEN_DISABLED", function()
+        if not probe.armed then return end
+        probe.t0 = GetTime()
+        probe.step, probe.hits, probe.ran = nil, {}, {}
+        probe.token = probe.token + 1
+        local token = probe.token
+        Say("combat probe: combat started, running in 3 s")
+        LP.After(3, function() RunFrom(1, token) end)
+    end)
+    LP.On("PLAYER_REGEN_ENABLED", function()
+        if not probe.armed then return end
+        probe.token = probe.token + 1   -- stops the steps
+        probe.step = nil
+        if #probe.ran > 0 or #probe.hits > 0 then
+            Report()
+            probe.armed = false
+            if LP.OnProbeChanged then LP.OnProbeChanged() end
+        else
+            Say("combat probe: the fight was too short (it starts 3 s after combat begins). Still armed: next fight.")
+        end
+    end)
+end
+
 -- Checks that need real time (only meaningful in the game; the offline runner queues timers without running them). The result comes about
 -- 3 seconds after the tests and goes to the chat and the log like a test result. Out of combat only.
 -- 1) A hidden click area must STAY hidden (a state driver once showed it again every second, over boxes already picked).
 function LP.LiveChecks()
     if InCombatLockdown and InCombatLockdown() then return end
-    local overlay = _G.PickyOverlay
+    local overlay, box, win = _G.PickyOverlay, _G.PickyBoxButton, _G.PickyFrame
     if not overlay then return end
     pcall(overlay.Hide, overlay)
     LP.After(3, function()
         if InCombatLockdown and InCombatLockdown() then return end
         local bad = {}
         if overlay:IsShown() then bad[#bad + 1] = "the click area came back by itself after it was hidden" end
+        if box and win and not win:IsShown() and box:IsShown() and (box:GetAlpha() or 0) > 0 then
+            bad[#bad + 1] = "the box button is visible although the window is closed"
+        end
         if #bad == 0 then
-            LP.Print("|cff4de88aLive checks passed|r (click area stays hidden)")
+            LP.Print("|cff4de88aLive checks passed|r (click area stays hidden, box button follows the window)")
             LP.Debug("test", "live checks passed")
         else
             for _, m in ipairs(bad) do
@@ -1183,6 +1295,10 @@ end
 
 function LP.RunTests(opts)
     opts = opts or {}
+    if LP.Game.InCombat() then   -- the tests show and hide secure frames: in combat that is blocked ("ADDON_ACTION_BLOCKED PickyOverlay:Hide()") and many tests fail
+        LP.Print("|cffff5959Self tests not started:|r you are in combat. Run them out of combat.")
+        return
+    end
     local pass, failed, warned = 0, 0, 0
     local out = {}
     local order = {}
@@ -1196,6 +1312,8 @@ function LP.RunTests(opts)
     end
     local globalsBefore = GlobalSnapshot()
     LP.selfTesting = true    -- LP.Print is silent until the result is printed
+    local keepOff = LP.db.off   -- the test switches (Developer tab) are all off while the tests run: the tests expect the normal behaviour
+    LP.db.off = {}
     for _, idx in ipairs(order) do
         local t = tests[idx]
         local snap = Snapshot()
@@ -1214,6 +1332,7 @@ function LP.RunTests(opts)
             pass = pass + 1
         end
     end
+    LP.db.off = keepOff
     LP.selfTesting = false
     local gc = GlobalChanges(globalsBefore)
     if #gc > 0 then

@@ -119,6 +119,9 @@ local overlay = CreateFrame("Button", "PickyOverlay", UIParent, "SecureActionBut
 overlay:RegisterForClicks("RightButtonUp", "RightButtonDown")   -- trigger depends on client setting (down/up)
 overlay:SetFrameStrata("DIALOG")
 overlay:EnableMouse(true)
+-- Only the right button belongs to this frame. Left click (pick up, move, drag the box), middle and the side buttons go through to the bag button
+-- underneath; before, the area swallowed them and a pickable box could not be moved in the bags. Set once here, out of combat.
+if overlay.SetPassThroughButtons then overlay:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5") end
 overlay:Hide()
 -- The click area hangs on UIParent (see PlaceOverlay), not on a bag button, so it needs no state driver. (A "visibility" state driver
 -- showed it again about once a second after our own Hide(): the area came back over boxes that were already picked and swallowed
@@ -259,6 +262,7 @@ end
 
 local function CheckOverlayRaw(focus)
     if LP.Game.InCombat() or not LP.db or not LP.IsRogue() then return end
+    if LP.Off("area") then HideOverlay() return end
     if not focus or not focus:IsVisible() then HideOverlay() return end
     if focus == overlay or (focus.GetParent and focus:GetParent() == overlay) then return end
     if IsShiftKeyDown() then HideOverlay() return end   -- Shift held = move the box normally
@@ -360,13 +364,28 @@ overlay:SetScript("OnLeave", function()
     GameTooltip:Hide()
 end)
 
--- Tooltip hook (modern client) or fallback for older clients
-if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
-    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
-        if tooltip == GameTooltip then CheckOverlay(GetMouseFocusCompat()) end
-    end)
-elseif GameTooltip.HookScript then
-    pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetItem", function() CheckOverlay(GetMouseFocusCompat()) end)
+-- Test switches (Developer tab, saved in LP.db.off): parts of Picky that are switched off to find the cause of blocked actions.
+-- tooltip = no hook on item tooltips (takes effect at the next /reload), area = no click area, count = no box counting, box = no box button.
+function LP.Off(name) return LP.db ~= nil and type(LP.db.off) == "table" and LP.db.off[name] == true end
+function LP.OffList()
+    local t = {}
+    for _, n in ipairs({ "tooltip", "area", "count", "box" }) do if LP.Off(n) then t[#t + 1] = n end end
+    return t
+end
+
+-- Tooltip hook (modern client) or fallback for older clients. Installed at login (not at load, the saved switches are not there yet).
+local hookInstalled = false
+function LP.TooltipHookWanted() return not LP.Off("tooltip") end
+function LP.InstallTooltipHook()
+    if hookInstalled or not LP.TooltipHookWanted() then return end
+    hookInstalled = true
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
+            if tooltip == GameTooltip then CheckOverlay(GetMouseFocusCompat()) end
+        end)
+    elseif GameTooltip.HookScript then
+        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetItem", function() CheckOverlay(GetMouseFocusCompat()) end)
+    end
 end
 
 LP.On("MODIFIER_STATE_CHANGED", function()
@@ -527,13 +546,17 @@ function LP.BoxList()
 end
 
 -- Refresh the stored list (LP.boxes, LP.boxesTooHigh) a moment after anything in the bags or the cast changed, then tell the UI.
+function LP.RecountBoxes()
+    if not LP.db or not LP.IsRogue() or LP.Off("count") then LP.boxes, LP.boxesTooHigh = {}, 0 else LP.boxes, LP.boxesTooHigh = LP.BoxList() end
+end
 local boxPending = false
 function LP.RefreshBoxes()
     if boxPending then return end
     boxPending = true
     LP.After(0.2, function()
         boxPending = false
-        if not LP.db or not LP.IsRogue() then LP.boxes, LP.boxesTooHigh = {}, 0 else LP.boxes, LP.boxesTooHigh = LP.BoxList() end
+        LP.RecountBoxes()
+        if LP.ApplyBoxButton then LP.ApplyBoxButton() end
         if LP.UpdateMinimapState then LP.UpdateMinimapState() end
     end)
 end
@@ -545,5 +568,8 @@ end
 LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit) if unit == "player" then LP.RefreshBoxes() end end)
 
 function LP.OnLogin()
+    LP.InstallTooltipHook()
+    local off = LP.OffList()
+    if #off > 0 then LP.Print("|cffff5959TEST SWITCHES ON|r (Developer tab): " .. table.concat(off, ", ")) end
     if LP.BuildMinimap then LP.BuildMinimap() end
 end

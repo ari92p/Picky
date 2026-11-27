@@ -1311,13 +1311,13 @@ local function BuildDev(p)
         table.insert(fitList, { b = b, w = w, x = x, y = y })
         return b
     end
-    local h = FS(p, "GameFontNormalLarge", "Developer tools")
+    local h = FS(p, "GameFontNormalLarge", "Developer tools  |cff8888aa" .. "v" .. tostring(LP.version) .. "|r")
     h:SetPoint("TOPLEFT", 2, 0)
     local sub = FS(p, "GameFontHighlightSmall", "Hidden tab - toggle with /picky dev. Output appears here and in the chat.")
     sub:SetPoint("TOPLEFT", 2, -24)
 
     local out = CreateFrame("ScrollingMessageFrame", nil, p)
-    out:SetPoint("TOPLEFT", 0, -264)
+    out:SetPoint("TOPLEFT", 0, -346)
     out:SetPoint("BOTTOMRIGHT", 0, 0)
     out:SetFontObject("GameFontHighlightSmall")
     out:SetJustifyH("LEFT")
@@ -1382,11 +1382,15 @@ local function BuildDev(p)
     Btn("Skill diagnostics", 120, 248, -46, function() Capture(function() LP.SkillDiagnostics() end) end)
     Btn("Dump state", 110, 0, -74, function() Capture(DumpState) end)
     Btn("Client info", 110, 114, -74, function() Capture(ClientInfo) end)
+    local probeBtn
+    local function ProbeLabel() probeBtn:SetText(LP.ProbeIsArmed() and "Combat probe: ON" or "Combat probe: off") end
+    probeBtn = Btn("Combat probe: off", 150, 228, -74, function() Capture(function() LP.ProbeArm(not LP.ProbeIsArmed()) end) ProbeLabel() end)
+    LP.OnProbeChanged = ProbeLabel   -- the probe switches itself off after its report: the label follows
     -- Output header row directly above the field (same place and size as in the Test tab): title, Copy, Clear
     local oh = FS(p, "GameFontNormalSmall", "Output")
-    oh:SetPoint("TOPLEFT", 2, -244)
-    Btn("Clear output", 110, 298, -238, function() out:Clear() wipe(LP.devLog) end)
-    Btn("Copy", 90, 204, -238, function()   -- Test-tab log + developer output in one list, sorted by time
+    oh:SetPoint("TOPLEFT", 2, -326)
+    Btn("Clear output", 110, 298, -320, function() out:Clear() wipe(LP.devLog) end)
+    Btn("Copy", 90, 204, -320, function()   -- Test-tab log + developer output in one list, sorted by time
         local function Clean(l) return (tostring(l):gsub("|cn[^:|]*:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
         local a, b, lines = LP.debugLog, LP.devLog, {}
         local i, j = 1, 1
@@ -1456,6 +1460,29 @@ local function BuildDev(p)
         end)
         p.langBtns[i] = b
     end
+    -- Test switches: switch parts of Picky off to find out which one causes blocked actions. Saved; the tooltip one needs /reload.
+    local sw = FS(p, "GameFontHighlightSmall", "Switch off for testing (saved; a chat warning shows at login):")
+    sw:SetPoint("TOPLEFT", 2, -240)
+    p.offCbs = {}
+    local OFFS = {
+        { "tooltip", "Tooltip hook (needs /reload)", 0, -258 }, { "area", "Click area on bag items", 214, -258 },
+        { "count", "Box counting", 0, -282 }, { "box", "Box button", 214, -282 },
+    }
+    for _, d in ipairs(OFFS) do
+        local cb = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
+        cb:SetSize(22, 22)
+        cb:SetPoint("TOPLEFT", d[3], d[4] + 2)
+        local t = FS(p, "GameFontHighlightSmall", d[2])
+        t:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+        cb:SetScript("OnClick", function(self)
+            LP.db.off = LP.db.off or {}
+            LP.db.off[d[1]] = self:GetChecked() and true or nil
+            if d[1] == "tooltip" then Out("tooltip hook: " .. (self:GetChecked() and "will be OFF after /reload" or "will be ON after /reload")) end
+            LP.RefreshBoxes()
+            if LP.ApplyBoxButton then LP.ApplyBoxButton() end
+        end)
+        p.offCbs[d[1]] = cb
+    end
     FitButtonRows(fitList)
     RefreshDev()
 end
@@ -1463,6 +1490,7 @@ end
 function RefreshDev()
     local p = pages[5]
     if p and p.liveCb then p.liveCb:SetChecked(LP.db.logLive and true or false) end
+    if p and p.offCbs then for k, cb in pairs(p.offCbs) do cb:SetChecked(LP.Off(k)) end end
     if p and p.soundBtns then
         local cur = LP.db.ui.alertSound or "AUCTION_WINDOW_OPEN"
         for i, snd in ipairs(LP.ALERT_SOUNDS) do p.soundBtns[i]:SetText(snd[2] .. (snd[1] == cur and "*" or "")) end
@@ -1503,6 +1531,126 @@ function LP.RefreshDevTab()
     if not LP.db.dev and currentTab == 5 then SelectTab(1) end
 end
 
+-- The box button (window header): one click does the next step on the next box in your bags: pick it or, once it is open, open it.
+-- It is a secure button, so it can only be set up outside combat; the list behind it is LP.boxes (Pick.lua).
+local ICON_CHEST = "Interface\\Icons\\INV_Misc_Bag_09"
+local function UpdateBoxCooldown(b)
+    -- In combat the client hands out "secret" numbers for cooldowns and casts: comparing them is an error (and the call comes from a
+    -- tainted path). So nothing is read in combat, and anything that still goes wrong is swallowed. After combat the swipe is refreshed.
+    if LP.Game.InCombat() then return end
+    pcall(function()
+        local start, dur
+        local cs, ce = LP.Game.CastTimes()
+        if cs and ce and ce > cs then start, dur = cs, ce - cs else start, dur = LP.Game.PickCooldown() end
+        if start and dur and dur > 0 then b.cd:SetCooldown(start, dur) else b.cd:Clear() end
+    end)
+end
+local function MakeBoxButton(parent)
+    local cdPending = false
+    local holder = CreateFrame("Frame", nil, parent)   -- the button itself floats over this (see Float)
+    holder:SetSize(30, 30)
+    local b = CreateFrame("Button", "PickyBoxButton", UIParent, "SecureActionButtonTemplate")
+    b:SetSize(30, 30)
+    Float(b, holder)
+    b:RegisterForClicks("AnyUp", "AnyDown")   -- the trigger depends on the client setting (down/up)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints()
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.icon:SetTexture(ICON_CHEST)
+    b.glow = b:CreateTexture(nil, "OVERLAY")   -- yellow ring: there is something to do
+    b.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    b.glow:SetBlendMode("ADD")
+    b.glow:SetVertexColor(1, 0.85, 0.2)
+    b.glow:SetPoint("CENTER")
+    b.glow:SetSize(30 * 1.8, 30 * 1.8)
+    b.glow:Hide()
+    b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    b.count:SetPoint("BOTTOMRIGHT", -2, 2)
+    b.cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
+    b.cd:SetAllPoints()
+    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+    b:HookScript("PreClick", function(self)
+        local e = self.entry
+        if e and e.action == "pick" then
+            LP.lastPickTarget = { bag = e.bag, slot = e.slot, t = GetTime() }   -- grace period after the pick (see Pick.lua)
+        end
+    end)
+    b:HookScript("PostClick", function() LP.RefreshBoxes() end)
+    b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        local e = self.entry
+        if e then
+            GameTooltip:SetBagItem(e.bag, e.slot)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cff00ccffPicky|r  |cff4de88a" .. (e.action == "pick" and L["Click: pick the next box"] or L["Click: open the next box"]) .. "|r")
+            local nPick, nOpen = 0, 0
+            for _, x in ipairs(LP.boxes) do if x.action == "pick" then nPick = nPick + 1 else nOpen = nOpen + 1 end end
+            GameTooltip:AddLine(L["%d to pick, %d to open"]:format(nPick, nOpen), 0.8, 0.8, 0.8)
+        else
+            GameTooltip:AddLine("Picky", 1, 0.82, 0)
+            GameTooltip:AddLine(L["No box to pick or open in your bags"], 1, 1, 1)
+        end
+        if (LP.boxesTooHigh or 0) > 0 then GameTooltip:AddLine(L["%d need more skill"]:format(LP.boxesTooHigh), 1, 0.5, 0.3) end
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnUpdate", function(self)
+        if self.glow:IsShown() then self.glow:SetAlpha(0.55 + 0.45 * math.sin(GetTime() * 3)) end
+    end)
+    for _, ev in ipairs({ "SPELL_UPDATE_COOLDOWN", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED",
+        "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }) do
+        LP.On(ev, function(_, unit)
+            -- SPELL_UPDATE_COOLDOWN comes in bursts: refresh the swipe once per burst
+            if cdPending or (unit and unit ~= "player") or not (win and win.box == b) then return end
+            cdPending = true
+            LP.After(0.05, function() cdPending = false UpdateBoxCooldown(b) end)
+        end)
+    end
+    return b
+end
+
+-- Set the box button up for the first box of the list (out of combat only: a secure button cannot be changed in combat).
+function LP.ApplyBoxButton()
+    local b = win and win.box
+    if not b or LP.Game.InCombat() then return end
+    b.wanted = LP.IsRogue() and not LP.Off("box") and true or false
+    SyncFloater(b)
+    local e = LP.boxes and LP.boxes[1]
+    b.entry = e
+    if e then
+        b.icon:SetTexture(LP.Game.ItemIcon(e.id) or ICON_CHEST)
+        b.icon:SetDesaturated(false)
+        if e.action == "pick" then
+            b:SetAttribute("type", "spell")
+            b:SetAttribute("spell", LP.PickName())
+            b:SetAttribute("target-bag", e.bag)
+            b:SetAttribute("target-slot", e.slot)
+            b:SetAttribute("macrotext", nil)
+        else
+            -- not type "item": Blizzard's secure handler then calls IsEquippableItem(nil) for a "bag slot" string and errors
+            b:SetAttribute("type", "macro")
+            b:SetAttribute("macrotext", "/use " .. e.bag .. " " .. e.slot)
+            b:SetAttribute("spell", nil)
+            b:SetAttribute("target-bag", nil)
+            b:SetAttribute("target-slot", nil)
+        end
+        b.count:SetText(#LP.boxes > 1 and #LP.boxes or "")
+        b.glow:Show()
+    else
+        b.icon:SetTexture(ICON_CHEST)
+        b.icon:SetDesaturated(true)
+        b:SetAttribute("type", nil)
+        b.count:SetText("")
+        b.glow:Hide()
+    end
+    UpdateBoxCooldown(b)
+    -- the tooltip is built when the mouse enters: build it again now, otherwise it still shows the box that was just handled
+    if GameTooltip:IsShown() and GameTooltip:GetOwner() == b then
+        local fn = b:GetScript("OnEnter")
+        if fn then fn(b) end
+    end
+end
+
 local function Build()
     if win then return end
     win = CreateWindow()
@@ -1538,6 +1686,8 @@ local function Build()
     win.finder:SetSize(100, 26)
     win.finder:SetPoint("TOPRIGHT", -58, -30)
     win.finder:SetScript("OnClick", function() LP.SetFinder(not LP.db.finder.enabled, true) end)
+    win.box = MakeBoxButton(win)
+    win.box.holder:SetPoint("TOPRIGHT", -20, -28)
 
     pages[1], pages[2], pages[3], pages[4], pages[5] = NewPage(), NewPage(), NewPage(), NewPage(), NewPage()
     BuildRequests(pages[1])
