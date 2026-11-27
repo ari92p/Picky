@@ -2,7 +2,7 @@
 
 # Picky - Lockpick Assistant
 
-Lockpicking for other players, made easier. Right-click a box, let Duty mode find customers in chat, and keep track of every request. Open all your boxes in your bags with one Button. Includes a leveling guide with map pins. For WoW Forever.
+Lockpicking for other players, made easier. Right-click a box, let Duty mode find customers in chat, and keep track of every request. Includes a leveling guide with map pins. For WoW Forever.
 
 ## Install
 **CurseForge (recommended):** get Picky on [CurseForge](https://www.curseforge.com/projects/1820051) and install it with the CurseForge app. It then updates automatically.
@@ -11,7 +11,7 @@ Lockpicking for other players, made easier. Right-click a box, let Duty mode fin
 `World of Warcraft\_forever_\Interface\AddOns\`
 
 ## Use
-- **Right-click** a locked box in your bags or in the trade window to pick it.
+- **Right-click** a locked box in the trade window to pick it.
 - **Shift-click** the minimap button to post your announcement. The game only allows channel posts from a click, so there is no automatic timed announcement.
 - Turn **Duty** on in the window (`/picky`). It finds players asking for a rogue in chat, invites them, thanks for tips and leaves the group afterwards.
 - Channel menu next to **Announce**: tick the channels to announce in (trade in cities, General elsewhere); a click anywhere else closes it. The choice is remembered per channel name, so it applies again when you return to a city.

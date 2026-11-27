@@ -29,7 +29,7 @@ _Requests: every order with the skill needed, time and tip_
 Features
 --------
 
-* **Right-click to pick:** click a locked box in your bags or in the trade window. No macros, no dragging.
+* **Right-click to pick:** right-click a locked box in the trade window. No macros, no dragging.
 * **Duty mode:** finds players asking for a rogue in chat (English and German), invites them, greets them, thanks once for tips and leaves the group afterwards. Customers who invite you directly are accepted too. If someone you invited never joins but trades with you anyway, the order still counts.
 * **Smart pop-ups:** a new request, a completed trade (click to thank and leave the group) and a box that is too high for you. Each one stays only while it is relevant, and you can choose the request sound in the settings.
 * **Skill too high:** whispers that need a higher skill than yours get an automatic reply. The text is editable and uses the placeholders `{need}` and `{skill}`. Public chat is never answered.

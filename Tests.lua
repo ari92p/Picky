@@ -1160,21 +1160,17 @@ end
 -- Checks that need real time (only meaningful in the game; the offline runner queues timers without running them). The result comes about
 -- 3 seconds after the tests and goes to the chat and the log like a test result. Out of combat only.
 -- 1) A hidden click area must STAY hidden (a state driver once showed it again every second, over boxes already picked).
--- 2) With the window closed the box button must not be visible (alpha 0 counts as hidden).
 function LP.LiveChecks()
     if InCombatLockdown and InCombatLockdown() then return end
-    local overlay, box, win = _G.PickyOverlay, _G.PickyBoxButton, _G.PickyFrame
+    local overlay = _G.PickyOverlay
     if not overlay then return end
     pcall(overlay.Hide, overlay)
     LP.After(3, function()
         if InCombatLockdown and InCombatLockdown() then return end
         local bad = {}
         if overlay:IsShown() then bad[#bad + 1] = "the click area came back by itself after it was hidden" end
-        if box and win and not win:IsShown() and box:IsShown() and (box:GetAlpha() or 0) > 0 then
-            bad[#bad + 1] = "the box button is visible although the window is closed"
-        end
         if #bad == 0 then
-            LP.Print("|cff4de88aLive checks passed|r (click area stays hidden, box button follows the window)")
+            LP.Print("|cff4de88aLive checks passed|r (click area stays hidden)")
             LP.Debug("test", "live checks passed")
         else
             for _, m in ipairs(bad) do

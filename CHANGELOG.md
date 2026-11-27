@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.7
+- Removed: the right-click click area on boxes in your bags. It is a secure frame over Blizzard's bag buttons plus a hook on every item tooltip, and in combat Blizzard's action bars were blocked ("ADDON_ACTION_BLOCKED ... MultiBarBottomRightButton:SetAttribute()"). 
+- Removed: the box button in the window header (next to the Duty button). Picky no longer puts any button over or next to your bags. The box count on the minimap button stays.
+- The click area on the trade slot (customer's box) stays.
+- Tests and mutations adjusted.
+
 ## 1.2.6
 - Fixed: Lua error "attempt to index local 'msg' (a secret string value, while execution tainted by 'Picky')" on CHAT_MSG_SKILL. In some situations (for example in combat) the client hands out chat texts and spell data as "secret" values that tainted code cannot read. Picky now skips secret values everywhere it reads event data: skill messages, chat requests (text, sender and channel), trade info texts, game error texts and cast events.
 - Tests: new self tests and mutations for every one of these places.
