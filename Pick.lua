@@ -1,4 +1,4 @@
--- Picky / Pick.lua : right-click picking in the trade window, box list
+-- Picky / Pick.lua : right-click picking (inventory + trade window)
 local ADDON, LP = ...
 local L = LP.L
 
@@ -113,12 +113,8 @@ local function TradeSlotLocked()
     return locked
 end
 
-LP.Game.TradeSlotLocked = TradeSlotLocked   -- seam for the self tests
-
--- 2) Click area on the trade slot: right-click on the box = pick -------------------------------------------
+-- 2) Click area: right-click on the box = pick ----------------------------------------------
 -- Secure buttons must not be changed in combat -> only outside combat.
--- There is NO click area on the bag items any more (removed in 1.2.7): a secure frame laid over Blizzard's bag buttons and a hook on every item
--- tooltip kept blocking Blizzard's own code in combat ("ADDON_ACTION_BLOCKED"). Boxes in the bags are picked with the box button in the Picky window.
 local overlay = CreateFrame("Button", "PickyOverlay", UIParent, "SecureActionButtonTemplate")
 overlay:RegisterForClicks("RightButtonUp", "RightButtonDown")   -- trigger depends on client setting (down/up)
 overlay:SetFrameStrata("DIALOG")
@@ -181,10 +177,12 @@ local function HideOverlay()
     if not LP.Game.InCombat() then overlay.target = nil end
 end
 
--- Is the trade slot under the click area still a locked box? (false for an empty slot, an item that is not a box, a picked box)
+-- Is the thing under the click area still a box that needs picking? (false for an empty slot, an item that is not a box, a picked box)
 local function StillLocked(self)
-    if self.isTrade then return LP.Game.TradeSlotLocked() and true or false end
-    return false   -- the click area only exists on the trade slot
+    if self.isTrade then return TradeSlotLocked() and true or false end
+    if not (self.bag and self.slot) then return false end
+    if LP.Game.ContainerItemID(self.bag, self.slot) == nil then return false end
+    return LP.IsLockedItem(self.bag, self.slot) and true or false
 end
 LP.OverlayStillLocked = StillLocked
 -- The tooltip hint "Right-click to pick": only while this very box is still locked (a picked box must not say it)
@@ -219,10 +217,52 @@ local function GetMouseFocusCompat()
     return GetMouseFocus and GetMouseFocus()
 end
 
+local function GetBagAndSlot(frame)
+    if not frame then return nil, nil end
+    local bag, slot
+    local via = "api"   -- where we got the bag slot from: "api" = the button tells us itself, "parent" = guessed via the parent frame
+    if type(frame.GetBagID) == "function" then
+        bag = frame:GetBagID()
+    elseif frame.bag then
+        bag = frame.bag
+    elseif frame.bagID then
+        bag = frame.bagID
+    elseif frame.GetParent and frame:GetParent() and frame:GetParent().GetID then
+        bag = frame:GetParent():GetID()
+        via = "parent"
+    end
+    if type(frame.GetID) == "function" then slot = frame:GetID() end
+    if type(bag) == "number" and type(slot) == "number" and slot > 0 then return bag, slot, via end
+    return nil, nil
+end
+
+-- Safety for the guessed bag slot (parent ID): if the tooltip shows a DIFFERENT item than the one in this slot,
+-- it is a foreign window (action bar, chat link ...) and gets no click area. If unsure, it is not rejected.
+local function TooltipItemMismatch(bag, slot)
+    local want = ContainerItemID(bag, slot)
+    if not want then return true end
+    local ok, _, link = pcall(GameTooltip.GetItem, GameTooltip)
+    local have = ok and type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
+    return have ~= nil and have ~= want
+end
+
+-- Windows where a right-click on a bag item already means something else (sell, deposit, attach, auction):
+-- there the click area must not cover the box, otherwise the item cannot be sold or stored.
+local BUSY_FRAMES = { "MerchantFrame", "BankFrame", "MailFrame", "AuctionHouseFrame", "AuctionFrame", "GuildBankFrame" }
+local function RightClickBusy()
+    for _, name in ipairs(BUSY_FRAMES) do
+        local f = _G[name]
+        if f and f.IsShown and f:IsShown() then return true end
+    end
+    return false
+end
+
 local function CheckOverlayRaw(focus)
     if LP.Game.InCombat() or not LP.db or not LP.IsRogue() then return end
     if not focus or not focus:IsVisible() then HideOverlay() return end
     if focus == overlay or (focus.GetParent and focus:GetParent() == overlay) then return end
+    if IsShiftKeyDown() then HideOverlay() return end   -- Shift held = move the box normally
+
     -- Trade window, slot 7 ("Wird nicht getauscht" / "Will not be traded")
     -- Foreign frames sometimes return no text from GetName() (e.g. the damage meter): only use strings
     local function SafeName(f)
@@ -234,7 +274,7 @@ local function CheckOverlayRaw(focus)
     local parent = type(focus.GetParent) == "function" and focus:GetParent() or nil
     local pname = SafeName(parent)
     if fname:find("TradeRecipientItem7") or pname:find("TradeRecipientItem7") then
-        if LP.Game.TradeSlotLocked() then
+        if TradeSlotLocked() then
             if overlay:IsShown() and overlay.isTrade and overlay.target == focus then return end   -- already there, do not set anything again
             overlay.isTrade, overlay.bag, overlay.slot = true, nil, nil
             if not PlaceOverlay(focus) then HideOverlay() return end
@@ -250,6 +290,43 @@ local function CheckOverlayRaw(focus)
         end
     end
 
+    if RightClickBusy() then HideOverlay() return end   -- vendor, bank, mail, auction house: normal right-click
+
+    -- Inventar
+    local bag, slot, via = GetBagAndSlot(focus)
+    if bag and slot and via == "parent" and TooltipItemMismatch(bag, slot) then
+        -- this fires for every item tooltip of foreign frames: log each guessed slot only once in a row
+        local key = bag .. ":" .. slot
+        if key ~= LP.lastForeignKey then
+            LP.lastForeignKey = key
+            LP.DevDebug("pick", "ignored a foreign frame (guessed bag %d slot %d, tooltip shows another item)", bag, slot)
+        end
+        HideOverlay()
+        return
+    end
+    if bag and slot then
+        local locked, req = LP.IsLockedItem(bag, slot)
+        if locked then
+            local ok = (not req) or LP.skillEstimated or LP.Skill() >= req
+            if ok then
+                if overlay:IsShown() and overlay.bag == bag and overlay.slot == slot and overlay.target == focus then return end   -- already there
+                overlay.isTrade, overlay.bag, overlay.slot = nil, bag, slot
+                if not PlaceOverlay(focus) then HideOverlay() return end
+                overlay:SetFrameLevel(focus:GetFrameLevel() + 5)
+                overlay:SetAttribute("type", "spell")
+                overlay:SetAttribute("spell", LP.PickName())
+                overlay:SetAttribute("target-bag", bag)
+                overlay:SetAttribute("target-slot", slot)
+                overlay:SetAttribute("macrotext", nil)
+                overlay:Show()
+                LP.DevDebug("pick", "click area on bag %d slot %d (needs %s, skill %d, item %s) tooltip lines: %s", bag, slot, req, LP.Skill(),
+                    tostring(LP.Game.ContainerItemID(bag, slot)), LP.SlotLines and LP.SlotLines(bag, slot) or "?")
+                return
+            else
+                LP.Debug("pick", "bag %d slot %d is locked but your skill is too low (needs %s, skill %d)", bag, slot, req, LP.Skill())
+            end
+        end
+    end
     HideOverlay()
 end
 
@@ -268,6 +345,8 @@ overlay:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if self.isTrade then
         if GameTooltip.SetTradeTargetItem then GameTooltip:SetTradeTargetItem(7) end
+    elseif self.bag and self.slot then
+        GameTooltip:SetBagItem(self.bag, self.slot)
     end
     local hint = TooltipHint(self)
     if hint then
@@ -290,8 +369,16 @@ elseif GameTooltip.HookScript then
     pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetItem", function() CheckOverlay(GetMouseFocusCompat()) end)
 end
 
+LP.On("MODIFIER_STATE_CHANGED", function()
+    if LP.Game.InCombat() then return end
+    if IsShiftKeyDown() then HideOverlay() else CheckOverlay(GetMouseFocusCompat()) end
+end)
 LP.On("TRADE_CLOSED", HideOverlay)
-LP.On("PLAYER_ENTERING_WORLD", HideOverlay)
+LP.On("PLAYER_ENTERING_WORLD", HideOverlay)   -- the state driver shows the area once at login: nothing to click yet
+-- A vendor/bank/mail/auction window just opened: the click area must not stay on a box under the mouse
+for _, ev in ipairs({ "MERCHANT_SHOW", "BANKFRAME_OPENED", "MAIL_SHOW", "AUCTION_HOUSE_SHOW", "GUILDBANKFRAME_OPENED" }) do
+    LP.On(ev, HideOverlay)
+end
 
 -- After picking (or any change to bags/trade) re-check the state:
 -- click area gone, then decide again with the box's current state.
@@ -303,8 +390,8 @@ LP.On("PLAYER_REGEN_ENABLED", function()
     LP.After(0.1, function() CheckOverlay(GetMouseFocusCompat()) end)
 end)
 
--- Refresh the trade slot tooltip without mouse movement: otherwise the client only rebuilds it on re-entering.
--- For that we trigger the "enter" of the trade slot (or our click area) ourselves. Bag buttons are never touched.
+-- Refresh the tooltip without mouse movement: otherwise the client only rebuilds it on re-entering.
+-- For that we trigger the "enter" of the bag slot (or our click area) ourselves.
 local function RefreshTooltip()
     pcall(function()
         if overlay:IsShown() and overlay:IsMouseOver() then
@@ -314,8 +401,12 @@ local function RefreshTooltip()
         end
         local focus = GetMouseFocusCompat()
         if not focus or focus == overlay then return end
-        local n = type(focus.GetName) == "function" and focus:GetName()
-        if not (type(n) == "string" and n:find("TradeRecipientItem7", 1, true)) then return end
+        local isSlot = GetBagAndSlot(focus) ~= nil
+        if not isSlot then
+            local n = type(focus.GetName) == "function" and focus:GetName()
+            isSlot = type(n) == "string" and n:find("TradeRecipientItem7", 1, true) ~= nil
+        end
+        if not isSlot then return end
         if type(focus.UpdateTooltip) == "function" then
             focus:UpdateTooltip()
         else
@@ -344,7 +435,7 @@ LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
     if id == LP.PICK_SPELL_ID or (name and name == LP.PickName()) then Recheck(true) end
 end)
 
--- Hover check (debug): explains what is under the mouse and whether the trade click area is there ----------------------
+-- Hover check (debug): explains why a click area appears under the mouse or not ----------------------
 function LP.InspectHover()
     local focus = GetMouseFocusCompat()
     if not focus then LP.Print(L["Nothing under the mouse."]) return end
@@ -357,11 +448,21 @@ function LP.InspectHover()
     lines[#lines + 1] = "frame: " .. SafeName(focus)
     local parent = type(focus.GetParent) == "function" and focus:GetParent() or nil
     lines[#lines + 1] = "parent: " .. SafeName(parent)
+    local bag, slot = GetBagAndSlot(focus)
+    lines[#lines + 1] = ("bag/slot: %s / %s"):format(tostring(bag), tostring(slot))
+    if bag and slot then
+        local id = (C_Container and C_Container.GetContainerItemID and C_Container.GetContainerItemID(bag, slot)) or nil
+        local locked, req = LP.IsLockedItem(bag, slot)
+        lines[#lines + 1] = ("item id: %s, locked: %s, needs skill: %s"):format(tostring(id), tostring(locked), tostring(req))
+        lines[#lines + 1] = ("your skill: %d (estimated: %s) -> %s"):format(LP.Skill(), tostring(LP.skillEstimated),
+            (not locked) and "no click area (not locked)" or ((not req) or LP.skillEstimated or LP.Skill() >= req) and "click area expected" or "no click area (skill too low)")
+    end
     local nm = SafeName(focus) .. SafeName(parent)
     if nm:find("TradeRecipientItem7", 1, true) then
         lines[#lines + 1] = "trade slot 7: locked = " .. tostring(TradeSlotLocked())
     end
-    lines[#lines + 1] = ("trade click area shown: %s | combat lockdown: %s"):format(tostring(overlay:IsShown()), tostring(LP.Game.InCombat()))
+    lines[#lines + 1] = ("click area shown: %s | combat lockdown: %s | shift held: %s"):format(
+        tostring(overlay:IsShown()), tostring(LP.Game.InCombat()), tostring(IsShiftKeyDown()))
     for _, l in ipairs(lines) do
         LP.Print("hover> " .. l)
         LP.DevDebug("pick", "hover> %s", l)

@@ -1485,33 +1485,33 @@ T("protection: the window itself is not protected, and no secure frame is its de
     if LP.db.ui then LP.db.ui.winPos = pos end
     if not ok then error(err, 0) end
 end)
--- ===== No click area on the bag items (removed in 1.2.7: it kept blocking Blizzard's own code in combat); only the trade slot has one =====
+-- ===== The click area on a box in the bags (regressions of 1.2.0 - 1.2.3: it came back over picked boxes and swallowed right-clicks) =====
 local function FireEvent(event, ...)
     local f = LP.frame
     f:GetScript("OnEvent")(f, event, ...)
 end
 local focusSeq = 987000   -- items that are no known box: the lock decision then only depends on SlotLocked; a new id per test (the lock check remembers ids)
-local function FakeFocus(name)   -- a button as the game gives it to the hover check (a plain table: the check only calls these methods)
+local function FakeFocus(bag, slot)   -- a bag slot button as the game gives it to the hover check (a plain table: the check only calls these methods)
     local f = { visible = true }
     function f:IsVisible() return self.visible end
-    function f:GetBagID() return 2 end
-    function f:GetID() return 5 end
-    function f:GetName() return name end
+    function f:GetBagID() return bag end
+    function f:GetID() return slot end
+    function f:GetName() return "FakeBagButton" .. bag .. "_" .. slot end
     function f:GetParent() return UIParent end
     function f:GetRect() return 100, 200, 37, 37 end
     function f:GetEffectiveScale() return 1 end
     function f:GetFrameLevel() return 3 end
     return f
 end
-local function WithArea(locked, fn)   -- locked: what the client says about the slot; runs fn(focus, area); always leaves the area hidden
+local function WithArea(state, fn)   -- state.locked: what the client says about the slot; runs fn(focus, area); always leaves the area hidden
     local area = LP.Overlay
     local saved = { LP.Game.ContainerItemID, LP.Game.SlotLocked }
     focusSeq = focusSeq + 1
     local id = focusSeq
     LP.ClearRecentPicks()
     LP.Game.ContainerItemID = function() return id end
-    LP.Game.SlotLocked = function() return locked end
-    local ok, err = pcall(function() fn(area) end)
+    LP.Game.SlotLocked = function() return state.locked end
+    local ok, err = pcall(function() fn(FakeFocus(2, 5), area) end)
     LP.Game.ContainerItemID, LP.Game.SlotLocked = saved[1], saved[2]
     LP.ClearRecentPicks()
     area:Hide()
@@ -1519,106 +1519,113 @@ local function WithArea(locked, fn)   -- locked: what the client says about the 
     if not ok then error(err, 0) end
 end
 local function Tick(area) area:GetScript("OnUpdate")(area, 0.5) end   -- one pass of the area's own check
-T("click area: a locked box in the bags gets none (bag buttons are never covered)", function()
-    WithArea(true, function(area)
-        LP.CheckOverlayRaw(FakeFocus("ContainerFrame1Item3"))
-        falsy(area:IsShown(), "shown over a bag item")
-        falsy(area:GetAttribute("target-bag"), "set up for a bag slot")
-    end)
-end)
-T("click area: a click area left over on a bag slot is hidden by the check", function()
-    WithArea(true, function(area)
-        area:Show()
-        area.target = FakeFocus("ContainerFrame1Item3")
-        Tick(area)
-        falsy(area:IsShown(), "still shown over a bag slot")
-    end)
-end)
-T("click area: a trade slot area goes away when the slot is no longer locked", function()
-    WithArea(true, function(area)
-        area:Show()
-        area.isTrade, area.target = true, FakeFocus("TradeRecipientItem7ItemButton")   -- no trade window in the test: the slot counts as not locked
-        Tick(area)
-        falsy(area:IsShown(), "still there over a trade slot that is not locked")
-    end)
-end)
-local function WithLockedTrade(fn)   -- the trade slot holds a locked box; runs fn(focus, area)
-    local keep = LP.Game.TradeSlotLocked
-    LP.Game.TradeSlotLocked = function() return true end
-    local ok, err = pcall(function() WithArea(true, function(area) fn(FakeFocus("TradeRecipientItem7ItemButton"), area) end) end)
-    LP.Game.TradeSlotLocked = keep
-    if not ok then error(err, 0) end
-end
-T("click area: a locked box in the trade window gets it, set up as a macro, hanging on UIParent", function()
-    WithLockedTrade(function(focus, area)
+T("click area: a locked box gets it, set up for Pick Lock on exactly that slot, hanging on UIParent and not on the bag button", function()
+    WithArea({ locked = true }, function(focus, area)
         LP.CheckOverlayRaw(focus)
         truthy(area:IsShown(), "shown")
-        eq(area:GetAttribute("type"), "macro", "type")
-        truthy(tostring(area:GetAttribute("macrotext")):find("ClickTargetTradeButton(7)", 1, true), "macro")
+        eq(area:GetAttribute("type"), "spell", "type")
+        eq(area:GetAttribute("spell"), LP.PickName(), "spell")
+        eq(area:GetAttribute("target-bag"), 2, "bag")
+        eq(area:GetAttribute("target-slot"), 5, "slot")
+        truthy(area.target == focus, "remembers what it covers")
         truthy(area:GetParent() == UIParent, "parent is UIParent")
     end)
 end)
-T("click area: it goes away by itself when the trade window is closed", function()
-    WithLockedTrade(function(focus, area)
+T("click area: a box that is not locked (already picked, or no box at all) gets none", function()
+    WithArea({ locked = false }, function(focus, area)
+        LP.CheckOverlayRaw(focus)
+        falsy(area:IsShown(), "shown over an open box")
+    end)
+end)
+T("click area: it goes away by itself once the box is no longer locked", function()
+    local st = { locked = true }
+    WithArea(st, function(focus, area)
+        LP.CheckOverlayRaw(focus)
+        truthy(area:IsShown(), "shown")
+        Tick(area)
+        truthy(area:IsShown(), "stays while the box is locked")
+        st.locked = false
+        Tick(area)
+        falsy(area:IsShown(), "gone after the box was picked")
+    end)
+end)
+T("click area: it goes away by itself when the frame under it is hidden (bag closed)", function()
+    WithArea({ locked = true }, function(focus, area)
         LP.CheckOverlayRaw(focus)
         focus.visible = false
         Tick(area)
-        falsy(area:IsShown(), "still there over a closed trade window")
+        falsy(area:IsShown(), "still there over a closed bag")
     end)
 end)
-T("click area: in combat it is not set up on the trade slot", function()
-    WithLockedTrade(function(focus, area)
+T("click area: it goes away when the slot is empty", function()
+    local area = LP.Overlay
+    WithArea({ locked = true }, function(focus)
+        LP.CheckOverlayRaw(focus)
+        LP.Game.ContainerItemID = function() return nil end
+        Tick(area)
+        falsy(area:IsShown(), "still there over an empty slot")
+    end)
+end)
+T("click area: in combat nothing is set and nothing is hidden (a protected frame cannot be changed)", function()
+    local st = { locked = true }
+    WithArea(st, function(focus, area)
+        LP.CheckOverlayRaw(focus)
         local keep = LP.Game.InCombat
         LP.Game.InCombat = function() return true end
         local ok, err = pcall(function()
+            Sandbox(nil, function() FireEvent("MERCHANT_SHOW") end)   -- an event that hides the area outside combat
+            truthy(area:IsShown(), "hidden in combat")
+            area:Hide()
             LP.CheckOverlayRaw(focus)
             falsy(area:IsShown(), "shown in combat")
         end)
         LP.Game.InCombat = keep
         if not ok then error(err, 0) end
-    end)
-end)
-T("click area: in combat nothing is set and nothing is hidden (a protected frame cannot be changed)", function()
-    WithArea(true, function(area)
-        local keep = LP.Game.InCombat
-        LP.Game.InCombat = function() return true end
-        local ok, err = pcall(function()
-            area:Show()
-            Sandbox(nil, function() FireEvent("TRADE_CLOSED") end)   -- an event that hides the area outside combat
-            truthy(area:IsShown(), "hidden in combat")
-        end)
-        LP.Game.InCombat = keep
-        if not ok then error(err, 0) end
-        Sandbox(nil, function() FireEvent("TRADE_CLOSED") end)
+        area:Show()
+        Sandbox(nil, function() FireEvent("MERCHANT_SHOW") end)
         falsy(area:IsShown(), "the event does not hide it outside combat")
     end)
 end)
-T("click area: right after a successful pick the box counts as picked", function()
+T("click area: a trade slot area goes away when the slot is no longer locked", function()
+    WithArea({ locked = true }, function(focus, area)
+        area:Show()
+        area.isTrade, area.target = true, focus   -- no trade window in the test: the slot counts as not locked
+        Tick(area)
+        falsy(area:IsShown(), "still there over a trade slot that is not locked")
+    end)
+end)
+T("click area: right after a successful pick it is hidden at once and the box counts as picked", function()
     Sandbox(nil, function()
-        WithArea(true, function()
+        WithArea({ locked = true }, function(focus, area)
+            LP.CheckOverlayRaw(focus)
+            truthy(area:IsShown(), "shown")
             LP.lastPickTarget = { bag = 2, slot = 5, t = GetTime() }
             FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-guid", LP.PICK_SPELL_ID)
+            falsy(area:IsShown(), "still shown after the success")
             truthy(LP.RecentlyPicked(2, 5), "not marked as picked")
+            LP.CheckOverlayRaw(focus)
+            falsy(area:IsShown(), "came back during the grace period")
         end)
     end)
 end)
-T("click area: the tooltip hint 'Right-click to pick' is only for a still locked trade slot, and only when the setting is on", function()
-    local keepHint, keepFn, area = LP.db.pick.hint, LP.Game.TradeSlotLocked, LP.Overlay
+T("click area: the tooltip hint 'Right-click to pick' is only for a box that is still locked", function()
+    local keep = LP.db.pick.hint
     local ok, err = pcall(function()
-        area.isTrade = true
+        local st = { locked = true }
         LP.db.pick.hint = true
-        LP.Game.TradeSlotLocked = function() return true end
-        truthy(LP.OverlayTooltipHint(area), "a locked trade slot gets no hint")
-        LP.Game.TradeSlotLocked = function() return false end
-        falsy(LP.OverlayTooltipHint(area), "a picked trade slot still gets the hint")
-        LP.Game.TradeSlotLocked = function() return true end
+        WithArea(st, function(focus, area)
+            LP.CheckOverlayRaw(focus)
+            truthy(LP.OverlayTooltipHint(area), "a locked box gets no hint")
+            st.locked = false
+            falsy(LP.OverlayTooltipHint(area), "a picked box still gets the hint")
+        end)
         LP.db.pick.hint = false
-        falsy(LP.OverlayTooltipHint(area), "the hint setting is ignored")
-        LP.db.pick.hint = true
-        area.isTrade = nil
-        falsy(LP.OverlayTooltipHint(area), "a bag slot gets the hint")
+        WithArea({ locked = true }, function(focus, area)
+            LP.CheckOverlayRaw(focus)
+            falsy(LP.OverlayTooltipHint(area), "the hint setting is ignored")
+        end)
     end)
-    area.isTrade, LP.db.pick.hint, LP.Game.TradeSlotLocked = nil, keepHint, keepFn
+    LP.db.pick.hint = keep
     if not ok then error(err, 0) end
 end)
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.8
+- Back: the right-click pick on locked boxes in your bags (it was taken out in 1.2.7 by mistake; only the box button in the window header was meant to go).
+- The box button in the header stays removed.
+
 ## 1.2.7
 - Removed: the right-click click area on boxes in your bags. It is a secure frame over Blizzard's bag buttons plus a hook on every item tooltip, and in combat Blizzard's action bars were blocked ("ADDON_ACTION_BLOCKED ... MultiBarBottomRightButton:SetAttribute()"). 
 - Removed: the box button in the window header (next to the Duty button). Picky no longer puts any button over or next to your bags. The box count on the minimap button stays.
