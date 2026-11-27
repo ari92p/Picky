@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.4
+- Emergency fix: since 1.2.2 the pick click area on a bag box kept coming back over boxes that were already picked, so a right-click did nothing ("Invalid target") and the box could not be opened or looted; the tooltip flickered and still said "Right-click to pick". Cause: a secure state driver showed the click area (and the box button) again by itself about once a second. The state drivers are gone.
+- The click area now checks itself a few times a second and hides when its box is no longer locked, the bag closed, or the slot is empty. The hint "Right-click to pick" only appears on a box that is still locked.
+- The box button no longer shows up over a closed window; in combat it is made invisible instead of hidden.
+- Reading "175 lockbox" in chat as skill 175 stays as in 1.2.1.
+- Tests: many new self tests for the click area and the floating buttons, new mutations, a static check (no state drivers, secure frames only on UIParent) and live checks that run after "Run self tests".
+
 ## 1.2.3
 - Leveling guide reordered to follow the Warcraft Tavern WoW Forever route: stages 1-110, 110-150, 150-200, 200-250, 250-300. Stage 1 now ends with the Waterlogged Footlockers (Lake Everstill / Zoram Strand). 150-200 starts at Sar'theris Strand (underwater, no climb to Angor needed at level 30-35), then the Temple of Atal'Hakkar and Angor Fortress. Azshara and Tanaris were added as alternatives for 200-250, Blackrock Depths is a tip for 250-265, Tyr's Hand from 265.
 - Burg Durnholde (upper Battered Footlockers) is now the first spot for 150-200: very easy and still gives a point per box after 150.

@@ -14,6 +14,7 @@ LP.PICK_SPELL_ID = 1804
 -- an addon that writes a game function (even to restore it) taints it, and Blizzard's own code that reads it afterwards fails with
 -- "execution tainted by 'Picky'" (seen in the nameplates). Production code calls the game through here where tests need a stand-in.
 LP.Game = {
+    InCombat = function() return InCombatLockdown and InCombatLockdown() and true or false end,
     IsInGuild = function() return IsInGuild and IsInGuild() end,
     GetChannelList = function() if GetChannelList then return GetChannelList() end end,
     UnitLevel = function() return (UnitLevel and UnitLevel("player")) or 1 end,

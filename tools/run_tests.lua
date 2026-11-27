@@ -28,7 +28,7 @@ local clock = 1000
 function GetTime() clock = clock + 0.001 return clock end
 
 -- A frame/region that accepts every method. Getters of numbers return numbers, SetScript is remembered.
-local NUMERIC = { GetWidth = 100, GetHeight = 100, GetLeft = 0, GetRight = 100, GetTop = 100, GetBottom = 0, GetScale = 1, GetAlpha = 1,
+local NUMERIC = { GetWidth = 100, GetHeight = 100, GetLeft = 0, GetRight = 100, GetTop = 100, GetBottom = 0, GetScale = 1,
     GetEffectiveScale = 1, GetNumPoints = 0, GetStringWidth = 100, GetStringHeight = 12, GetFrameLevel = 1, GetValue = 0,
     GetNumLines = 0, NumLines = 0, GetCursorPosition = 0, GetMaxLines = 100, GetNumChildren = 0, GetCenter = 0 }
 local FALSY = { IsShown = true, IsVisible = true, IsMouseOver = true, GetChecked = true, HasFocus = true, IsEnabled = true, IsMouseEnabled = true }
@@ -57,6 +57,12 @@ local function NewFrame(name)
             if k == "GetText" then return self.__text end
             if k == "GetName" then return self.__name end
             if k == "IsProtected" then return false, false end
+            if k == "SetOwner" or k == "ClearLines" then rawset(self, "__lines", {}) return end   -- tooltips: remember the lines (the owner/clear call resets them)
+            if k == "AddLine" or k == "AddDoubleLine" then local t = rawget(self, "__lines") or {} rawset(self, "__lines", t) t[#t + 1] = tostring((...)) return end
+            if k == "GetRect" then return 10, 10, 30, 30 end
+            if k == "SetParent" then rawset(self, "__parent", (...)) return end
+            if k == "SetAlpha" then rawset(self, "__alpha", (...)) return end
+            if k == "GetAlpha" then return rawget(self, "__alpha") or 1 end
             if k == "GetParent" and rawget(self, "__parent") then return rawget(self, "__parent") end
             if k == "CreateTexture" or k == "CreateFontString" or k == "CreateAnimationGroup" or k == "CreateAnimation" or k == "GetParent"
                 or k == "GetNormalTexture" or k == "GetHighlightTexture" or k == "GetPushedTexture" or k == "GetFontString" or k == "GetThumbTexture"

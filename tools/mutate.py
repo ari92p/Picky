@@ -161,6 +161,23 @@ M = [
     ("boxes: just picked counts as open", "Pick.lua", "if LP.RecentlyPicked(bag, slot) then locked = false else", "if false then locked = false else"),
     ("boxes: unreadable slots are skipped", "Pick.lua", "if locked == false then\n                    list", "if not locked then\n                    list"),
     ("boxes: too-high count", "Pick.lua", "tooHigh = tooHigh + 1", "tooHigh = tooHigh"),
+    # --- the click area on a box (regressions of 1.2.0 - 1.2.3)
+    ("area: self-check ignores a picked box", "Pick.lua", "if not t or not t:IsVisible() or not StillLocked(self) then HideOverlay() end", "if not t or not t:IsVisible() then HideOverlay() end"),
+    ("area: self-check ignores a closed bag", "Pick.lua", "if not t or not t:IsVisible() or not StillLocked(self) then HideOverlay() end", "if not StillLocked(self) then HideOverlay() end"),
+    ("area: self-check never runs", "Pick.lua", "        if acc < 0.2 then return end\n        acc = 0\n        if LP.Game.InCombat()", "        if true then return end\n        acc = 0\n        if LP.Game.InCombat()"),
+    ("area: empty slot counts as locked", "Pick.lua", "if LP.Game.ContainerItemID(self.bag, self.slot) == nil then return false end", "if LP.Game.ContainerItemID(self.bag, self.slot) == nil then return true end"),
+    ("area: trade slot check dropped", "Pick.lua", "if self.isTrade then return TradeSlotLocked() and true or false end", "if self.isTrade then return true end"),
+    ("area: hint also for a picked box", "Pick.lua", "if StillLocked(self) and LP.db and LP.db.pick.hint then", "if LP.db and LP.db.pick.hint then"),
+    ("area: hangs on the bag button again", "Pick.lua", "    overlay:SetParent(UIParent)\n", "    overlay:SetParent(focus)\n"),
+    ("area: set up in combat", "Pick.lua", "if LP.Game.InCombat() or not LP.db or not LP.IsRogue() then return end\n    if not focus", "if not LP.db or not LP.IsRogue() then return end\n    if not focus"),
+    ("area: hidden in combat (impossible)", "Pick.lua", "    if not LP.Game.InCombat() and overlay:IsShown() then\n        LP.DevDebug", "    if overlay:IsShown() then\n        LP.DevDebug"),
+    ("area: grace period ignored", "Pick.lua", "    if LP.RecentlyPicked(bag, slot) then return false end   -- just picked: counts as open (see above)\n    local box", "    local box"),
+    # --- floating secure buttons
+    ("floater: stays visible over a closed window", "UI.lua", "if want and PlaceFloater(b) then b:Show() else b:SetAlpha(0) b:Hide() end", "if PlaceFloater(b) then b:Show() end"),
+    ("floater: alpha not set", "UI.lua", "b:SetAlpha(want and 1 or 0)", "b:SetAlpha(1)"),
+    ("floater: the game's own Show is not undone", "UI.lua", "    b:HookScript(\"OnShow\", function() SyncFloater(b) end)", "    -- no OnShow hook"),
+    ("floater: wants nothing but follows the window", "UI.lua", "local want = b.wanted and b.holder:IsVisible() and true or false", "local want = b.wanted and true or false"),
+    ("floater: hidden in combat (impossible)", "UI.lua", "    if LP.Game.InCombat() then return end\n    if want", "    if want"),
     # --- the box button
     ("button: not a child of the window", "UI.lua", 'CreateFrame("Button", "PickyBoxButton", UIParent,', 'CreateFrame("Button", "PickyBoxButton", parent,'),
     ("button: right click works", "UI.lua", 'b:RegisterForClicks("AnyUp", "AnyDown")', 'b:RegisterForClicks("LeftButtonUp", "LeftButtonDown")'),

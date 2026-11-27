@@ -985,7 +985,7 @@ end
 local function SyncFloater(b)
     local want = b.wanted and b.holder:IsVisible() and true or false
     b:SetAlpha(want and 1 or 0)   -- allowed in combat; the state driver may show the button at any time, so it must also be invisible then
-    if InCombatLockdown() then return end
+    if LP.Game.InCombat() then return end
     if want and PlaceFloater(b) then b:Show() else b:SetAlpha(0) b:Hide() end
 end
 local function SyncFloaters()
@@ -1043,7 +1043,7 @@ end
 
 local function RefreshTestSlots()
     local p = pages[4]
-    if not p or not p.testHint or InCombatLockdown() then return end   -- only change secure buttons outside combat
+    if not p or not p.testHint or LP.Game.InCombat() then return end   -- only change secure buttons outside combat
     if not LP.db.debug then   -- test area only in test mode
         for i = 1, MAX_REAL do local b = testSlots[i] if b then b.wanted = false SyncFloater(b) end end
         p.testHint:SetText(L["Turn on the test mode to use the test area."])
@@ -1366,7 +1366,7 @@ local function BuildDev(p)
         local version, build, bdate, toc = GetBuildInfo()
         local _, class = UnitClass("player")
         P("client %s build %s (%s) | interface %s | locale %s", tostring(version), tostring(build), tostring(bdate), tostring(toc), GetLocale())
-        P("class %s | level %d | combat lockdown %s | rogue %s", tostring(class), UnitLevel("player"), tostring(InCombatLockdown()), tostring(LP.IsRogue()))
+        P("class %s | level %d | combat lockdown %s | rogue %s", tostring(class), UnitLevel("player"), tostring(LP.Game.InCombat()), tostring(LP.IsRogue()))
         P("APIs: C_TooltipInfo %s | C_Container %s | C_TradeSkillUI %s | TooltipDataProcessor %s | FlashClientIcon %s",
             tostring(C_TooltipInfo ~= nil), tostring(C_Container ~= nil), tostring(C_TradeSkillUI ~= nil),
             tostring(TooltipDataProcessor ~= nil), tostring(FlashClientIcon ~= nil))
@@ -1507,7 +1507,7 @@ local ICON_CHEST = "Interface\\Icons\\INV_Misc_Bag_09"
 local function UpdateBoxCooldown(b)
     -- In combat the client hands out "secret" numbers for cooldowns and casts: comparing them is an error (and the call comes from a
     -- tainted path). So nothing is read in combat, and anything that still goes wrong is swallowed. After combat the swipe is refreshed.
-    if InCombatLockdown() then return end
+    if LP.Game.InCombat() then return end
     pcall(function()
         local start, dur
         local cs, ce = LP.Game.CastTimes()
@@ -1582,7 +1582,7 @@ end
 -- Set the box button up for the first box of the list (out of combat only: a secure button cannot be changed in combat).
 function LP.ApplyBoxButton()
     local b = win and win.box
-    if not b or InCombatLockdown() then return end
+    if not b or LP.Game.InCombat() then return end
     b.wanted = LP.IsRogue() and true or false
     SyncFloater(b)
     local e = LP.boxes and LP.boxes[1]
