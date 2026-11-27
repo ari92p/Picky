@@ -119,6 +119,9 @@ local overlay = CreateFrame("Button", "PickyOverlay", UIParent, "SecureActionBut
 overlay:RegisterForClicks("RightButtonUp", "RightButtonDown")   -- trigger depends on client setting (down/up)
 overlay:SetFrameStrata("DIALOG")
 overlay:EnableMouse(true)
+-- Only the right button belongs to this frame. Left click (pick up, move, drag the box), middle and the side buttons go through to the bag button
+-- underneath; before, the area swallowed them and a pickable box could not be moved in the bags. Set once here, out of combat.
+if overlay.SetPassThroughButtons then overlay:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5") end
 overlay:Hide()
 -- The click area hangs on UIParent (see PlaceOverlay), not on a bag button, so it needs no state driver. (A "visibility" state driver
 -- showed it again about once a second after our own Hide(): the area came back over boxes that were already picked and swallowed

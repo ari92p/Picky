@@ -180,6 +180,8 @@ M = [
     ("area: set up in combat", "Pick.lua", "if LP.Game.InCombat() or not LP.db or not LP.IsRogue() then return end\n    if not focus", "if not LP.db or not LP.IsRogue() then return end\n    if not focus"),
     ("area: hidden in combat (impossible)", "Pick.lua", "    if not LP.Game.InCombat() and overlay:IsShown() then\n        LP.DevDebug", "    if overlay:IsShown() then\n        LP.DevDebug"),
     ("area: grace period ignored", "Pick.lua", "    if LP.RecentlyPicked(bag, slot) then return false end   -- just picked: counts as open (see above)\n    local box", "    local box"),
+    ("area: left click does not pass through", "Pick.lua", 'overlay:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5")', 'overlay:SetPassThroughButtons("MiddleButton", "Button4", "Button5")'),
+    ("area: right button passes through", "Pick.lua", 'overlay:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5")', 'overlay:SetPassThroughButtons("LeftButton", "RightButton")'),
     # --- floating secure buttons
     ("floater: stays visible over a closed window", "UI.lua", "if want and PlaceFloater(b) then b:Show() else b:SetAlpha(0) b:Hide() end", "if PlaceFloater(b) then b:Show() end"),
     ("floater: alpha not set", "UI.lua", "b:SetAlpha(want and 1 or 0)", "b:SetAlpha(1)"),

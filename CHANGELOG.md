@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Fixed: a box that can be picked could not be moved in your bags (picked up or dragged), because the click area over it swallowed every mouse button. Now only the right button belongs to the click area; left click and drag go through to the bag button. (Shift still hides the area.)
+
 ## 1.2.8
 - Back: the right-click pick on locked boxes in your bags (it was taken out in 1.2.7 by mistake; only the box button in the window header was meant to go).
 - The box button in the header stays removed.

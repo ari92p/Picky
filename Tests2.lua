@@ -1682,6 +1682,16 @@ T("floating button: it is placed over the placeholder, outside the window", func
     end)
 end)
 
+T("click area: left click and drag go through to the bag button (a pickable box can be moved), only the right button is ours", function()
+    local pass = rawget(LP.Overlay, "__pass")   -- only the test runner records this; the real game has no way to read it back
+    if pass then
+        truthy(pass:find("LeftButton", 1, true), "left button does not pass through: a box cannot be moved or dragged")
+        falsy(pass:find("RightButton", 1, true), "the right button must stay with the click area")
+    end
+    local clicks = rawget(LP.Overlay, "__clicks")
+    if clicks then truthy(clicks:find("RightButton", 1, true), "right button") end
+end)
+
 -- ===== Secret values: in some situations the client hands out texts and numbers that tainted code cannot read (error "attempt to index local
 -- 'msg' (a secret string value ...)", seen on CHAT_MSG_SKILL in 1.2.4). Every handler that reads event data skips such a value. =====
 local function WithSecret(fn, only)   -- only: the one value that counts as secret (nil = everything)
