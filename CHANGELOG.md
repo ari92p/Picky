@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.5
+- Self tests that only passed outside the game now pass in the game too (tooltip hint test, placeholder size, tooltip globals). The "Right-click to pick" hint is decided by one small function that the tests check directly.
+- No change in behaviour compared to 1.2.4.
+
 ## 1.2.4
 - Emergency fix: since 1.2.2 the pick click area on a bag box kept coming back over boxes that were already picked, so a right-click did nothing ("Invalid target") and the box could not be opened or looted; the tooltip flickered and still said "Right-click to pick". Cause: a secure state driver showed the click area (and the box button) again by itself about once a second. The state drivers are gone.
 - The click area now checks itself a few times a second and hides when its box is no longer locked, the bag closed, or the slot is empty. The hint "Right-click to pick" only appears on a box that is still locked.
