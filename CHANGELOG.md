@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.9
 - Fixed: a box that can be picked could not be moved in your bags (picked up or dragged), because the click area over it swallowed every mouse button. Now only the right button belongs to the click area; left click and drag go through to the bag button. (Shift still hides the area.)
+- Tests: two self tests no longer fail in the game when you have right-clicked a box before (they overwrote LP.lastPickTarget and did not put it back).
 
 ## 1.2.8
 - Back: the right-click pick on locked boxes in your bags (it was taken out in 1.2.7 by mistake; only the box button in the window header was meant to go).
