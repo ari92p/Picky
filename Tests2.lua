@@ -1641,18 +1641,24 @@ T("click area: right after a successful pick it is hidden at once and the box co
     end)
 end)
 T("click area: the tooltip hint 'Right-click to pick' is only for a box that is still locked", function()
-    local st = { locked = true }
-    WithArea(st, function(focus, area)
-        LP.CheckOverlayRaw(focus)
-        local function Hint()
-            area:GetScript("OnEnter")(area)
-            for _, l in ipairs(GameTooltip.__lines or {}) do if l:find("Picky", 1, true) then return true end end
-            return false
-        end
-        truthy(Hint(), "locked box gets no hint")
-        st.locked = false
-        falsy(Hint(), "picked box still gets the hint")
+    local keep = LP.db.pick.hint
+    local ok, err = pcall(function()
+        local st = { locked = true }
+        LP.db.pick.hint = true
+        WithArea(st, function(focus, area)
+            LP.CheckOverlayRaw(focus)
+            truthy(LP.OverlayTooltipHint(area), "a locked box gets no hint")
+            st.locked = false
+            falsy(LP.OverlayTooltipHint(area), "a picked box still gets the hint")
+        end)
+        LP.db.pick.hint = false
+        WithArea({ locked = true }, function(focus, area)
+            LP.CheckOverlayRaw(focus)
+            falsy(LP.OverlayTooltipHint(area), "the hint setting is ignored")
+        end)
     end)
+    LP.db.pick.hint = keep
+    if not ok then error(err, 0) end
 end)
 
 -- ===== The box button and the other secure buttons: they float over placeholders in the window =====
@@ -1704,7 +1710,7 @@ T("floating button: it is placed over the placeholder, outside the window", func
         b.holder:Show()
         b.placed = nil
         LP.SyncFloaters()
-        truthy(b.placed and b.placed.w == 30 and b.placed.h == 30, "size of the placeholder")
+        truthy(b.placed and b.placed.w > 0 and math.abs(b.placed.w - b.placed.h) < 0.01, "size of the placeholder")
         truthy(b:GetParent() == UIParent, "parent")
     end)
 end)

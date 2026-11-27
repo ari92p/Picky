@@ -184,6 +184,14 @@ local function StillLocked(self)
     return LP.IsLockedItem(self.bag, self.slot) and true or false
 end
 LP.OverlayStillLocked = StillLocked
+-- The tooltip hint "Right-click to pick": only while this very box is still locked (a picked box must not say it)
+-- Returns the hint text for the tooltip, or nil.
+local function TooltipHint(self)
+    if StillLocked(self) and LP.db and LP.db.pick.hint then
+        return "|cff00ccffPicky|r  |cff4de88a" .. L["Right-click to pick"] .. "|r"
+    end
+end
+LP.OverlayTooltipHint = TooltipHint
 
 -- The area no longer hangs on the bag button, so it does not disappear with it any more: while it is shown, check a few times a second
 -- that the frame under it is still visible and that this very box is still locked; otherwise hide it (a right-click on a box that is
@@ -339,10 +347,10 @@ overlay:SetScript("OnEnter", function(self)
     elseif self.bag and self.slot then
         GameTooltip:SetBagItem(self.bag, self.slot)
     end
-    -- the hint only while this very box is still locked (a picked box must not say "right-click to pick")
-    if StillLocked(self) and LP.db and LP.db.pick.hint then
+    local hint = TooltipHint(self)
+    if hint then
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cff00ccffPicky|r  |cff4de88a" .. L["Right-click to pick"] .. "|r")
+        GameTooltip:AddLine(hint)
     end
     GameTooltip:Show()
 end)

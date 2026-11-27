@@ -57,8 +57,6 @@ local function NewFrame(name)
             if k == "GetText" then return self.__text end
             if k == "GetName" then return self.__name end
             if k == "IsProtected" then return false, false end
-            if k == "SetOwner" or k == "ClearLines" then rawset(self, "__lines", {}) return end   -- tooltips: remember the lines (the owner/clear call resets them)
-            if k == "AddLine" or k == "AddDoubleLine" then local t = rawget(self, "__lines") or {} rawset(self, "__lines", t) t[#t + 1] = tostring((...)) return end
             if k == "GetRect" then return 10, 10, 30, 30 end
             if k == "SetParent" then rawset(self, "__parent", (...)) return end
             if k == "SetAlpha" then rawset(self, "__alpha", (...)) return end
