@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.9
+## Unreleased
 - Fixed: a box that can be picked could not be moved in your bags (picked up or dragged), because the click area over it swallowed every mouse button. Now only the right button belongs to the click area; left click and drag go through to the bag button. (Shift still hides the area.)
 
 ## 1.2.8
