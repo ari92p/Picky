@@ -1653,18 +1653,23 @@ T("click area: a trade slot area goes away when the slot is no longer locked", f
     end)
 end)
 T("click area: right after a successful pick it is hidden at once and the box counts as picked", function()
-    Sandbox(nil, function()
-        WithArea({ locked = true }, function(focus, area)
-            LP.CheckOverlayRaw(focus)
-            truthy(area:IsShown(), "shown")
-            LP.lastPickTarget = { bag = 2, slot = 5, t = GetTime() }
-            FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-guid", LP.PICK_SPELL_ID)
-            falsy(area:IsShown(), "still shown after the success")
-            truthy(LP.RecentlyPicked(2, 5), "not marked as picked")
-            LP.CheckOverlayRaw(focus)
-            falsy(area:IsShown(), "came back during the grace period")
+    local keepTarget = LP.lastPickTarget   -- in the game a real click may have left one: put it back
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            WithArea({ locked = true }, function(focus, area)
+                LP.CheckOverlayRaw(focus)
+                truthy(area:IsShown(), "shown")
+                LP.lastPickTarget = { bag = 2, slot = 5, t = GetTime() }
+                FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-guid", LP.PICK_SPELL_ID)
+                falsy(area:IsShown(), "still shown after the success")
+                truthy(LP.RecentlyPicked(2, 5), "not marked as picked")
+                LP.CheckOverlayRaw(focus)
+                falsy(area:IsShown(), "came back during the grace period")
+            end)
         end)
     end)
+    LP.lastPickTarget = keepTarget
+    if not ok then error(err, 0) end
 end)
 T("click area: the tooltip hint 'Right-click to pick' is only for a box that is still locked", function()
     local keep = LP.db.pick.hint
@@ -1970,12 +1975,16 @@ T("secret values: secret spell data is skipped", function()
     end)
 end)
 T("secret values: a secret pick success does not count as a pick", function()
-    Sandbox(nil, function()
-        LP.lastPickTarget = { bag = 2, slot = 5, t = GetTime() }
-        LP.ClearRecentPicks()
-        WithSecret(function() FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", LP.PICK_SPELL_ID) end)
-        falsy(LP.RecentlyPicked(2, 5), "a secret cast was counted")
-        LP.lastPickTarget = nil
+    local keepTarget = LP.lastPickTarget   -- in the game a real click may have left one: put it back
+    local ok, err = pcall(function()
+        Sandbox(nil, function()
+            LP.lastPickTarget = { bag = 2, slot = 5, t = GetTime() }
+            LP.ClearRecentPicks()
+            WithSecret(function() FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", LP.PICK_SPELL_ID) end)
+            falsy(LP.RecentlyPicked(2, 5), "a secret cast was counted")
+        end)
     end)
+    LP.lastPickTarget = keepTarget
+    if not ok then error(err, 0) end
 end)
 

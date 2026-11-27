@@ -316,6 +316,9 @@ local function Summary(res)
     table.sort(lines)
     return ("%d/%d/%d/%d\n%s"):format(res.pass, res.fail, res.warn, res.total, table.concat(lines, "\n"))
 end
+-- In the game the tests run on a client where you have played: state from real use is already there (a box you right-clicked leaves
+-- LP.lastPickTarget). Start with such leftovers, so a test that overwrites them and does not put them back fails here too, not only in the game.
+LP.lastPickTarget = { bag = 1, slot = 1, t = 0 }
 local first, firstSummary
 for run = 1, repeats do
     local res = LP.RunTests({ seed = seed and (seed + run - 1) or nil })
