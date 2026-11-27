@@ -14,6 +14,9 @@ LP.PICK_SPELL_ID = 1804
 -- an addon that writes a game function (even to restore it) taints it, and Blizzard's own code that reads it afterwards fails with
 -- "execution tainted by 'Picky'" (seen in the nameplates). Production code calls the game through here where tests need a stand-in.
 LP.Game = {
+    -- The client hands out "secret" values (chat texts, numbers) in some situations; code that is tainted cannot read them
+    -- ("attempt to index local 'msg' (a secret string value ...)"). Everything that reads event texts asks this first and skips a secret one.
+    IsSecret = function(v) return issecretvalue and issecretvalue(v) and true or false end,
     InCombat = function() return InCombatLockdown and InCombatLockdown() and true or false end,
     IsInGuild = function() return IsInGuild and IsInGuild() end,
     GetChannelList = function() if GetChannelList then return GetChannelList() end end,
@@ -702,7 +705,7 @@ LP.On("SKILL_LINES_CHANGED", function()
 end)
 -- Skill message in chat ("Your skill in Lockpicking has increased to 151" / German) -> remember value
 LP.On("CHAT_MSG_SKILL", function(_, msg)
-    if type(msg) == "string" and LP.db and IsLockWord(msg:lower()) then
+    if type(msg) == "string" and not LP.Game.IsSecret(msg) and LP.db and IsLockWord(msg:lower()) then
         local n = tonumber(msg:match("(%d+)%D*$"))
         if n and n > 0 and n <= 300 then LP.db.skillBase = n end
     end

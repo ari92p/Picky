@@ -142,11 +142,12 @@ overlay:HookScript("PostClick", function(self, button)
         tostring(UnitCastingInfo and UnitCastingInfo("player") ~= nil), tostring(SpellIsTargeting and SpellIsTargeting()))
 end)
 LP.On("UI_ERROR_MESSAGE", function(_, _, msg)
+    if LP.Game.IsSecret(msg) then return end
     if LP.lastClickAt and GetTime() - LP.lastClickAt < 2 then LP.DevDebug("pick", "game message right after the click: %s", tostring(msg)) end
 end)
 for _, ev in ipairs({ "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_START" }) do
     LP.On(ev, function(e, unit, _, spellId)
-        if unit == "player" and LP.lastClickAt and GetTime() - LP.lastClickAt < 5 then
+        if unit == "player" and not LP.Game.IsSecret(spellId) and LP.lastClickAt and GetTime() - LP.lastClickAt < 5 then
             LP.DevDebug("pick", "%s spell=%s", e, tostring(spellId))
         end
     end)
@@ -427,7 +428,7 @@ LP.On("BAG_UPDATE_DELAYED", function() Recheck(true) end)
 LP.On("ITEM_LOCK_CHANGED", function() Recheck(false) end)
 LP.On("TRADE_TARGET_ITEM_CHANGED", function() Recheck(true) end)
 LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
-    if unit ~= "player" then return end
+    if unit ~= "player" or LP.Game.IsSecret(a) or LP.Game.IsSecret(b) then return end   -- secret in combat: cannot be compared
     local id = (type(b) == "number" and b) or (type(a) == "number" and a)
     local name = (type(a) == "string" and a)
     -- only re-check after "Pick Lock" (not after every spell)
@@ -470,7 +471,7 @@ end
 
 -- 4) Detect success (-> statistics, auto-leave) -------------------------------------
 LP.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, a, b)
-    if unit ~= "player" then return end
+    if unit ~= "player" or LP.Game.IsSecret(a) or LP.Game.IsSecret(b) then return end   -- secret in combat: cannot be compared
     local id = (type(b) == "number" and b) or (type(a) == "number" and a)
     local name = (type(a) == "string" and a)
     if id == LP.PICK_SPELL_ID or (name and name == LP.PickName()) then

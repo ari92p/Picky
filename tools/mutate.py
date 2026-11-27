@@ -161,6 +161,13 @@ M = [
     ("boxes: just picked counts as open", "Pick.lua", "if LP.RecentlyPicked(bag, slot) then locked = false else", "if false then locked = false else"),
     ("boxes: unreadable slots are skipped", "Pick.lua", "if locked == false then\n                    list", "if not locked then\n                    list"),
     ("boxes: too-high count", "Pick.lua", "tooHigh = tooHigh + 1", "tooHigh = tooHigh"),
+    # --- secret values (1.2.4: "attempt to index local 'msg' (a secret string value")
+    ("secret: skill message", "Core.lua", 'if type(msg) == "string" and not LP.Game.IsSecret(msg) and LP.db', 'if type(msg) == "string" and LP.db'),
+    ("secret: chat message", "Finder.lua", "if LP.Game.IsSecret(msg) or LP.Game.IsSecret(sender) or LP.Game.IsSecret(chanString) or LP.Game.IsSecret(baseName) then return end", "if false then return end"),
+    ("secret: chat sender", "Finder.lua", "if LP.Game.IsSecret(msg) or LP.Game.IsSecret(sender) or", "if LP.Game.IsSecret(msg) or"),
+    ("secret: trade info", "Finder.lua", "if not msg or LP.Game.IsSecret(msg) then return end", "if not msg then return end"),
+    ("secret: error text", "Pick.lua", "    if LP.Game.IsSecret(msg) then return end\n    if LP.lastClickAt", "    if LP.lastClickAt"),
+    ("secret: cast success", "Pick.lua", 'if unit ~= "player" or LP.Game.IsSecret(a) or LP.Game.IsSecret(b) then return end   -- secret in combat: cannot be compared\n    local id = (type(b) == "number" and b) or (type(a) == "number" and a)\n    local name = (type(a) == "string" and a)\n    if id == LP.PICK_SPELL_ID or (name and name == LP.PickName()) then\n        -- treat', 'if unit ~= "player" then return end\n    local id = (type(b) == "number" and b) or (type(a) == "number" and a)\n    local name = (type(a) == "string" and a)\n    if id == LP.PICK_SPELL_ID or (name and name == LP.PickName()) then\n        -- treat'),
     # --- the click area on a box (regressions of 1.2.0 - 1.2.3)
     ("area: self-check ignores a picked box", "Pick.lua", "if not t or not t:IsVisible() or not StillLocked(self) then HideOverlay() end", "if not t or not t:IsVisible() then HideOverlay() end"),
     ("area: self-check ignores a closed bag", "Pick.lua", "if not t or not t:IsVisible() or not StillLocked(self) then HideOverlay() end", "if not StillLocked(self) then HideOverlay() end"),

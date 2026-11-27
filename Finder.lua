@@ -291,6 +291,7 @@ local simCount = 0
 function LP.OnChat(event, msg, sender, sim, chanString, baseName)
     local db = LP.db
     if not db or not msg or not sender then return end
+    if LP.Game.IsSecret(msg) or LP.Game.IsSecret(sender) or LP.Game.IsSecret(chanString) or LP.Game.IsSecret(baseName) then return end   -- unreadable (see LP.Game.IsSecret)
     if not sim and (not db.finder.enabled or not LP.IsRogue()) then return end
     local name = LP.Short(sender)
     if name and not sim and LP.SameName(name, UnitName("player")) then
@@ -645,7 +646,7 @@ end
 
 LP.On("UI_INFO_MESSAGE", function(_, a, b)
     local msg = (type(b) == "string" and b) or (type(a) == "string" and a)
-    if not msg then return end
+    if not msg or LP.Game.IsSecret(msg) then return end
     if msg == _G.ERR_TRADE_COMPLETE then
         LP.DevDebug("trade", "'trade complete' message (tip %s, partner %s)", LP.Money(tradeTip), tostring(tradeName))
         LP.HandleTradeComplete(tradeName or (closedAt and GetTime() - closedAt < 5 and closedName) or nil)

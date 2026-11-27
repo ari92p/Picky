@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.6
+- Fixed: Lua error "attempt to index local 'msg' (a secret string value, while execution tainted by 'Picky')" on CHAT_MSG_SKILL. In some situations (for example in combat) the client hands out chat texts and spell data as "secret" values that tainted code cannot read. Picky now skips secret values everywhere it reads event data: skill messages, chat requests (text, sender and channel), trade info texts, game error texts and cast events.
+- Tests: new self tests and mutations for every one of these places.
+
 ## 1.2.5
 - Self tests that only passed outside the game now pass in the game too (tooltip hint test, placeholder size, tooltip globals). The "Right-click to pick" hint is decided by one small function that the tests check directly.
 - No change in behaviour compared to 1.2.4.

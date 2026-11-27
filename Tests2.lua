@@ -1715,6 +1715,83 @@ T("floating button: it is placed over the placeholder, outside the window", func
     end)
 end)
 
+-- ===== Secret values: in some situations the client hands out texts and numbers that tainted code cannot read (error "attempt to index local
+-- 'msg' (a secret string value ...)", seen on CHAT_MSG_SKILL in 1.2.4). Every handler that reads event data skips such a value. =====
+local function WithSecret(fn, only)   -- only: the one value that counts as secret (nil = everything)
+    WithGame({ IsSecret = function(v) return only == nil or v == only end }, fn)
+end
+T("secret values: a secret skill message is skipped (no error, nothing stored)", function()
+    Sandbox(nil, function()
+        local keep = LP.db.skillBase
+        WithSecret(function() FireEvent("CHAT_MSG_SKILL", "Your skill in Lockpicking has increased to 151.") end)
+        eq(LP.db.skillBase, keep, "a secret message changed the stored skill")
+        LP.db.skillBase = 100
+        FireEvent("CHAT_MSG_SKILL", "Your skill in Lockpicking has increased to 151.")
+        eq(LP.db.skillBase, 151, "a normal skill message is no longer read")
+        LP.db.skillBase = keep
+        LP.RefreshSkill()
+    end)
+end)
+T("secret values: a chat message with a secret text, sender or channel makes no request", function()
+    Sandbox(nil, function()
+        local text, who, chan, base = "LF rogue to open a bronze lockbox pls", "SecretTest-Realm", "2. Handel", "Handel"
+        for _, secret in ipairs({ text, who, chan, base }) do
+            local n = #LP.requests
+            WithSecret(function() LP.OnChat("CHAT_MSG_CHANNEL", text, who, true, chan, base) end, secret)
+            eq(#LP.requests, n, "a message with the secret value '" .. secret .. "' became a request")
+        end
+        local n = #LP.requests
+        LP.OnChat("CHAT_MSG_CHANNEL", text, who, true, chan, base)
+        truthy(#LP.requests > n, "a normal message is no longer read")
+    end)
+end)
+T("secret values: a secret trade info text is skipped", function()
+    Sandbox(nil, function()
+        local calls, keep = 0, LP.HandleTradeComplete
+        LP.HandleTradeComplete = function() calls = calls + 1 end
+        local ok, err = pcall(function()
+            local text = _G.ERR_TRADE_COMPLETE
+            WithSecret(function() FireEvent("UI_INFO_MESSAGE", 1, text) end)
+            eq(calls, 0, "a secret 'trade complete' was read")
+            FireEvent("UI_INFO_MESSAGE", 1, text)
+            eq(calls, 1, "the normal 'trade complete' is no longer read")
+        end)
+        LP.HandleTradeComplete = keep
+        if not ok then error(err, 0) end
+    end)
+end)
+T("secret values: a secret game error text after a click is skipped", function()
+    Sandbox(nil, function()
+        local keepDev, keepAt = LP.db.dev, LP.lastClickAt
+        LP.db.dev, LP.lastClickAt = true, GetTime()
+        local ok, err = pcall(function()
+            local n = #LP.devLog
+            WithSecret(function() FireEvent("UI_ERROR_MESSAGE", 1, "Invalid target") end)
+            eq(#LP.devLog, n, "a secret error text was logged")
+            FireEvent("UI_ERROR_MESSAGE", 1, "Invalid target")
+            truthy(#LP.devLog > n, "the normal error text is no longer logged")
+        end)
+        LP.db.dev, LP.lastClickAt = keepDev, keepAt
+        if not ok then error(err, 0) end
+    end)
+end)
+T("secret values: secret spell data is skipped", function()
+    Sandbox(nil, function()
+        WithSecret(function()
+            FireEvent("UNIT_SPELLCAST_FAILED", "player", "guid", LP.PICK_SPELL_ID)
+        end)
+    end)
+end)
+T("secret values: a secret pick success does not count as a pick", function()
+    Sandbox(nil, function()
+        LP.lastPickTarget = { bag = 2, slot = 5, t = GetTime() }
+        LP.ClearRecentPicks()
+        WithSecret(function() FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", LP.PICK_SPELL_ID) end)
+        falsy(LP.RecentlyPicked(2, 5), "a secret cast was counted")
+        LP.lastPickTarget = nil
+    end)
+end)
+
 T("box button: without boxes it does nothing and the ring is off", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
         LP.boxes = {}
