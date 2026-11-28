@@ -196,8 +196,8 @@ M = [
     ("floater: stays visible over a closed window", "UI.lua", "if want and PlaceFloater(b) then b:Show() else b:SetAlpha(0) b:Hide() end", "if PlaceFloater(b) then b:Show() end"),
     ("floater: alpha not set", "UI.lua", "b:SetAlpha(want and 1 or 0)", "b:SetAlpha(1)"),
     ("floater: the game's own Show is not undone", "UI.lua", "    b:HookScript(\"OnShow\", function() SyncFloater(b) end)", "    -- no OnShow hook"),
-    ("floater: wants nothing but follows the window", "UI.lua", "local want = b.wanted and b.holder:IsVisible() and not inCombat and true or false", "local want = b.wanted and not inCombat and true or false"),
-    ("floater: hidden in combat (impossible)", "UI.lua", "    if inCombat then return end\n    if want", "    if want"),
+    ("floater: wants nothing but follows the window", "UI.lua", "local want = b.wanted and b.holder:IsVisible() and true or false", "local want = b.wanted and true or false"),
+    ("floater: hidden in combat (impossible)", "UI.lua", "    if LP.Game.InCombat() then return end\n    if want", "    if want"),
     # --- the box button
     ("button: not a child of the window", "UI.lua", 'CreateFrame("Button", "PickyBoxButton", UIParent,', 'CreateFrame("Button", "PickyBoxButton", parent,'),
     ("button: right click works", "UI.lua", 'b:RegisterForClicks("AnyUp", "AnyDown")', 'b:RegisterForClicks("LeftButtonUp", "LeftButtonDown")'),
@@ -217,11 +217,6 @@ M = [
     ("combat: hover inspection runs in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no mouse or tooltip work in combat\n", ""),
     ("combat: click area builds a tooltip in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
     ("combat: box button builds a tooltip in combat", "UI.lua", "        if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
-    ("combat start: lockdown not checked", "UI.lua", "        b:SetAlpha(0)\n        if not LP.Game.InCombat() then\n", "        b:SetAlpha(0)\n        if true then\n"),
-    ("combat start: action stays", "UI.lua", 'if win and b == win.box then b:SetAttribute("type", nil) end', "-- action stays"),
-    ("combat start: not hidden", "UI.lua", "            b:Hide()\n        end\n    end\nend)", "        end\n    end\nend)"),
-    ("combat end: box button not set up again", "UI.lua", "    if LP.ApplyBoxButton then LP.ApplyBoxButton() end   -- the box button was switched off", "    -- the box button was switched off"),
-    ("combat: box button visible in combat", "UI.lua", "b.holder:IsVisible() and not inCombat and true or false", "b.holder:IsVisible() and true or false"),
     ("button: a pick click remembers its target", "UI.lua", 'if e and e.action == "pick" then\n            LP.lastPickTarget', 'if e then\n            LP.lastPickTarget'),
 ]
 

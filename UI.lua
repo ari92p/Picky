@@ -983,10 +983,9 @@ local function PlaceFloater(b)
     return true
 end
 local function SyncFloater(b)
-    local inCombat = LP.Game.InCombat()
-    local want = b.wanted and b.holder:IsVisible() and not inCombat and true or false   -- in combat the button is never wanted: it cannot be used then anyway
-    b:SetAlpha(want and 1 or 0)   -- allowed in combat; the only thing that is
-    if inCombat then return end
+    local want = b.wanted and b.holder:IsVisible() and true or false
+    b:SetAlpha(want and 1 or 0)   -- allowed in combat; the state driver may show the button at any time, so it must also be invisible then
+    if LP.Game.InCombat() then return end
     if want and PlaceFloater(b) then b:Show() else b:SetAlpha(0) b:Hide() end
 end
 local function SyncFloaters()
@@ -1005,22 +1004,7 @@ do
     local tick = CreateFrame("Frame")
     tick:SetScript("OnUpdate", SyncFloaters)   -- every frame, so the button follows a dragged window without lag (placing is skipped when nothing moved)
 end
-LP.On("PLAYER_REGEN_ENABLED", function()
-    SyncFloaters()
-    if LP.ApplyBoxButton then LP.ApplyBoxButton() end   -- the box button was switched off for the fight: set it up again (outside combat only)
-end)
--- A fight begins: if the client has not locked the secure frames yet, switch the floating buttons off now (hidden, no action), so nothing of
--- ours can be clicked during the fight. If the lockdown is already on, nothing is touched (only alpha 0, which is allowed in combat).
-LP.On("PLAYER_REGEN_DISABLED", function()
-    LP.DevDebug("pick", "fight starts: lockdown already on = %s", tostring(LP.Game.InCombat()))   -- tells us in the game which case applies
-    for b in pairs(floaters) do
-        b:SetAlpha(0)
-        if not LP.Game.InCombat() then
-            if win and b == win.box then b:SetAttribute("type", nil) end   -- the box button gets its action back after the fight (ApplyBoxButton)
-            b:Hide()
-        end
-    end
-end)
+LP.On("PLAYER_REGEN_ENABLED", SyncFloaters)
 
 LP.Float = Float   -- seam for the self tests
 
