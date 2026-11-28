@@ -127,6 +127,25 @@ overlay:Hide()
 -- showed it again about once a second after our own Hide(): the area came back over boxes that were already picked and swallowed
 -- every right-click on them.)
 
+-- Spam clicking: a second click while the first Pick Lock is still being cast would start a new cast and cancel the running one,
+-- sometimes a few milliseconds before it completes. While the player is casting, the secure action of this click is switched off
+-- (out of combat only: a secure button cannot be changed in combat, and nobody picks locks there with these buttons).
+function LP.GuardCast(b)
+    b:HookScript("PreClick", function(self)
+        if LP.Game.InCombat() or not LP.Game.CastTimes() then return end
+        self.guardType = self:GetAttribute("type")
+        if self.guardType then self:SetAttribute("type", nil) end
+    end)
+    b:HookScript("PostClick", function(self)
+        local t = self.guardType
+        if t then
+            self.guardType = nil
+            if not LP.Game.InCombat() then self:SetAttribute("type", t) end
+        end
+    end)
+end
+LP.GuardCast(overlay)
+
 -- Remember WHAT was last picked via right-click (for the grace period after success)
 overlay:HookScript("PreClick", function(self, button)
     if LP.Game.InCombat() then return end

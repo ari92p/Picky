@@ -1036,6 +1036,7 @@ local function GetRealSlot(p, i)
     b:SetSize(36, 36)
     b:RegisterForClicks("RightButtonUp", "RightButtonDown")
     b:SetAttribute("type", "spell")
+    LP.GuardCast(b)
     b:HookScript("PreClick", function(self, button)   -- also remember here what is picked (grace period after success)
         if LP.Game.InCombat() then return end
         if button == "RightButton" and self.bag then
@@ -1596,6 +1597,7 @@ local function MakeBoxButton(parent)
     b.cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
     b.cd:SetAllPoints()
     b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+    LP.GuardCast(b)
     b:HookScript("PreClick", function(self)
         if LP.Game.InCombat() then return end
         local e = self.entry
