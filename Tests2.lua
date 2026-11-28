@@ -1887,6 +1887,16 @@ T("combat: no Picky frame of its own builds a tooltip when the mouse enters it (
         end
     end)
 end)
+T("combat: the game's tab template has its own OnEnter: it does not run in combat, and runs outside", function()
+    local called = 0
+    local tab = CreateFrame("Frame")
+    tab:SetScript("OnEnter", function() called = called + 1 end)   -- stands in for the template's handler
+    LP.GuardTabTooltip(tab)
+    WithGame({ InCombat = function() return true end }, function() tab:GetScript("OnEnter")(tab) end)
+    eq(called, 0, "the template's OnEnter ran in combat")
+    tab:GetScript("OnEnter")(tab)
+    eq(called, 1, "the template's OnEnter does not run outside combat")
+end)
 T("combat: a click on the box button reads and remembers nothing in combat", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
         LP.lastPickTarget = nil

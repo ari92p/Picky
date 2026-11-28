@@ -103,9 +103,20 @@ local function SavePos()
 end
 
 -- Icon tab (pattern HealKit Tabs.lua / Forever professions window)
+-- The game's tab template brings its own OnEnter (it builds the tooltip from tab.tooltipText): in combat that handler must not run.
+local function GuardTabTooltip(tab)
+    local orig = tab:GetScript("OnEnter")
+    tab:SetScript("OnEnter", function(self, ...)
+        if LP.Game.InCombat() then return end
+        if orig then return orig(self, ...) end
+    end)
+    return tab
+end
+LP.GuardTabTooltip = GuardTabTooltip   -- seam for the self tests
+
 local function CreateTab(parent)
     local ok, tab = pcall(CreateFrame, "Frame", nil, parent, "LargeSideTabButtonTemplate")
-    if ok and tab and tab.Icon then return tab end
+    if ok and tab and tab.Icon then return GuardTabTooltip(tab) end
     tab = CreateFrame("Frame", nil, parent)
     tab:SetSize(40, 40)
     tab.Icon = tab:CreateTexture(nil, "ARTWORK")
@@ -117,15 +128,14 @@ local function CreateTab(parent)
     tab:SetScript("OnMouseUp", function(self, button)
         if self.customMouseUpHandler then self.customMouseUpHandler(self, button, true) end
     end)
-    tab:SetScript("OnEnter", function(self)
-        if LP.Game.InCombat() then return end
+    tab:SetScript("OnEnter", function(self)   -- (kept out of combat by GuardTabTooltip below)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(self.tooltipText)
         GameTooltip:Show()
     end)
     tab:SetScript("OnLeave", HideTip)
     tab.SetCustomOnMouseUpHandler = function(self, fn) self.customMouseUpHandler = fn end
-    return tab
+    return GuardTabTooltip(tab)
 end
 
 local function NewPage()
