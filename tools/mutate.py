@@ -212,6 +212,11 @@ M = [
     ("button: the number needs two boxes", "UI.lua", '#LP.boxes > 1 and #LP.boxes or ""', '#LP.boxes > 0 and #LP.boxes or ""'),
     ("button: secret cast times are compared", "UI.lua", "if LP.Game.IsSecret(cs) or LP.Game.IsSecret(ce) then return end", "-- no secret check"),
     ("button: secret spell cooldown is compared", "UI.lua", "if LP.Game.IsSecret(start) or LP.Game.IsSecret(dur) then return end", "-- no secret check"),
+    ("combat: tooltip check asks the mouse in combat", "Pick.lua", "local function CheckOverlayAtMouse()\n    if LP.Game.InCombat() then return end\n", "local function CheckOverlayAtMouse()\n"),
+    ("combat: tooltip refresh runs in combat", "Pick.lua", "local function RefreshTooltip()\n    if LP.Game.InCombat() then return end\n", "local function RefreshTooltip()\n"),
+    ("combat: hover inspection runs in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no mouse or tooltip work in combat\n", ""),
+    ("combat: click area builds a tooltip in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
+    ("combat: box button builds a tooltip in combat", "UI.lua", "        if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
     ("button: a pick click remembers its target", "UI.lua", 'if e and e.action == "pick" then\n            LP.lastPickTarget', 'if e then\n            LP.lastPickTarget'),
 ]
 

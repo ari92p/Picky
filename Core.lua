@@ -18,6 +18,14 @@ LP.Game = {
     -- ("attempt to index local 'msg' (a secret string value ...)"). Everything that reads event texts asks this first and skips a secret one.
     IsSecret = function(v) return issecretvalue and issecretvalue(v) and true or false end,
     InCombat = function() return InCombatLockdown and InCombatLockdown() and true or false end,
+    -- What is under the mouse (modern client: GetMouseFoci, older: GetMouseFocus). Picky never asks in combat (see CheckOverlayAtMouse).
+    MouseFocus = function()
+        if GetMouseFoci then
+            local f = GetMouseFoci()
+            return f and f[1]
+        end
+        return GetMouseFocus and GetMouseFocus()
+    end,
     IsInGuild = function() return IsInGuild and IsInGuild() end,
     GetChannelList = function() if GetChannelList then return GetChannelList() end end,
     UnitLevel = function() return (UnitLevel and UnitLevel("player")) or 1 end,

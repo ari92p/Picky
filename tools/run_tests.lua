@@ -69,6 +69,8 @@ local function NewFrame(name)
             end
             if k == "GetPoint" then return "CENTER", nil, "CENTER", 0, 0 end
             if k == "SetPassThroughButtons" then rawset(self, "__pass", table.concat({ ... }, ",")) return end
+            if k == "SetOwner" then rawset(self, "__owner", (...)) return end
+            if k == "GetOwner" then return rawget(self, "__owner") end
             if k == "RegisterForClicks" then rawset(self, "__clicks", table.concat({ ... }, ",")) return end
             if k == "SetAttribute" then local n, v = ... rawset(self, "__attrs", rawget(self, "__attrs") or {}) self.__attrs[n] = v return end
             if k == "GetAttribute" then local at = rawget(self, "__attrs") return at and at[(...)] end

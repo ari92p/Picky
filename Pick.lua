@@ -212,13 +212,7 @@ do
     end)
 end
 
-local function GetMouseFocusCompat()
-    if GetMouseFoci then
-        local f = GetMouseFoci()
-        return f and f[1]
-    end
-    return GetMouseFocus and GetMouseFocus()
-end
+local function GetMouseFocusCompat() return LP.Game.MouseFocus() end
 
 local function GetBagAndSlot(frame)
     if not frame then return nil, nil end
@@ -345,7 +339,16 @@ local function CheckOverlay(focus)
     if not ok then HideOverlay() end
 end
 
+-- In combat Picky looks at neither the mouse nor the tooltip: no mouse focus query, no click area, no tooltip changes. Everything that
+-- reacts to a tooltip or the mouse goes through here, so the check happens before the game is asked anything.
+local function CheckOverlayAtMouse()
+    if LP.Game.InCombat() then return end
+    CheckOverlay(GetMouseFocusCompat())
+end
+LP.CheckOverlayAtMouse = CheckOverlayAtMouse
+
 overlay:SetScript("OnEnter", function(self)
+    if LP.Game.InCombat() then return end   -- no tooltip work in combat
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if self.isTrade then
         if GameTooltip.SetTradeTargetItem then GameTooltip:SetTradeTargetItem(7) end
@@ -359,9 +362,9 @@ overlay:SetScript("OnEnter", function(self)
     end
     GameTooltip:Show()
 end)
-overlay:SetScript("OnLeave", function()
+overlay:SetScript("OnLeave", function(self)
     HideOverlay()
-    GameTooltip:Hide()
+    if GameTooltip:GetOwner() == self then GameTooltip:Hide() end
 end)
 
 -- Test switches (Developer tab, saved in LP.db.off): parts of Picky that are switched off to find the cause of blocked actions.
@@ -381,16 +384,16 @@ function LP.InstallTooltipHook()
     hookInstalled = true
     if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
         TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
-            if tooltip == GameTooltip then CheckOverlay(GetMouseFocusCompat()) end
+            if tooltip == GameTooltip then CheckOverlayAtMouse() end
         end)
     elseif GameTooltip.HookScript then
-        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetItem", function() CheckOverlay(GetMouseFocusCompat()) end)
+        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetItem", function() CheckOverlayAtMouse() end)
     end
 end
 
 LP.On("MODIFIER_STATE_CHANGED", function()
     if LP.Game.InCombat() then return end
-    if IsShiftKeyDown() then HideOverlay() else CheckOverlay(GetMouseFocusCompat()) end
+    if IsShiftKeyDown() then HideOverlay() else CheckOverlayAtMouse() end
 end)
 LP.On("TRADE_CLOSED", HideOverlay)
 LP.On("PLAYER_ENTERING_WORLD", HideOverlay)   -- the state driver shows the area once at login: nothing to click yet
@@ -406,12 +409,13 @@ end
 -- so it does not hang on a reused button with stale bag/slot values.
 LP.On("PLAYER_REGEN_ENABLED", function()
     HideOverlay()
-    LP.After(0.1, function() CheckOverlay(GetMouseFocusCompat()) end)
+    LP.After(0.1, CheckOverlayAtMouse)
 end)
 
 -- Refresh the tooltip without mouse movement: otherwise the client only rebuilds it on re-entering.
 -- For that we trigger the "enter" of the bag slot (or our click area) ourselves.
 local function RefreshTooltip()
+    if LP.Game.InCombat() then return end
     pcall(function()
         if overlay:IsShown() and overlay:IsMouseOver() then
             local fn = overlay:GetScript("OnEnter")
@@ -435,11 +439,13 @@ local function RefreshTooltip()
     end)
 end
 
+LP.RefreshTooltip = RefreshTooltip   -- seam for the self tests
+
 local function Recheck(refreshTip)
     if LP.Game.InCombat() then return end
     HideOverlay()
     LP.After(0.15, function()
-        CheckOverlay(GetMouseFocusCompat())
+        CheckOverlayAtMouse()
         if refreshTip then RefreshTooltip() end
     end)
 end
@@ -456,6 +462,7 @@ end)
 
 -- Hover check (debug): explains why a click area appears under the mouse or not ----------------------
 function LP.InspectHover()
+    if LP.Game.InCombat() then return end   -- no mouse or tooltip work in combat
     local focus = GetMouseFocusCompat()
     if not focus then LP.Print(L["Nothing under the mouse."]) return end
     local function SafeName(f)

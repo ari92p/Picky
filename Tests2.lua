@@ -1812,6 +1812,39 @@ T("box button: readable cast times still drive the swipe", function()
         end)
     end)
 end)
+-- ===== In combat Picky does nothing with the mouse or tooltips (no mouse focus query, no tooltip changes). =====
+local function CountMouse(inCombat, fn)
+    local n = 0
+    WithGame({ InCombat = function() return inCombat end, MouseFocus = function() n = n + 1 return nil end }, fn)
+    return n
+end
+T("combat: the tooltip/mouse check does not ask for the mouse focus", function()
+    eq(CountMouse(true, function() LP.CheckOverlayAtMouse() end), 0, "mouse focus asked in combat")
+end)
+T("combat: outside combat the same check asks for the mouse focus (the guard is not always on)", function()
+    truthy(CountMouse(false, function() LP.CheckOverlayAtMouse() end) >= 1, "mouse focus not asked outside combat")
+end)
+T("combat: the tooltip refresh does not ask for the mouse focus", function()
+    eq(CountMouse(true, function() LP.RefreshTooltip() end), 0, "mouse focus asked in combat")
+end)
+T("combat: the hover inspection does not ask for the mouse focus", function()
+    eq(CountMouse(true, function() LP.InspectHover() end), 0, "mouse focus asked in combat")
+end)
+T("combat: the click area does not touch the tooltip when entered", function()
+    local ov = LP.Overlay
+    local before = GameTooltip:GetOwner()
+    ov.bag, ov.slot = 1, 1
+    WithGame({ InCombat = function() return true end }, function() ov:GetScript("OnEnter")(ov) end)
+    ov.bag, ov.slot = nil, nil
+    truthy(GameTooltip:GetOwner() == before, "the tooltip got a new owner in combat")
+end)
+T("combat: the box button does not touch the tooltip when entered", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        local before = GameTooltip:GetOwner()
+        WithGame({ InCombat = function() return true end }, function() b:GetScript("OnEnter")(b) end)
+        truthy(GameTooltip:GetOwner() == before, "the tooltip got a new owner in combat")
+    end)
+end)
 T("box button: a pick click remembers its target for the grace period, an open click does not", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
         LP.lastPickTarget = nil

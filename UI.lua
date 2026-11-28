@@ -1585,6 +1585,7 @@ local function MakeBoxButton(parent)
     end)
     b:HookScript("PostClick", function() LP.RefreshBoxes() end)
     b:SetScript("OnEnter", function(self)
+        if LP.Game.InCombat() then return end   -- no tooltip work in combat
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
         local e = self.entry
         if e then
@@ -1601,7 +1602,7 @@ local function MakeBoxButton(parent)
         if (LP.boxesTooHigh or 0) > 0 then GameTooltip:AddLine(L["%d need more skill"]:format(LP.boxesTooHigh), 1, 0.5, 0.3) end
         GameTooltip:Show()
     end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnLeave", function(self) if GameTooltip:GetOwner() == self then GameTooltip:Hide() end end)
     b:SetScript("OnUpdate", function(self)
         if self.glow:IsShown() then self.glow:SetAlpha(0.55 + 0.45 * math.sin(GetTime() * 3)) end
     end)
