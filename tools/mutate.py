@@ -215,7 +215,7 @@ M = [
     ("combat: tooltip check asks the mouse in combat", "Pick.lua", "local function CheckOverlayAtMouse()\n    if LP.Game.InCombat() then return end\n", "local function CheckOverlayAtMouse()\n"),
     ("combat: tooltip refresh runs in combat", "Pick.lua", "local function RefreshTooltip()\n    if LP.Game.InCombat() then return end\n", "local function RefreshTooltip()\n"),
     ("combat: hover inspection runs in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no mouse or tooltip work in combat\n", ""),
-    ("combat: click area builds a tooltip in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
+    ("combat: click area has no tooltip in combat", "Pick.lua", 'overlay:SetScript("OnEnter", function(self)\n    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")', 'overlay:SetScript("OnEnter", function(self)\n    if LP.Game.InCombat() then return end\n    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")'),
     ("combat: box button builds a tooltip in combat", "UI.lua", "        if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
     ("combat: tab tooltip in combat", "UI.lua", "    tab:SetScript(\"OnEnter\", function(self)\n        if LP.Game.InCombat() then return end\n", "    tab:SetScript(\"OnEnter\", function(self)\n"),
     ("combat: minimap tooltip in combat", "UI.lua", "mm:SetScript(\"OnEnter\", NoCombat(MinimapTooltip))", "mm:SetScript(\"OnEnter\", MinimapTooltip)"),

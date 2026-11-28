@@ -1589,6 +1589,27 @@ T("click area: a locked box gets it, set up for Pick Lock on exactly that slot, 
         truthy(area:GetParent() == UIParent, "parent is UIParent")
     end)
 end)
+T("scenario: hover a box, the fight starts, move the mouse around, move the box: the area stays on its slot, nothing is asked, afterwards it follows", function()
+    WithArea({ locked = true }, function(focus, area)
+        LP.CheckOverlayRaw(focus)
+        truthy(area:IsShown() and area.bag == 2 and area.slot == 5, "area over slot 2/5 before the fight")
+        local asked, other = 0, FakeFocus(3, 7)
+        WithGame({ InCombat = function() return true end, MouseFocus = function() asked = asked + 1 return other end }, function()
+            -- the mouse enters the area in combat: it still shows its tooltip (the slot below it cannot)
+            area:GetScript("OnEnter")(area)
+            truthy(GameTooltip:GetOwner() == area, "no tooltip over the area in combat")
+            -- an item tooltip elsewhere (the game's hook calls this): nothing is asked, the area does not move
+            LP.CheckOverlayAtMouse()
+            Tick(area)
+            eq(asked, 0, "the mouse focus was asked in combat")
+            truthy(area.bag == 2 and area.slot == 5, "the area moved in combat")
+            truthy(area:IsShown(), "the area was hidden in combat (impossible)")
+        end)
+        -- the fight is over: the same call now looks at the mouse again
+        WithGame({ MouseFocus = function() asked = asked + 1 return other end }, function() LP.CheckOverlayAtMouse() end)
+        truthy(asked >= 1, "the mouse focus is not asked after the fight")
+    end)
+end)
 T("click area: a box that is not locked (already picked, or no box at all) gets none", function()
     WithArea({ locked = false }, function(focus, area)
         LP.CheckOverlayRaw(focus)
@@ -1830,13 +1851,19 @@ end)
 T("combat: the hover inspection does not ask for the mouse focus", function()
     eq(CountMouse(true, function() LP.InspectHover() end), 0, "mouse focus asked in combat")
 end)
-T("combat: the click area does not touch the tooltip when entered", function()
+T("combat: a click area that is already over a slot keeps its tooltip (the slot below it cannot show one)", function()
     local ov = LP.Overlay
-    local before = GameTooltip:GetOwner()
+    local keepB, keepS = ov.bag, ov.slot
     ov.bag, ov.slot = 1, 1
-    WithGame({ InCombat = function() return true end }, function() ov:GetScript("OnEnter")(ov) end)
-    ov.bag, ov.slot = nil, nil
-    truthy(GameTooltip:GetOwner() == before, "the tooltip got a new owner in combat")
+    local ok, err = pcall(function()
+        WithGame({ InCombat = function() return true end }, function()
+            ov:GetScript("OnEnter")(ov)
+            truthy(GameTooltip:GetOwner() == ov, "no tooltip over a slot that has a click area")
+            ov:GetScript("OnLeave")(ov)
+        end)
+    end)
+    ov.bag, ov.slot = keepB, keepS
+    if not ok then error(err, 0) end
 end)
 T("combat: the box button does not touch the tooltip when entered", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
@@ -1845,11 +1872,11 @@ T("combat: the box button does not touch the tooltip when entered", function()
         truthy(GameTooltip:GetOwner() == before, "the tooltip got a new owner in combat")
     end)
 end)
-T("combat: no Picky frame builds a tooltip when the mouse enters it (tabs, minimap button, click area, box button)", function()
+T("combat: no Picky frame of its own builds a tooltip when the mouse enters it (tabs, minimap button, box button)", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
-        local frames = { b, LP.Overlay, _G.PickyMinimap }
+        local frames = { b, _G.PickyMinimap }
         for _, t in pairs(LP.TabFrames()) do frames[#frames + 1] = t end
-        truthy(#frames >= 4, "frames to check")
+        truthy(#frames >= 3, "frames to check")
         for i, f in ipairs(frames) do
             local fn = f.GetScript and f:GetScript("OnEnter")
             if fn then

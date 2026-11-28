@@ -348,8 +348,10 @@ local function CheckOverlayAtMouse()
 end
 LP.CheckOverlayAtMouse = CheckOverlayAtMouse
 
+-- The click area cannot be hidden in combat, so a slot that has one keeps it for the whole fight and the mouse never reaches Blizzard's own
+-- slot button below it. It must therefore keep showing its tooltip in combat: with no handler the slot would have no tooltip at all.
+-- (New click areas are not made in combat, see CheckOverlayAtMouse: other slots show the game's own tooltip then.)
 overlay:SetScript("OnEnter", function(self)
-    if LP.Game.InCombat() then return end   -- no tooltip work in combat
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if self.isTrade then
         if GameTooltip.SetTradeTargetItem then GameTooltip:SetTradeTargetItem(7) end
