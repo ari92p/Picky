@@ -129,6 +129,7 @@ overlay:Hide()
 
 -- Remember WHAT was last picked via right-click (for the grace period after success)
 overlay:HookScript("PreClick", function(self, button)
+    if LP.Game.InCombat() then return end
     if button == "RightButton" then
         LP.lastPickTarget = { bag = self.bag, slot = self.slot, trade = self.isTrade, t = GetTime() }
         LP.DevDebug("pick", "right-click pick started on %s", self.isTrade and "trade slot" or ("bag " .. tostring(self.bag) .. " slot " .. tostring(self.slot)))
@@ -138,7 +139,7 @@ end)
 -- Diagnosis: what happened after a click on the click area (the secure action runs after PreClick). Red game errors and failed casts
 -- right after a click are logged too, so "nothing happens" can be explained.
 overlay:HookScript("PostClick", function(self, button)
-    if button ~= "RightButton" then return end
+    if LP.Game.InCombat() or button ~= "RightButton" then return end
     LP.lastClickAt = GetTime()
     LP.DevDebug("pick", "after click: type=%s spell=%s bag=%s slot=%s casting=%s targeting=%s", tostring(self:GetAttribute("type")),
         tostring(self:GetAttribute("spell")), tostring(self:GetAttribute("target-bag")), tostring(self:GetAttribute("target-slot")),

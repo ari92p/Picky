@@ -217,6 +217,9 @@ M = [
     ("combat: hover inspection runs in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no mouse or tooltip work in combat\n", ""),
     ("combat: click area builds a tooltip in combat", "Pick.lua", "    if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
     ("combat: box button builds a tooltip in combat", "UI.lua", "        if LP.Game.InCombat() then return end   -- no tooltip work in combat\n", ""),
+    ("combat: tab tooltip in combat", "UI.lua", "    tab:SetScript(\"OnEnter\", function(self)\n        if LP.Game.InCombat() then return end\n", "    tab:SetScript(\"OnEnter\", function(self)\n"),
+    ("combat: minimap tooltip in combat", "UI.lua", "mm:SetScript(\"OnEnter\", NoCombat(MinimapTooltip))", "mm:SetScript(\"OnEnter\", MinimapTooltip)"),
+    ("combat: box button click remembered in combat", "UI.lua", "    b:HookScript(\"PreClick\", function(self)\n        if LP.Game.InCombat() then return end\n", "    b:HookScript(\"PreClick\", function(self)\n"),
     ("button: a pick click remembers its target", "UI.lua", 'if e and e.action == "pick" then\n            LP.lastPickTarget', 'if e then\n            LP.lastPickTarget'),
 ]
 

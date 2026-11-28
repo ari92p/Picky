@@ -1845,6 +1845,28 @@ T("combat: the box button does not touch the tooltip when entered", function()
         truthy(GameTooltip:GetOwner() == before, "the tooltip got a new owner in combat")
     end)
 end)
+T("combat: no Picky frame builds a tooltip when the mouse enters it (tabs, minimap button, click area, box button)", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        local frames = { b, LP.Overlay, _G.PickyMinimap }
+        for _, t in pairs(LP.TabFrames()) do frames[#frames + 1] = t end
+        truthy(#frames >= 4, "frames to check")
+        for i, f in ipairs(frames) do
+            local fn = f.GetScript and f:GetScript("OnEnter")
+            if fn then
+                local before = GameTooltip:GetOwner()
+                WithGame({ InCombat = function() return true end }, function() fn(f) end)
+                truthy(GameTooltip:GetOwner() == before, "frame " .. i .. " built a tooltip in combat")
+            end
+        end
+    end)
+end)
+T("combat: a click on the box button reads and remembers nothing in combat", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        LP.lastPickTarget = nil
+        WithGame({ InCombat = function() return true end }, function() b:GetScript("PreClick")(b, "LeftButton") end)
+        eq(LP.lastPickTarget, nil, "a click in combat was remembered")
+    end)
+end)
 T("box button: a pick click remembers its target for the grace period, an open click does not", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
         LP.lastPickTarget = nil

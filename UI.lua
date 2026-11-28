@@ -5,6 +5,12 @@ local L = LP.L
 
 local ICON_PICK = "Interface\\Icons\\Spell_Nature_MoonKey"
 local win, pages, tabs = nil, {}, {}
+
+-- In combat Picky's own mouse reactions do nothing (no tooltips, no clicks that read game state): nothing the mouse does in a fight may
+-- start work in our code. A tooltip is only hidden when it is ours.
+local function NoCombat(fn) return function(...) if LP.Game.InCombat() then return end return fn(...) end end
+local function HideTip(self) if GameTooltip:GetOwner() == self then GameTooltip:Hide() end end
+LP.TabFrames = function() return tabs end   -- seam for the self tests
 local rows = {}
 local refreshers = {}      -- functions that reload the settings widgets from the DB
 
@@ -112,11 +118,12 @@ local function CreateTab(parent)
         if self.customMouseUpHandler then self.customMouseUpHandler(self, button, true) end
     end)
     tab:SetScript("OnEnter", function(self)
+        if LP.Game.InCombat() then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(self.tooltipText)
         GameTooltip:Show()
     end)
-    tab:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    tab:SetScript("OnLeave", HideTip)
     tab.SetCustomOnMouseUpHandler = function(self, fn) self.customMouseUpHandler = fn end
     return tab
 end
@@ -424,8 +431,8 @@ local function NewIconButton(parent)
     b.hl:SetColorTexture(1, 1, 1, 0.25)
     b.req = FS(b, "GameFontHighlightSmall")
     b.req:SetPoint("BOTTOMRIGHT", 2, 0)
-    b:SetScript("OnEnter", BoxTip)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnEnter", NoCombat(BoxTip))
+    b:SetScript("OnLeave", HideTip)
     return b
 end
 
@@ -481,11 +488,12 @@ local function NewCard(parent)
         end
     end)
     c.map:SetScript("OnEnter", function(self)
+        if LP.Game.InCombat() then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(L["Click: open the map and set a pin"])
         GameTooltip:Show()
     end)
-    c.map:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    c.map:SetScript("OnLeave", HideTip)
     c.note = FS(c, "GameFontHighlightSmall")
     c.note:SetWidth(GUIDE_W - 16)
     c.note:SetJustifyV("TOP")
@@ -1019,6 +1027,7 @@ local function GetRealSlot(p, i)
     b:RegisterForClicks("RightButtonUp", "RightButtonDown")
     b:SetAttribute("type", "spell")
     b:HookScript("PreClick", function(self, button)   -- also remember here what is picked (grace period after success)
+        if LP.Game.InCombat() then return end
         if button == "RightButton" and self.bag then
             LP.lastPickTarget = { bag = self.bag, slot = self.slot, t = GetTime() }
         end
@@ -1028,14 +1037,14 @@ local function GetRealSlot(p, i)
     b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
     b:SetScript("OnEnter", function(self)
-        if not self.bag then return end
+        if LP.Game.InCombat() or not self.bag then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetBagItem(self.bag, self.slot)
         GameTooltip:AddLine(" ")
         SlotHint(GameTooltip, self.req)
         GameTooltip:Show()
     end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnLeave", HideTip)
     Float(b, holder)
     b.wanted = false
     b:Hide()
@@ -1209,8 +1218,8 @@ local function BuildDebug(p)
         GameTooltip:AddLine("|cff00ccffPicky|r  |cff4de88a" .. (simLocked and L["Right-click to pick (simulated)"] or L["Right-click to open (simulated)"]) .. "|r")
         GameTooltip:Show()
     end
-    sim:SetScript("OnEnter", SimTooltip)
-    sim:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    sim:SetScript("OnEnter", NoCombat(SimTooltip))
+    sim:SetScript("OnLeave", HideTip)
     sim:SetScript("OnClick", function(self)
         if simLocked then
             LP.Debug("pick", "simulated right-click: pick on the practice box")
@@ -1578,12 +1587,13 @@ local function MakeBoxButton(parent)
     b.cd:SetAllPoints()
     b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
     b:HookScript("PreClick", function(self)
+        if LP.Game.InCombat() then return end
         local e = self.entry
         if e and e.action == "pick" then
             LP.lastPickTarget = { bag = e.bag, slot = e.slot, t = GetTime() }   -- grace period after the pick (see Pick.lua)
         end
     end)
-    b:HookScript("PostClick", function() LP.RefreshBoxes() end)
+    b:HookScript("PostClick", NoCombat(function() LP.RefreshBoxes() end))
     b:SetScript("OnEnter", function(self)
         if LP.Game.InCombat() then return end   -- no tooltip work in combat
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
@@ -1920,8 +1930,8 @@ function LP.BuildMinimap()
         end)
     end)
     mm:SetScript("OnDragStop", function(s) s:SetScript("OnUpdate", nil) end)
-    mm:SetScript("OnEnter", MinimapTooltip)
-    mm:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    mm:SetScript("OnEnter", NoCombat(MinimapTooltip))
+    mm:SetScript("OnLeave", HideTip)
     PlaceMinimap()
     LP.UpdateMinimap()
     LP.UpdateMinimapState()
