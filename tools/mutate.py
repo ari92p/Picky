@@ -210,6 +210,8 @@ M = [
     ("button: no box, no action", "UI.lua", '        b:SetAttribute("type", nil)\n        b.count:SetText("")', '        b.count:SetText("")'),
     ("button: no box, ring off", "UI.lua", '        b.count:SetText("")\n        b.glow:Hide()', '        b.count:SetText("")'),
     ("button: the number needs two boxes", "UI.lua", '#LP.boxes > 1 and #LP.boxes or ""', '#LP.boxes > 0 and #LP.boxes or ""'),
+    ("button: secret cast times are compared", "UI.lua", "if LP.Game.IsSecret(cs) or LP.Game.IsSecret(ce) then return end", "-- no secret check"),
+    ("button: secret spell cooldown is compared", "UI.lua", "if LP.Game.IsSecret(start) or LP.Game.IsSecret(dur) then return end", "-- no secret check"),
     ("button: a pick click remembers its target", "UI.lua", 'if e and e.action == "pick" then\n            LP.lastPickTarget', 'if e then\n            LP.lastPickTarget'),
 ]
 

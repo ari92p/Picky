@@ -1763,6 +1763,55 @@ T("box button: the number is the count of all boxes, shown from two on", functio
         eq(b.count:GetText(), "3", "three boxes")
     end)
 end)
+-- A number the client marks as secret: any comparison or arithmetic on it is an error from tainted code. The metamethods count such attempts.
+local function SecretNumbers(hits)   -- one shared metatable: Lua 5.1 only calls __lt/__le when both sides have the same function
+    local mt = { __lt = function() hits.n = hits.n + 1 return false end, __le = function() hits.n = hits.n + 1 return false end,
+        __sub = function() hits.n = hits.n + 1 return 0 end }
+    return setmetatable({}, mt), setmetatable({}, mt)
+end
+local function CooldownSpy(b, fn)   -- counts what the swipe is told; puts the button's own methods back
+    local calls, oldSet, oldClear = { n = 0 }, rawget(b.cd, "SetCooldown"), rawget(b.cd, "Clear")
+    b.cd.SetCooldown = function() calls.n = calls.n + 1 end
+    b.cd.Clear = function() calls.n = calls.n + 1 end
+    local ok, err = pcall(fn, calls)
+    b.cd.SetCooldown, b.cd.Clear = oldSet, oldClear
+    if not ok then error(err, 0) end
+end
+T("box button: secret cast times are never compared and leave the swipe alone", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        local hits = { n = 0 }
+        local s1, s2 = SecretNumbers(hits)
+        CooldownSpy(b, function(calls)
+            WithGame({ CastTimes = function() return s1, s2 end, PickCooldown = function() return 0, 0 end,
+                IsSecret = function(v) return v == s1 or v == s2 end }, function() LP.ApplyBoxButton() end)
+            eq(hits.n, 0, "a secret cast time was compared")
+            eq(calls.n, 0, "the swipe was changed from secret values")
+        end)
+    end)
+end)
+T("box button: a secret spell cooldown is never compared and leaves the swipe alone", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        local hits = { n = 0 }
+        local s1, s2 = SecretNumbers(hits)
+        CooldownSpy(b, function(calls)
+            -- "number > table" cannot be counted in Lua 5.1 (no shared metamethod), so also check that the value was asked about
+            local asked = 0
+            WithGame({ CastTimes = function() return nil end, PickCooldown = function() return s1, s2 end,
+                IsSecret = function(v) if v == s1 or v == s2 then asked = asked + 1 end return v == s1 or v == s2 end }, function() LP.ApplyBoxButton() end)
+            truthy(asked > 0, "the cooldown values were never checked for being secret")
+            eq(hits.n, 0, "a secret cooldown was compared")
+            eq(calls.n, 0, "the swipe was changed from secret values")
+        end)
+    end)
+end)
+T("box button: readable cast times still drive the swipe", function()
+    WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
+        CooldownSpy(b, function(calls)
+            WithGame({ CastTimes = function() return 10, 12 end, PickCooldown = function() return 0, 0 end }, function() LP.ApplyBoxButton() end)
+            eq(calls.n, 1, "the swipe is set once")
+        end)
+    end)
+end)
 T("box button: a pick click remembers its target for the grace period, an open click does not", function()
     WithBoxButton({ { bag = 2, slot = 5, id = 4634, action = "pick", req = 70 } }, function(b)
         LP.lastPickTarget = nil

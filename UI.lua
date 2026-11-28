@@ -1541,7 +1541,15 @@ local function UpdateBoxCooldown(b)
     pcall(function()
         local start, dur
         local cs, ce = LP.Game.CastTimes()
-        if cs and ce and ce > cs then start, dur = cs, ce - cs else start, dur = LP.Game.PickCooldown() end
+        -- InCombat() can still be false right at the edge of a fight while the client already hands out secret numbers
+        -- (seen in taint.log: "attempt to compare a secret value ... UpdateBoxCooldown"): never compare one, keep the old swipe.
+        if LP.Game.IsSecret(cs) or LP.Game.IsSecret(ce) then return end
+        if cs and ce and ce > cs then
+            start, dur = cs, ce - cs
+        else
+            start, dur = LP.Game.PickCooldown()
+            if LP.Game.IsSecret(start) or LP.Game.IsSecret(dur) then return end
+        end
         if start and dur and dur > 0 then b.cd:SetCooldown(start, dur) else b.cd:Clear() end
     end)
 end
